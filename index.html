@@ -1506,8 +1506,9 @@ function drawCut(d){
 
 /* ---------- src/player/quests.js ---------- */
 /* QUEST STATE + EVENTS. st: id -> 'active'|'ready'|'done'. n: kill counters. items: carried quest items. met: NPCs already greeted. */
-const QS={st:{},n:{},items:{},met:{},seen:{}};
-function resetQuests(){QS.st={};QS.n={};QS.items={};QS.met={};QS.seen={};}
+const QS={st:{},n:{},items:{},met:{},seen:{},ord:[]};
+const TRK={id:null,auto:true,open:true,sig:null,flash:0,fk:'',rect:null,done:null,prev:null,cache:null};   // quest tracker state (ui/tracker.js); id/open are saved with the quests
+function resetQuests(){QS.st={};QS.n={};QS.items={};QS.met={};QS.seen={};QS.ord=[];TRK.id=null;TRK.auto=true;TRK.open=true;TRK.sig=null;TRK.flash=0;TRK.done=null;TRK.prev=null;}
 function questStatus(id){
   const q=QUEST_BY_ID[id];if(QS.st[id])return QS.st[id];
   return (!q.req||QS.st[q.req]==='done')?'avail':'locked';
@@ -1530,7 +1531,7 @@ function questCheckReady(q){
 }
 function questStart(id){
   const q=QUEST_BY_ID[id];if(questStatus(id)!=='avail')return false;
-  QS.st[id]='active';QS.n[id]=0;if(q.obj.k==='collect'||q.obj.k==='find')QS.items[q.obj.item]=0;
+  QS.st[id]='active';QS.ord=QS.ord.filter(x=>x!==id);QS.ord.push(id);if(!trkValid(TRK.id)||(TRK.auto&&!/^q:/.test(TRK.id))){TRK.id='q:'+id;TRK.auto=true;}QS.n[id]=0;if(q.obj.k==='collect'||q.obj.k==='find')QS.items[q.obj.item]=0;
   toast('NEW QUEST: '+q.name,3,'#ffe14d');sfx('select');questCheckReady(q);saveGame('quest');return true;
 }
 /* world events: ('kill',type) ('area',name) */
@@ -1589,8 +1590,9 @@ function questTalk(npc){
   if(ac&&!smith){QS.met[npc.name]=true;DLG={name:npc.name,lines:ac.prog.concat(['('+ac.name+': '+questProgress(ac)+'/'+questNeed(ac)+')']),i:0,c:0};return true;}
   return false;
 }
-function packQuests(){return {st:QS.st,n:QS.n,items:QS.items,met:QS.met,seen:QS.seen};}
-function unpackQuests(s){resetQuests();if(!s)return;QS.st=Object.assign({},s.st);QS.n=Object.assign({},s.n);QS.items=Object.assign({},s.items);QS.met=Object.assign({},s.met);QS.seen=Object.assign({},s.seen);}
+function packQuests(){return {st:QS.st,n:QS.n,items:QS.items,met:QS.met,seen:QS.seen,ord:QS.ord,trk:{id:TRK.id,open:TRK.open,auto:TRK.auto}};}
+function unpackQuests(s){resetQuests();if(!s)return;QS.st=Object.assign({},s.st);QS.n=Object.assign({},s.n);QS.items=Object.assign({},s.items);QS.met=Object.assign({},s.met);QS.seen=Object.assign({},s.seen);
+  QS.ord=Array.isArray(s.ord)?s.ord.filter(id=>QUEST_BY_ID[id]):[];if(s.trk&&typeof s.trk==='object'){TRK.id=typeof s.trk.id==='string'?s.trk.id:null;TRK.open=s.trk.open!==false;TRK.auto=s.trk.auto!==false&&!(typeof s.trk.id==='string'&&s.trk.auto===undefined);}}
 /* quest items lying on the map */
 function questWorldItems(){return QWORLD.filter(w=>QS.st[w.quest]==='active'&&!QS.items[QUEST_BY_ID[w.quest].obj.item]);}
 function updateQuestWorld(){
@@ -3950,27 +3952,46 @@ function drawGearOnPlayer(spr,px,py){
 /* ---------- src/ui/quest-screen.js ---------- */
 /* QUEST LOG (pause menu -> QUESTS). Read-only list: ready / active / available / completed. */
 function openQuests(){openUIMode('quests');}
+function trackBtn(x0,y,W,id,si){
+  const on=TRK.id===id;
+  uiButton(x0+W-70,y+4,64,22,on?'TRACKING':'TRACK',!on,()=>{UI.sel=si;if(!on){trackQuest(id);uiMsg('Tracking on your HUD',false);}},{tag:'track:'+id,clip:true,size:8,sel:si});
+}
 function questRow(q,kind){
-  const h=kind==='done'?30:kind==='avail'?44:62;
-  return {h,draw(x0,y,W,hh){
+  const h=kind==='done'?30:kind==='avail'?44:62,id='q:'+q.id,trk=kind==='active'||kind==='ready';
+  const go=()=>{if(trk&&TRK.id!==id){trackQuest(id);uiMsg('Tracking '+q.name,false);}};
+  return {h,sel:trk,act:go,tap:go,draw(x0,y,W,hh,isSel,si){
     const prog=questProgress(q),need=questNeed(q);
     const col=kind==='ready'?'#7dffa0':kind==='active'?'#ffe14d':kind==='avail'?'#9ad0ff':'#6a6690';
-    ctx.fillStyle=kind==='done'?'#100e20':'#17142b';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,3,hh);
+    ctx.fillStyle=kind==='done'?'#100e20':isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,3,hh);
+    if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,hh-2);}
     txt(q.name,x0+10,y+15,{size:11,col:kind==='done'?'#8a86b8':'#fff',lw:2});
     if(kind==='done'){txt('DONE',x0+W-8,y+15,{size:9,align:'right',col:'#6a6690',lw:2});return;}
-    txt(kind==='avail'?'Talk to '+q.giver+' to begin':questGoalText(q),x0+10,y+29,{size:9,col:'#cfd0ff',bold:false});
+    if(trk)trackBtn(x0,y,W,id,si);
+    txt(kind==='avail'?'Talk to '+q.giver+' to begin':kind==='ready'?'READY - return to '+q.giver:questGoalText(q)+'  ('+q.giver+')',x0+10,y+29,{size:9,col:kind==='ready'?'#7dffa0':'#cfd0ff',bold:false});
     if(kind==='avail'){txt('Reward: '+questRewardText(q.reward),x0+10,y+40,{size:8,col:'#ffd23f',bold:false});return;}
-    if(kind==='ready')txt('READY - return to '+q.giver,x0+W-8,y+15,{size:9,align:'right',col:'#7dffa0',lw:2});
-    else txt('from '+q.giver,x0+W-8,y+15,{size:8,align:'right',col:'#9aa0ff',lw:2});
     const bw=W-20;ctx.fillStyle='#0b0918';ctx.fillRect(x0+10,y+36,bw,8);ctx.fillStyle=col;ctx.fillRect(x0+10,y+36,Math.round(bw*prog/need),8);
     txt(prog+'/'+need,x0+W-10,y+43,{size:8,align:'right',col:'#fff',lw:2});
     txt('Reward: '+questRewardText(q.reward),x0+10,y+57,{size:8,col:'#ffd23f',bold:false});
   }};
 }
+/* the main story chapter and today's dailies can be tracked too */
+function trackRow(en){
+  const col=en.kind==='story'?'#c9a3ff':'#ffd23f',go=()=>{if(TRK.id!==en.id){trackQuest(en.id);uiMsg('Tracking '+en.name,false);}};
+  return {h:50,sel:true,act:go,tap:go,draw(x0,y,W,hh,isSel,si){
+    ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,3,hh);
+    if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,hh-2);}
+    txt(en.name,x0+10,y+15,{size:10,col:'#fff',lw:2});trackBtn(x0,y,W,en.id,si);
+    txt(en.obj.length>46?en.obj.slice(0,45)+'..':en.obj,x0+10,y+30,{size:8,col:'#cfd0ff',bold:false});
+    const bw=W-20;ctx.fillStyle='#0b0918';ctx.fillRect(x0+10,y+37,bw,7);ctx.fillStyle=en.ready?'#7dffa0':col;ctx.fillRect(x0+10,y+37,Math.round(bw*clamp(en.prog/en.need,0,1)),7);
+    txt(en.kind==='story'?`Step ${en.step}/${en.steps}`:en.prog+'/'+en.need,x0+W-10,y+46,{size:7,align:'right',col:'#fff',lw:2});
+  }};
+}
 UI_MODES.quests={title:()=>'QUEST LOG',sub:()=>[`${QUESTS.filter(q=>questStatus(q.id)==='done').length}/${QUESTS.length} completed`,'#9ad0ff'],rows(){
   const r=[],by=k=>QUESTS.filter(q=>questStatus(q.id)===k);
   const sec=(t,k,list)=>{if(!list.length)return;r.push({t:'head',s:t});list.forEach(q=>r.push(questRow(q,k)));};
-  sec('READY TO HAND IN','ready',by('ready'));sec('ACTIVE','active',by('active'));sec('AVAILABLE','avail',by('avail'));sec('COMPLETED','done',by('done'));
+  sec('READY TO HAND IN','ready',by('ready'));sec('ACTIVE','active',by('active'));
+  const ex=trkEntries().filter(e=>e.kind!=='quest');if(ex.length){r.push({t:'head',s:'STORY & DAILY  (tap TRACK to follow)'});ex.forEach(e=>r.push(trackRow(e)));}
+  sec('AVAILABLE','avail',by('avail'));sec('COMPLETED','done',by('done'));
   if(!r.length)r.push({t:'head',s:'  No quests yet - talk to the villagers!'});
   return r;}};
 
@@ -4285,6 +4306,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     else if(titleMenu.items.length===1)pressed.Space=true;   // single option: tap anywhere to start
     return true;}
   if(TUT.on&&TUT.skipR&&state==='play'&&!DLG&&!B&&inRect(p,TUT.skipR)){tutFinish(true);return true;}
+  if(trkTap(p))return true;
   if(isUI())return true;     // handled by drag/tap logic in touchDown / mousedown
   if(state==='paused'){
     const i=pauseRects.findIndex(r=>inRect(p,r));
@@ -4583,6 +4605,101 @@ function drawCombatHud(){
     if(b.t>.7&&Math.floor(gtime*2)%2===0)txt(TOUCH?'Tap to continue':'Press SPACE',VW/2,y+h-12,{size:12,align:'center',col:'#fff'});
   }
 }
+
+/* ---------- src/ui/tracker.js ---------- */
+/* =====================================================================
+   QUEST TRACKER: a compact HUD panel under the hero panel. Tracks one villager quest / the story chapter / a daily.
+   Pick with TRACK in the quest log (newest quest is tracked automatically when nothing is). Tap the panel to collapse.
+   State (TRK: id, open) lives in player/quests.js and is saved with the quests.
+   ===================================================================== */
+function trkEntries(){
+  const out=[];
+  for(const q of QUESTS){
+    const st=QS.st[q.id];if(st!=='active'&&st!=='ready')continue;
+    const o=q.obj,need=questNeed(q),ready=st==='ready',prog=ready?need:questProgress(q);
+    const item=o.k==='kill'?ENEMY[o.type].name+(o.n>1?'s':''):o.k==='collect'||o.k==='find'?QITEM[o.item].name:'Crypt';
+    out.push({id:'q:'+q.id,kind:'quest',q,name:q.name,obj:ready?'Return to '+q.giver:questGoalText(q),short:item,prog,need,ready,order:QS.ord.indexOf(q.id)});
+  }
+  if(STORY.ch<CHAPTERS.length){const c=CHAPTERS[STORY.ch];
+    out.push({id:'s',kind:'story',name:'Story: '+c.name,obj:c.hint,short:'Step',prog:STORY.ch,need:CHAPTERS.length,step:STORY.ch+1,steps:CHAPTERS.length,ready:false,order:-1});}
+  if(!metaOff())DAILY.ch.forEach((c,i)=>out.push({id:'d:'+i,kind:'daily',c,name:'Daily Challenge',obj:c.done?'Complete!':dailyText(c),short:'Progress',prog:Math.min(c.p,c.n),need:c.n,ready:!!c.done,order:-2}));
+  return out;
+}
+const trkValid=id=>!!id&&trkEntries().some(e=>e.id===id);
+function trkPick(list){                                       // newest started quest, else the story chapter, else the first unfinished daily
+  const qs=list.filter(e=>e.kind==='quest').sort((a,b)=>b.order-a.order);if(qs.length)return qs[0];
+  const s=list.find(e=>e.kind==='story');if(s)return s;
+  return list.find(e=>e.kind==='daily'&&!e.ready)||list.find(e=>e.kind==='daily')||null;
+}
+function trkCurrent(list){list=list||trkEntries();return list.find(e=>e.id===TRK.id)||trkPick(list);}
+function trackQuest(id){if(!trkValid(id))return false;TRK.id=id;TRK.auto=false;TRK.sig=null;sfx('select');saveGame('track');return true;}
+function trkTiles(t){if(!TRK.cache)TRK.cache={};if(TRK.cache[t])return TRK.cache[t];let r=null;for(let y=0;y<MH&&!r;y++)for(let x=0;x<MW;x++)if(map[y][x]===t){r={x:x*TS+16,y:y*TS+16};break;}return TRK.cache[t]=r;}
+/* where the objective is right now (world px) or null when unknown / in another area */
+function trkTarget(en){
+  if(!en)return null;const zn=zoneOfPx(P.y);
+  const foe=(type,pred)=>{let b=null,bd=1e9;for(const e of enemies){if(!e.alive||e.dying||(type&&e.type!==type)||(pred&&!pred(e))||zoneOfPx(e.y)!==zn)continue;const d=Math.hypot(e.x-P.x,e.y-P.y);if(d<bd){bd=d;b=e;}}return b&&{x:b.x,y:b.y};};
+  const npc=name=>{const n=NPCS.find(m=>m.name===name);return n&&zoneOfPx(n.y)===zn?{x:n.x,y:n.y}:null;};
+  const stairs=()=>zn==='ow'?trkTiles(T.CS):null;
+  if(en.kind==='quest'){const q=en.q,o=q.obj;if(en.ready)return npc(q.giver);
+    if(o.k==='kill')return foe(o.type);if(o.k==='collect')return foe(o.from);
+    if(o.k==='find'){const w=QWORLD.find(x=>x.quest===q.id);return w&&zn==='ow'?{x:w.tx*TS+16,y:w.ty*TS+16}:null;}
+    return stairs();}
+  if(en.kind==='story'){const id=CHAPTERS[STORY.ch].id;
+    if(id==='c1'||id==='c5')return npc('Elder Orin');if(id==='c2')return npc('Gate Guard');if(id==='c3')return stairs();if(id==='c4')return foe('lich');return null;}
+  const c=en.c;if(c.done)return null;
+  if(c.k==='type')return foe(c.t);if(c.k==='kills'||c.k==='gold')return foe();if(c.k==='elite')return foe(null,e=>!!e.elite);return null;
+}
+function updateTracker(dt){
+  if(state!=='play'||WARP)return;
+  const list=trkEntries(),cur=trkCurrent(list);
+  if(TRK.id!==(cur&&cur.id)&&!TRK.done){
+    // the tracked entry vanished: a finished villager quest gets a "complete" flash before the next one is tracked
+    const pv=TRK.prev;if(pv&&pv.kind==='quest'&&QS.st[pv.q.id]==='done'&&!list.some(e=>e.id===pv.id))TRK.done={name:pv.name,t:2.6};
+    TRK.id=cur?cur.id:null;TRK.auto=true;TRK.sig=null;}
+  if(TRK.done){TRK.done.t-=dt;if(TRK.done.t<=0)TRK.done=null;}
+  if(!cur){TRK.prev=null;return;}
+  const sig=cur.prog+'/'+cur.need+(cur.ready?'R':'')+'|'+cur.obj;
+  if(TRK.sig!==null&&sig!==TRK.sig){TRK.flash=1.8;TRK.fk=cur.ready?'ready':'prog';}
+  TRK.sig=sig;TRK.prev=cur;
+}
+function trkVisible(){return state==='play'&&!B&&!DLG&&!WARP&&!RUSH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
+function drawTracker(){
+  TRK.rect=null;
+  if(!trkVisible())return;
+  const list=trkEntries(),cur=trkCurrent(list);
+  const px=SL+8,py=ST+8+66,mapX=VW-SR-8-128-6;
+  const w=Math.max(120,Math.min(214,mapX-px-4)),pad=7;
+  if(TRK.done){const h=22;panel(px,py,w,h,{border:'#7dffa0',fill:'#10301c'});txt('QUEST COMPLETE!',px+pad,py+15,{size:10,col:'#7dffa0',lw:2});TRK.rect={x:px,y:py,w,h};return;}
+  if(!cur)return;
+  const flashing=TRK.flash>0;if(flashing)TRK.flash=Math.max(0,TRK.flash-1/60);
+  const blink=flashing&&Math.floor(gtime*9)%2===0,col=flashing?(TRK.fk==='ready'?'#7dffa0':'#ffe14d'):cur.ready?'#7dffa0':'#e8e0c8';
+  const fs=scaleText(9),font='bold '+fs+'px "Courier New",monospace',tg=trkTarget(cur),aw=tg&&TRK.open?34:0;
+  const nameW=w-pad*2-14;
+  ctx.font='bold '+scaleText(10)+'px "Courier New",monospace';
+  let title=cur.name;while(title.length>3&&ctx.measureText(title).width>nameW)title=title.slice(0,-2);if(title!==cur.name)title=title.trim()+'..';
+  if(!TRK.open){const h=Math.round(scaleText(10)+14);panel(px,py,w,h,{border:blink?'#fff':col,fill:flashing?'#2a2410':'#1a1630'});
+    txt('+ '+title,px+pad,py+h-6,{size:10,col,lw:2});TRK.rect={x:px,y:py,w,h};return;}
+  const lines=wrapText(cur.obj,w-pad*2-aw,font).slice(0,3),lh=Math.round(fs*1.35);
+  const hh=Math.round(scaleText(10)+12+lines.length*lh+fs+22);
+  panel(px,py,w,hh,{border:blink?'#fff':col,fill:flashing?(TRK.fk==='ready'?'#10301c':'#2a2410'):'#1a1630'});
+  txt('- '+title,px+pad,py+Math.round(scaleText(10))+3,{size:10,col,lw:2});
+  let yy=py+Math.round(scaleText(10))+6+lh;
+  lines.forEach((l,i)=>txt(l,px+pad,yy+i*lh,{size:9,col:'#cfd0ff',bold:false,out:false}));
+  yy+=lines.length*lh;
+  const label=cur.kind==='story'?`Step ${cur.step}/${cur.steps}`:cur.ready&&cur.kind==='quest'?'READY - hand in':`${cur.short} ${cur.prog}/${cur.need}`;
+  txt(label,px+pad,py+hh-14,{size:9,col:cur.ready?'#7dffa0':'#ffe14d',lw:2});
+  const bw=w-pad*2-aw,bx=px+pad,by=py+hh-9;ctx.fillStyle='#0b0918';ctx.fillRect(bx,by,bw,5);ctx.fillStyle=cur.ready?'#7dffa0':'#ffe14d';ctx.fillRect(bx,by,Math.round(bw*clamp(cur.prog/cur.need,0,1)),5);
+  if(tg){   // direction arrow + distance
+    const ax=px+w-pad-15,ay=py+Math.round(scaleText(10))+24,dx=tg.x-P.x,dy=tg.y-P.y,d=Math.hypot(dx,dy),a=Math.atan2(dy,dx);
+    ctx.save();ctx.translate(ax,ay);
+    if(d<40){ctx.fillStyle='#7dffa0';ctx.beginPath();ctx.arc(0,0,5+Math.sin(gtime*8)*1.5,0,6.283);ctx.fill();}
+    else{ctx.rotate(a);ctx.fillStyle=flashing?'#fff':'#ffe14d';ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(-7,-8);ctx.lineTo(-3,0);ctx.lineTo(-7,8);ctx.closePath();ctx.stroke();ctx.fill();}
+    ctx.restore();
+    txt(d<40?'here':Math.round(d/TS)+'m',ax,ay+22,{size:8,align:'center',col:'#cfd0ff',lw:2});
+  }
+  TRK.rect={x:px,y:py,w,h:hh};
+}
+function trkTap(p){if(TRK.rect&&inRect(p,TRK.rect)){if(TRK.done)return true;TRK.open=!TRK.open;sfx('select');return true;}return false;}
 
 /* ---------- src/save/save.js ---------- */
 
@@ -4901,7 +5018,7 @@ function render(){
     if(B.phase==='alert'&&B.t<.18){ctx.fillStyle=`rgba(255,255,255,${.7*(1-B.t/.18)})`;ctx.fillRect(0,0,VW,VH);}
     drawAimPreview();drawCombatHud();drawRushBar();
   } else drawOverHud();
-  drawTut();drawToasts();drawWarp();
+  drawTracker();drawTut();drawToasts();drawWarp();
   if(DLG&&!B)drawDlg();
   if(TOUCH)drawTouch();
   if(state==='paused')drawPause();
@@ -4959,7 +5076,7 @@ function update(dt){
   updateDayNight(dt);
   updateExplore(dt);
   if(B)updateBattle(dt);
-  updateRush(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);
+  updateRush(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);updateTracker(dt);
 }
 /* ---- sizing: integer pixel scale, fills the whole screen, safe-area aware ---- */
 const probe=document.createElement('div');
@@ -5001,7 +5118,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,getPauseRects:()=>pauseRects,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{TRK,trkEntries,trkTarget,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,getPauseRects:()=>pauseRects,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
