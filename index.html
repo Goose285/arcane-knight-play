@@ -1756,7 +1756,7 @@ const NPCS=[
 
 /* ---------- src/data/quests.js ---------- */
 /* QUEST DATA. obj kinds: kill {type,n} | collect {item,n,from,chance} | find {item,tx,ty} | reach {area}
-   reward: gold, xp, card (id), gear {slot?,rar?}. req = quest id that must be done first. */
+   reward: gold, xp, card (id) or cards [ids], gear {slot?,rar?}. req = quest id that must be done first. */
 const QITEM={
   gel:{name:'Slime Gel',col:'#7df97d'},bone:{name:'Bone Shard',col:'#e8e0c8'},
   iron:{name:'Goblin Iron',col:'#9ab0c8'},ring:{name:"Orin's Signet",col:'#ffd23f'}};
@@ -1764,11 +1764,11 @@ const QUESTS=[
   {id:'slimes',giver:'Elder Orin',name:'Slime Trouble',obj:{k:'kill',type:'slime',n:3},
    offer:['The meadow north of the village is overrun with Gooey Slimes.','Defeat three of them so the villagers can walk the fields in peace. Will you help?'],
    prog:['Three slimes, hero. They hop about in the meadow to the north.'],
-   done:['Splendid! The fields are quiet again. Take this for your trouble.'],reward:{gold:60,xp:90}},
+   done:['Splendid! The fields are quiet again. Take this for your trouble.'],reward:{gold:60,xp:90,card:'haste'}},
   {id:'ring',giver:'Elder Orin',req:'slimes',name:'The Lost Signet',obj:{k:'find',item:'ring',tx:10,ty:5},
    offer:['I lost my signet ring in the thicket in the far northwest meadow, behind the old trees.','Squeeze through the gap, find it, and bring it back. I will reward you with something fit for a hero.'],
    prog:['Search the thicket in the northwest of the meadow. Look for a glint between the trees.'],
-   done:['My signet! You found it! Please, take this ring as thanks.'],reward:{gold:100,xp:120,gear:{slot:'ring',rar:'rare'}}},
+   done:['My signet! You found it! Please, take this ring as thanks.'],reward:{gold:100,xp:120,card:'ward',gear:{slot:'ring',rar:'rare'}}},
   {id:'gel',giver:'Pip',name:'Goo for Pip',obj:{k:'collect',item:'gel',n:3,from:'slime',chance:.6},
    offer:['Slime Gel is the BEST. It bounces! Can you bring me three Slime Gel?','Slimes drop it sometimes when you beat them. I will trade you a spell card!'],
    prog:['Still need Slime Gel! Beat slimes - they drop it sometimes.'],
@@ -1780,11 +1780,11 @@ const QUESTS=[
   {id:'goblins',giver:'Gate Guard',name:'Goblin Menace',obj:{k:'kill',type:'goblin',n:4},
    offer:['Goblin archers keep picking at my patrols from the treeline.','Take down four of them in Whisperwood and the castle road will be safer.'],
    prog:['Four goblin archers. Stay out of their sight lines or close in fast.'],
-   done:['The road is quiet. You have earned this.'],reward:{gold:120,xp:160}},
+   done:['The road is quiet. You have earned this.'],reward:{gold:120,xp:160,card:'chain'}},
   {id:'crypt',giver:'Gate Guard',req:'goblins',name:'Into the Crypt',obj:{k:'reach',area:CRYPT_NAME},
    offer:['A cold wind has been blowing from a stairway in the northwest meadow - the old Crypt of Hollow Kings.','Descend and see what stirs down there. Bring me word. Be warned: the dead are restless.'],
    prog:['The crypt stairs are in the northwest of the meadow. Go down and look around.'],
-   done:['You went down there and came back! Impressive. Take this blade.'],reward:{gold:200,xp:260,gear:{slot:'weapon',rar:'rare'}}},
+   done:['You went down there and came back! Impressive. Take this blade.'],reward:{gold:200,xp:260,card:'shadow',gear:{slot:'weapon',rar:'rare'}}},
   {id:'iron',giver:'Blacksmith Brum',name:'Goblin Iron',obj:{k:'collect',item:'iron',n:3,from:'goblin',chance:.55},
    offer:['Goblin arrowheads are fine iron. I need three scraps of Goblin Iron for my forge.','Bring them and I will hand you one of my blades.'],
    prog:['Goblin Iron drops from goblins. Three pieces should do.'],
@@ -1792,7 +1792,7 @@ const QUESTS=[
   {id:'lich',giver:'Elder Orin',req:'crypt',name:'Bane of the Hollow King',obj:{k:'kill',type:'lich',n:1},
    offer:['The guard tells me you entered the crypt. Then you felt it: the Lich King wakes.','Destroy him in his burial hall at the bottom of the crypt, or the whole valley will fall under his shadow.'],
    prog:['The Lich King sits in the deepest hall of the Crypt of Hollow Kings. Level up and bring your best cards.'],
-   done:['The Hollow King is no more! The valley is saved. Here: the finest gifts I have.'],reward:{gold:600,xp:700,card:'timestop',gear:{rar:'legendary'}}},
+   done:['The Hollow King is no more! The valley is saved. Here: the finest gifts I have.'],reward:{gold:600,xp:700,cards:['timestop','curse'],gear:{rar:'legendary'}}},
   {id:'fish1',giver:'Fisher Tobin',name:'A Line in the Water',obj:{k:'fish',n:3},
    offer:['The fish have gotten shy of me, and my old knees are tired of the bank.','Catch three fish - any kind - from the river here. If you have no rod, I will lend you mine. Tap the rippling water!'],
    prog:['Tap the rippling water with a rod. When the bobber dips, tap again, then tap when the marker is in the green.'],
@@ -1800,7 +1800,7 @@ const QUESTS=[
   {id:'fish2',giver:'Fisher Tobin',req:'fish1',name:'The Quiet Waters',obj:{k:'fish',n:6},
    offer:['You took to it like a duck to water. Now a real test: six more fish, from anywhere - the meadow river, the Whisperwood pond, even the bog if you dare.','Higher fishing levels open better spots. I will make it worth your while.'],
    prog:['Six fish from any spot. Rippling water in the meadow and the forest pays better than the village river.'],
-   done:['Ha! You will out-fish me soon. A ring I kept for a lucky day - it is yours.'],reward:{gold:120,xp:140,gear:{slot:'ring',rar:'uncommon'}}},
+   done:['Ha! You will out-fish me soon. A ring I kept for a lucky day - it is yours.'],reward:{gold:120,xp:140,card:'poison',gear:{slot:'ring',rar:'uncommon'}}},
 ];
 const QUEST_BY_ID={};QUESTS.forEach(q=>QUEST_BY_ID[q.id]=q);
 const QWORLD=[{id:'ring',quest:'ring',tx:10,ty:5}];   // quest items lying on the map (visible only while their quest is active)
@@ -2163,8 +2163,9 @@ function questProgress(q){
 const questNeed=q=>q.obj.k==='kill'||q.obj.k==='collect'||q.obj.k==='fish'?q.obj.n:1;
 function questGoalText(q){const o=q.obj;
   return o.k==='fish'?`Catch ${o.n} fish`:o.k==='kill'?`Defeat ${o.n} ${ENEMY[o.type].name}${o.n>1?'s':''}`:o.k==='collect'?`Collect ${o.n} ${QITEM[o.item].name}`:o.k==='find'?`Find ${QITEM[o.item].name}`:`Reach the ${CRYPT_NAME.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}`;}
+const rewardCards=r=>r.cards||(r.card?[r.card]:[]);
 function questRewardText(r){
-  const p=[];if(r.gold)p.push(r.gold+' G');if(r.xp)p.push(r.xp+' XP');if(r.card)p.push('card: '+CARD[r.card].name);if(r.gear)p.push((r.gear.rar||'random')+(r.gear.slot?' '+r.gear.slot:' gear'));return p.join(', ');}
+  const p=[];if(r.gold)p.push(r.gold+' G');if(r.xp)p.push(r.xp+' XP');for(const k of rewardCards(r))p.push('card: '+CARD[k].name);if(r.gear)p.push((r.gear.rar||'random')+(r.gear.slot?' '+r.gear.slot:' gear'));return p.join(', ');}
 function questCheckReady(q){
   if(QS.st[q.id]!=='active')return;
   if(questProgress(q)>=questNeed(q)){QS.st[q.id]='ready';toast(`QUEST READY: ${q.name} - return to ${q.giver}`,3.4,'#7dffa0');sfx('level');}
@@ -2206,7 +2207,7 @@ function questComplete(id){
   const r=q.reward,got=[];
   if(r.gold){P.gold+=r.gold;got.push(r.gold+' gold');}
   if(r.xp){questGiveXp(r.xp);got.push(r.xp+' XP');}
-  if(r.card){const c=CARD[r.card];grantCard(r.card);got.push('the card '+c.name);}
+  for(const k of rewardCards(r)){grantCard(k);got.push('the card '+CARD[k].name);}
   if(r.gear){const it=genGear(r.gear.slot,Math.max(3,P.lv),r.gear.rar,false);addGear(it);got.push(it.name+' ('+GEAR_RAR[it.rar].n+' '+GEAR_SLOT_NAME[it.slot]+')');
     if(!GEAR.eq[it.slot])equipGear(it);}
   sfx('level');toast('QUEST COMPLETE: '+q.name,3.2,'#7dffa0');saveGame('quest');
@@ -3218,6 +3219,7 @@ function updateExplore(dt){
     updateWorldCharge(dt);
     updateWorldShots(dt);updateQuestWorld();checkStairs();
   }
+  if(!B)reapStale();
   for(const e of enemies){
     if(e.alive&&e.terr)clampTerr(e);
     if(!e.alive){if(e.night||e.spw)continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;e.x=e.hx;e.y=e.hy;e.chasing=false;e.engaged=false;e.dying=false;}continue;}
@@ -3473,6 +3475,7 @@ function destroySpawner(s){
   const mk=MAT_DROP[d.mobs[0]];if(mk){addMat(mk,2);lines.push('+2 '+MATS[mk].n);}
   let got=null;
   if(Math.random()<d.card){const c=randCardOf(pickRarity({common:30,uncommon:38,rare:26,epic:6}));if(c){grantCard(c.id);got=c.name;}}
+  guarGrant('spawner',GUAR_SPAWNER,{x:s.x,y:s.y});
   toast('SPAWNER DESTROYED!  +'+xp+' XP  +'+g+' G'+(got?'  +CARD: '+got:''),3.8,'#ffe14d');
   toast(lines.join('  '),2.6,'#7df9ff');
   if(B)B.saveSoon=true;else saveGame('spawner');
@@ -3868,7 +3871,7 @@ function killEnemy(e){
   if(e.rush){}
   else if(e.type==='dragon'){bossDown=true;B.boss=true;grantCard('dragonfire',c);}   // felling the dragon unlocks Dragonfire
   else if(e.type==='lich'){lichDown=true;storyOnLich();B.boss=true;B.bossName='LICH KING';grantCard(['meteor','drain','timestop'][RI(0,2)],c);}
-  petOnKill(e);trophyOnKill(e);
+  petOnKill(e);trophyOnKill(e);guarOnBossKill(e);
   if(!e.rush){secretOnKill(e);
   rollMats(e).forEach((t,i)=>floatText(c.x+30,c.y-40-i*12,t,'#7df9ff',11));
   questEvent('kill',e.type);questLoot(e).forEach((t,i)=>floatText(c.x,c.y-82-i*12,t,'#7df97d',11));}
@@ -4008,8 +4011,8 @@ function flankTarget(e,p,rad){
 function startAttack(e,a){e.st='windup';e.cur=a;e.t=a.windup;if(a.zones&&a.zones.length)warnZones(a.zones,a.windup);if(a.start)a.start(e);}
 function updateEnemyCombat(e,dt){updateEnemyCombat0(e,dt);clampTerr(e);}
 function updateEnemyCombat0(e,dt){
-  if(e.dying)return;
-  e.flash=Math.max(0,e.flash-dt);e.hop=Math.max(0,e.hop-dt);e.guard=Math.max(0,e.guard-dt);e.lunge=Math.max(0,e.lunge-dt);e.draw=Math.max(0,e.draw-dt);e.dragonOpen=Math.max(0,e.dragonOpen-dt);e.bob+=dt*5;
+  e.flash=Math.max(0,e.flash-dt);
+  if(e.dying)return;e.hop=Math.max(0,e.hop-dt);e.guard=Math.max(0,e.guard-dt);e.lunge=Math.max(0,e.lunge-dt);e.draw=Math.max(0,e.draw-dt);e.dragonOpen=Math.max(0,e.dragonOpen-dt);e.bob+=dt*5;
   e.chill=Math.max(0,e.chill-dt);const cs=e.chill>0?.6:1;   // chilled: -40% move & attack speed
   const sp=(e.p3?1.6:e.p2?1.35:1)*e.as*cs,c=ecen(e),p=aimPos(),d=Math.hypot(p.x-c.x,p.y-c.y);
   if(Math.abs(p.x-c.x)>6)e.face=p.x<c.x?1:-1;
@@ -4248,9 +4251,20 @@ function loseBattle(){
   B.phase='lose';B.t=0;B.shots=[];B.timers=[];B.zones=[];sfx('lose');B.shake=.5;
   const p=pcen();burst(p.x,p.y,'#6fb7ff',24,170,.9);
 }
+/* a foe that was mid death-fade when its fight ended (fled / guard drove them off / defeat) must be finished off, not left
+   'engaged' + dying forever (it would never be updated again and drew as a frozen pale-white blob). */
+function settleDying(e){e.alive=false;e.engaged=false;e.flash=0;e.respawn=e.type==='lich'?240:e.def.boss?150:55;}
+function reapStale(){
+  for(const e of enemies){
+    if(!e.alive){if(e.flash)e.flash=0;continue;}
+    if(e.dying){if(!B||!B.ens.includes(e)||e.dyT>1.6)settleDying(e);continue;}
+    if(e.engaged&&(!B||!B.ens.includes(e))){e.engaged=false;e.flash=0;e.st='idle';e.cur=null;e.dash=null;}
+  }
+}
 function resetFighters(home){
   for(const e of B.ens){
-    if(e.dying)continue;
+    if(e.dying){settleDying(e);continue;}
+    e.flash=0;
     e.engaged=false;e.frozen=0;e.fimm=0;e.chill=0;e.hp=e.maxhp;e.st='idle';e.guard=0;e.burn=0;e.dash=null;e.alert=0;e.mode='look';e.mt=2;e.cur=null;
     if(home){e.chasing=false;e.x=e.hx;e.y=e.hy;}
   }
@@ -4271,7 +4285,7 @@ function disengage(){
   resetFighters(false);P.grace=2.5;toast('You got away!',2,'#9ad0ff');B=null;
 }
 function updateBattle(dt){
-  B.t+=dt;B.shake=Math.max(0,B.shake-dt);B.loud=Math.max(0,B.loud-dt);B.atkGap=Math.max(0,B.atkGap-dt);
+  B.t+=dt;B.staleT=(B.staleT||0)-dt;if(B.staleT<=0){B.staleT=.5;reapStale();}B.shake=Math.max(0,B.shake-dt);B.loud=Math.max(0,B.loud-dt);B.atkGap=Math.max(0,B.atkGap-dt);
   B.fx.forEach(f=>f.t+=dt);B.fx=B.fx.filter(f=>f.t<f.dur);
   B.texts.forEach(t=>t.t+=dt);B.texts=B.texts.filter(t=>t.t<1);
   B.parts.forEach(q=>{q.t+=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=260*dt;});B.parts=B.parts.filter(q=>q.t<q.life);
@@ -4508,11 +4522,11 @@ const COMBOS=[
 /* ---------- src/cards/cards.js ---------- */
 
 /* ---- collection / deck / shop state (saved in localStorage) ---- */
-let COL={},DECK=[],SHOP={stock:[],kills:0,sold:{}};
+let COL={},DECK=[],SHOP={stock:[],kills:0,sold:{}},GUAR_GOT={};   // GUAR_GOT: guaranteed-reward milestones already paid out (saved)
 function resetCards(){
   COL={sword:4,fire:4,shield:3,heal:3,lance:3};DECK=[];
   for(const id in COL)for(let i=0;i<COL[id];i++)DECK.push(id);          // starter deck = the five basic cards (17)
-  SHOP={stock:[],kills:kills||0,sold:{}};
+  SHOP={stock:[],kills:kills||0,sold:{}};GUAR_GOT={};
 }
 const deckCount=id=>DECK.filter(x=>x===id).length;
 const deckLimit=id=>Math.min(COL[id]||0,RAR[CARD[id].rar].max);
@@ -4522,12 +4536,13 @@ function fixDeck(){                                                       // san
   if(DECK.length>DECK_MAX)DECK.length=DECK_MAX;
   if(DECK.length<DECK_MIN){for(const id of ['sword','fire','shield','heal','lance'])while(DECK.length<DECK_MIN&&(COL[id]||0)>deckCount(id)&&deckCount(id)<deckLimit(id))DECK.push(id);}
 }
-function packCards(){return {col:COL,deck:DECK,shop:SHOP};}
+function packCards(){return {col:COL,deck:DECK,shop:SHOP,g:GUAR_GOT};}
 function unpackCards(s){
   resetCards();
   if(s&&s.col&&typeof s.col==='object'){COL={};for(const k in s.col)if(CARD[k])COL[k]=Math.max(0,Math.min(9,s.col[k]|0));}
   if(s&&Array.isArray(s.deck))DECK=s.deck.filter(id=>CARD[id]);
   if(s&&s.shop&&Array.isArray(s.shop.stock))SHOP={stock:s.shop.stock.filter(id=>CARD[id]),kills:s.shop.kills|0,sold:s.shop.sold||{}};
+  if(s&&s.g&&typeof s.g==='object')GUAR_GOT=Object.assign({},s.g);
   fixDeck();
 }
 function pickRarity(w){let t=0;for(const k in w)t+=w[k];let r=Math.random()*t;for(const k in w){r-=w[k];if(r<=0)return k;}return 'common';}
@@ -4553,6 +4568,11 @@ function grantCard(id,at){
   toast(`CARD FOUND: ${c.name} (${RAR[c.rar].n})${room?' - added to deck':''}`,3,RAR[c.rar].col);sfx('select');
   return true;
 }
+/* guaranteed card rewards for the hard-to-find cards (the normal drop chance still applies on top).
+   Quests carry theirs in data/quests.js; the rest are paid here once per save. Mapping (also in docs): */
+const GUAR_BOSS={dragon:'reflect',rimegar:'wolf'},GUAR_SPAWNER='decoy';
+function guarGrant(key,id,at){if(GUAR_GOT[key]||!CARD[id])return false;GUAR_GOT[key]=true;grantCard(id,at);return true;}
+function guarOnBossKill(e){const id=GUAR_BOSS[e.type];if(id&&!e.rush)guarGrant('boss:'+e.type,id,{x:e.x,y:e.y});}
 const aimPos=()=>B&&B.decoy&&B.decoy.hp>0?{x:B.decoy.x,y:B.decoy.y-12}:pcen();   // enemies aim at the decoy while it lives
 
 /* ---- deck draw pile (gauge draws from the DECK, not a global pool) ---- */
@@ -5521,7 +5541,7 @@ UI_MODES.settings={title:()=>'SETTINGS',sub:()=>['Saved on this device','#7dd3ff
     optRow('COLOUR-BLIND MODE','cb',()=>CB_MODES[SET.cb].n,d=>setCycle('cb',CB_MODES.length,d),'Re-maps colours that look alike'),
     {h:34,draw(x0,y,W,h){ctx.fillStyle='#120f26';ctx.fillRect(x0,y,W,h);['#e8504a','#4ade80','#ff9a3d','#4a8aff','#c58bff','#ffd23f'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(x0+10+i*34,y+6,28,22);});txt('preview',x0+W-8,y+21,{size:8,col:'#9aa0ff',align:'right',bold:false});}},
     {t:'head',s:'CONTROLS'},
-    optRow('LEFT-HANDED LAYOUT','lefty',()=>SET.lefty?'ON':'OFF',()=>setToggle('lefty'),'Touch: buttons left, stick right'),
+    optRow('LEFT-HANDED LAYOUT','lefty',()=>SET.lefty?'ON':'OFF',()=>setToggle('lefty'),'Mirrors the touch layout: SHOT + card fan left, stick right'),
     optRow('GAMEPAD','pad',()=>SET.pad?'ON':'OFF',()=>setToggle('pad'),PAD.on?'Connected: '+String(PAD.id).slice(0,30):'Stick move, A shoot, B talk, Start pause'),
     {t:'head',s:'HELP'},
     optRow('TUTORIAL','tut',()=>'REPLAY',()=>{if(tutOff()){uiMsg('Tutorial is disabled here');return;}SET.tutDone=false;setSave();closeUI();state='play';tutStart();},'Walk-through of the basics')];
@@ -5537,21 +5557,56 @@ try{TOUCH=!!(window.matchMedia&&matchMedia('(pointer:coarse)').matches);}catch(e
 let lastTouchT=-9999;
 const btn={};
 let cardRects=[],dlgRects={},vign=null;
+const TM=16;   // safe margin from the screen edges for thumb controls
 function layoutTouch(){
   const r=VW-SR,b=VH-SB;
-  const l=SL,m=LEFTY?1:0,X=(dx)=>m?l+dx:r-dx;     // left-handed: thumb buttons on the left, stick on the right
-  btn.atk ={x:X(62), y:b-66, r:38,code:'KeyJ',label:'SHOT'};
-  btn.cast={x:X(142),y:b-44, r:28,code:'KeyK',label:'CAST'};
-  btn.next={x:X(130),y:b-110,r:24,code:'KeyL',label:'NEXT'};
+  const l=SL,m=LEFTY?1:0,X=(dx)=>m?l+dx:r-dx;     // left-handed: thumb buttons + card fan on the left, stick on the right
+  const sc=VW<340?.85:1,ra=Math.round(48*sc),rc=Math.round(34*sc);   // narrow phones: slightly smaller thumb buttons so everything still fits
+  btn.atk ={x:X(TM+ra+Math.round(28*sc)),y:b-TM-ra,r:ra,code:'KeyJ',label:'SHOT'};
+  btn.cast={x:X(TM+ra+Math.round(28*sc)+ra+rc+2),y:b-TM-ra+Math.round(22*sc),r:rc,code:'KeyK',label:'CAST'};
+  btn.next={x:X(130),y:b-110,r:24,code:'KeyL',label:'NEXT'};         // kept for keyboard/pad parity; not shown on touch (swipe the fan instead)
   btn.pause={x:X(24),y:ST+132,r:16,code:'KeyP',label:'II'};
-  joy.dx=m?r-78:SL+78;joy.dy=b-78;
+  joy.dx=m?r-82:SL+82;joy.dy=b-82;
+}
+/* left thumb zone: the stick appears wherever it touches in this x range (the mirror in left-handed mode) */
+const zoneF=()=>VW<340?.4:.44;
+const joyZone=()=>LEFTY?{x0:VW*(1-zoneF()),x1:VW-SR}:{x0:SL,x1:VW*zoneF()};
+/* the card hand on touch: a fan arcing around the SHOT button (tops point outward), swipe along it to cycle, tap a card to cast it */
+function fanGeom(HN){
+  layoutTouch();
+  const A=btn.atk,s=LEFTY?-1:1,ch0=58,zf=zoneF();
+  const base=HN>5?15:20,tries=[[0,1.12],[2,1.06],[4,1.0],[5,.94],[6,.9]];   // [fewer degrees per card, card scale]: squeeze on narrow screens
+  let R=92,step=base,CS=1.12,cw0=HN>5?44:46,cw=0,ch=0,start=0,end=290;
+  for(let k=0;k<tries.length;k++){
+    step=base-tries[k][0];CS=tries[k][1];cw=cw0*CS;ch=ch0*CS;start=end-(HN-1)*step;
+    const cosS=Math.cos(start*Math.PI/180),rot0=Math.abs(start*Math.PI/180-1.5*Math.PI)*.45,ext=cw/2*Math.cos(rot0)+ch/2*Math.sin(rot0)+13*Math.abs(cosS);
+    const room=LEFTY?(VW*(1-zf-.01)-A.x-ext-3):(A.x-VW*(zf+.01)-ext-3);
+    let Rn=room/Math.max(.2,-cosS);
+    const rotTop=Math.abs(end*Math.PI/180-1.5*Math.PI)*.45,extY=ch/2*Math.cos(rotTop)+cw/2*Math.sin(rotTop);
+    const Rv=(A.y-extY-(btn.pause.y+btn.pause.r+8))/Math.abs(Math.sin(end*Math.PI/180));   // keep the top of the fan below the pause button
+    R=clamp(Math.min(Rn,Rv,158),80,158);
+    if(Rn>=88&&Rv>=88)break;
+  }
+  const pos=[];
+  for(let i=0;i<HN;i++){const th=(start+i*step)*Math.PI/180;
+    pos.push({th,ox:s*Math.cos(th),oy:Math.sin(th),cx:A.x+s*R*Math.cos(th),cy:A.y+R*Math.sin(th),rot:s*(th-1.5*Math.PI)*.45});}
+  return {pos,R,CS,cw0,ch0,cw,ch,start,end,A,s};
 }
 function activeButtons(){
   if(state!=='play')return [];
-  if(B)return B.phase==='fight'?[btn.atk,btn.cast,btn.next]:[];
+  if(B)return B.phase==='fight'?[btn.atk,btn.cast]:[];
   if(DLG)return [];
   if(FISH.on)return [];
   return [btn.atk];
+}
+/* which card is under the finger (rotated rects, topmost first: the selected card is drawn last) */
+function cardAt(p){
+  if(!B||B.phase!=='fight')return -1;
+  const order=[];for(let i=cardRects.length-1;i>=0;i--)if(i!==B.sel)order.push(i);if(cardRects[B.sel])order.unshift(B.sel);
+  for(const i of order){const r=cardRects[i];if(!r||!B.hand[i])continue;
+    const dx=p.x-(r.cx!=null?r.cx:r.x+r.w/2),dy=p.y-(r.cy!=null?r.cy:r.y+r.h/2),c=Math.cos(-(r.rot||0)),sn=Math.sin(-(r.rot||0)),lx=dx*c-dy*sn,ly=dx*sn+dy*c;
+    if(Math.abs(lx)<=r.w/2&&Math.abs(ly)<=r.h/2)return i;}
+  return -1;
 }
 const inCircle=(p,c,m=0)=>Math.hypot(p.x-c.x,p.y-c.y)<=c.r+m;
 const inRect=(p,r)=>r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
@@ -5578,7 +5633,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     if(dlgRects.yes)return true;
     pressed.Enter=true;return true;}
   if(B&&B.phase==='reward'){pressed.Space=true;return true;}
-  if(B&&B.phase==='fight'){for(let i=0;i<cardRects.length;i++)if(B.hand[i]&&inRect(p,cardRects[i])){B.sel=i;useCard(i);return true;}}
+  if(B&&B.phase==='fight'){const i=cardAt(p);if(i>=0){B.sel=i;useCard(i);return true;}}
   return false;
 }
 /* ---- hold SHOT + swipe up = cast the highlighted card at the nearest enemy (touch) ---- */
@@ -5599,20 +5654,28 @@ function tickAtkTouch(){
   const t=atkTouch;if(!t||t.started||t.swiped)return;
   if(B&&B.phase==='fight'&&performance.now()-t.t0>=HOLD_MS){keys.KeyJ=true;pressed.KeyJ=true;t.started=true;}   // normal hold = shot + charge
 }
+function cycleCard(d){
+  if(!B||!B.hand.length)return;const n=B.hand.length;let i=B.sel;
+  for(let k=0;k<n;k++){i=(i+d+n)%n;if(B.hand[i])break;}
+  if(i!==B.sel){B.sel=i;sfx('select');try{navigator.vibrate&&navigator.vibrate(6);}catch(e){}}
+}
 /* ---- press a card and swipe up = cast THAT card at the nearest enemy (touch + mouse drag); a plain tap still selects/casts it ---- */
 let cardTouch=null;
 function cardDown(id,p){
   if(!(B&&B.phase==='fight')||state!=='play')return false;
-  for(let i=0;i<cardRects.length;i++)if(B.hand[i]&&inRect(p,cardRects[i])){
-    cardTouch={kind:'card',i,sx:p.x,sy:p.y,dy:0,cur:p,swiped:false};touches.set(id,cardTouch);return true;}
+  const i=cardAt(p);
+  if(i>=0){cardTouch={kind:'card',i,sx:p.x,sy:p.y,dy:0,dx:0,cb:0,cur:p,swiped:false};touches.set(id,cardTouch);return true;}
   return false;
 }
 function swipeMove(id,p){
   const t0=touches.get(id);
   if(t0&&t0.kind==='card'){
-    t0.cur=p;t0.dy=t0.sy-p.y;
-    if(!t0.swiped&&t0.dy>=SWIPE_PX&&B&&B.phase==='fight'){
+    t0.cur=p;t0.dy=t0.sy-p.y;t0.dx=p.x-t0.sx;
+    if(!t0.swiped&&!t0.cyc&&t0.dy>=SWIPE_PX&&t0.dy>=Math.abs(t0.dx)*.8&&B&&B.phase==='fight'){
       t0.swiped=true;castFacingNearest(t0.i);try{navigator.vibrate&&navigator.vibrate(15);}catch(e){}}
+    else if(!t0.swiped&&B&&B.phase==='fight'&&Math.abs(t0.dx)>=26&&Math.abs(t0.dx)>Math.abs(t0.dy)*1.1)t0.cyc=true;   // dragging along the fan = turn the wheel
+    if(t0.cyc&&!t0.swiped&&B&&B.phase==='fight'){
+      while(Math.abs(t0.dx-t0.cb)>=30){const d=t0.dx>t0.cb?1:-1;t0.cb+=d*30;cycleCard(d);}}
     return;}
   if(t0&&t0.kind==='ui'){if(Math.abs(p.y-t0.sy)>9)t0.moved=true;if(t0.moved){uiScrollBy(t0.ly-p.y);}t0.ly=p.y;return;}
   const t=t0;if(!t||!t.defer)return;
@@ -5633,9 +5696,10 @@ function touchDown(id,p){
     if(inCircle(p,b,10)){keys[b.code]=true;pressed[b.code]=true;touches.set(id,{kind:'btn',code:b.code});return;}
   }
   const wt=worldTargetAt(p);          // a tap on an NPC / fishing spot (a short tap = go there; dragging still steers)
-  if(!joy.on&&(LEFTY?p.x>VW*.45:p.x<VW*.55)&&p.y>VH*.18){
+  const jz=joyZone();
+  if(!joy.on&&p.x>=jz.x0&&p.x<=jz.x1&&p.y>VH*.12){
     joy.on=true;joy.id=id;
-    joy.bx=LEFTY?clamp(p.x,VW*.45,VW-SR-56):clamp(p.x,SL+56,VW*.55);joy.by=clamp(p.y,ST+90,VH-SB-56);
+    joy.bx=clamp(p.x,jz.x0+(LEFTY?0:30),jz.x1-(LEFTY?30:0));joy.by=clamp(p.y,ST+90,VH-SB-56);
     joy.kx=p.x;joy.ky=p.y;joy.x=joy.y=0;touches.set(id,{kind:'joy',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
   } else if(wt)touches.set(id,{kind:'wtap',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
 }
@@ -5655,7 +5719,7 @@ function touchEndId(id){
   else if(t.kind==='btn'){keys[t.code]=false;released[t.code]=true;}
   else if(t.kind==='card'){
     if(cardTouch===t)cardTouch=null;
-    if(!t.swiped&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;useCard(t.i);}   // plain tap = select + cast, as before
+    if(!t.swiped&&!t.cyc&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;useCard(t.i);}   // plain tap = select + cast, as before
   }
   else if(t.kind==='ui'){if(!t.moved)uiTap({x:t.sx,y:t.sy});}
   else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
@@ -5689,7 +5753,7 @@ function drawSwipeHint(){
       ctx.beginPath();ctx.moveTo(P.x-cam.x,P.y-12-cam.y);ctx.lineTo(near.x-cam.x,near.y-13-cam.y);ctx.stroke();ctx.setLineDash([]);
       ctx.beginPath();ctx.arc(near.x-cam.x,near.y-13-cam.y,eRad(near)+6+Math.sin(gtime*10)*2,0,6.283);ctx.stroke();ctx.restore();}
     const r=cardRects[ct.i];if(r){ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3;
-      for(let i=0;i<2;i++){const ay=r.y-8-i*8-prog*4,cx=r.x+r.w/2;ctx.beginPath();ctx.moveTo(cx-9,ay+6);ctx.lineTo(cx,ay-2);ctx.lineTo(cx+9,ay+6);ctx.stroke();}ctx.restore();}
+      for(let i=0;i<2;i++){const ay=r.y-8-i*8-prog*4,cx=r.cx!=null?r.cx:r.x+r.w/2;ctx.beginPath();ctx.moveTo(cx-9,ay+6);ctx.lineTo(cx,ay-2);ctx.lineTo(cx+9,ay+6);ctx.stroke();}ctx.restore();}
   }
   if(!t||!B||B.phase!=='fight'||t.swiped)return;
   const id=B.hand[B.sel],c=id&&CARDS.find(q=>q.id===id);if(!c)return;
@@ -5700,16 +5764,10 @@ function drawSwipeHint(){
     ctx.save();ctx.globalAlpha=.35+.5*prog;ctx.strokeStyle=c.col;ctx.lineWidth=2;ctx.setLineDash([7,6]);ctx.lineDashOffset=-gtime*40;
     ctx.beginPath();ctx.moveTo(P.x-cam.x,P.y-12-cam.y);ctx.lineTo(near.x-cam.x,near.y-13-cam.y);ctx.stroke();ctx.setLineDash([]);
     ctx.beginPath();ctx.arc(near.x-cam.x,near.y-13-cam.y,eRad(near)+6+Math.sin(gtime*10)*2,0,6.283);ctx.stroke();ctx.restore();}
-  // preview card + up-arrow above the SHOT button
-  const cw=44,ch=54,x=b.x-cw/2,y=b.y-b.r-ch-26-prog*10;
-  ctx.save();ctx.globalAlpha=.55+.4*prog;
-  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(x+2,y+2,cw,ch);ctx.fillStyle='#e8e0c8';ctx.fillRect(x,y,cw,ch);ctx.fillStyle='#17142b';ctx.fillRect(x+2,y+2,cw-4,ch-4);
-  ctx.fillStyle=c.col;ctx.fillRect(x+4,y+4,cw-8,26);draw(SP.ic[id],x+cw/2-12,y+5,1.5);
-  txt(cardLabel(c),x+cw/2,y+ch-10,{size:6.5,align:'center',lw:2});
-  ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3;
-  for(let i=0;i<2;i++){const ay=y-6-i*8-prog*4;ctx.beginPath();ctx.moveTo(b.x-9,ay+6);ctx.lineTo(b.x,ay-2);ctx.lineTo(b.x+9,ay+6);ctx.stroke();}
+  // up-arrows above the SHOT button (the highlighted card pops out of the fan)
+  ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3.5;
+  for(let i=0;i<2;i++){const ay=b.y-b.r-14-i*9-prog*10;ctx.beginPath();ctx.moveTo(b.x-10,ay+6);ctx.lineTo(b.x,ay-3);ctx.lineTo(b.x+10,ay+6);ctx.stroke();}
   ctx.restore();
-  txt('SWIPE UP',b.x,y-26,{size:8,align:'center',col:'#ffe14d',lw:3});
 }
 function drawTouch(){
   layoutTouch();
@@ -5728,8 +5786,8 @@ function drawTouch(){
     ctx.strokeStyle=down?'#fff':(b===btn.atk?'#ffd23f':'#cfd0ff');ctx.lineWidth=2.5;ctx.stroke();ctx.globalAlpha=1;
     if(b===btn.atk&&(B?B.charge:WCH.t)>.2){const f=Math.min(1,B?B.charge:WCH.t);ctx.strokeStyle=f>=1?'#fff':'#7df9ff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(b.x,b.y,b.r+5,-Math.PI/2,-Math.PI/2+f*6.283);ctx.stroke();}
     if(b===btn.pause){ctx.fillStyle='#fff';ctx.fillRect(b.x-5,b.y-6,4,12);ctx.fillRect(b.x+1,b.y-6,4,12);}
-    else if(b===btn.atk){ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(b.x,b.y-6,9,0,6.283);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y-6,4,0,6.283);ctx.fill();txt('SHOT',b.x,b.y+22,{size:9,align:'center',lw:2});}
-    else txt(b.label,b.x,b.y+4,{size:b.r>=26?10:9,align:'center',lw:2});
+    else if(b===btn.atk){ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(b.x,b.y-8,12,0,6.283);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y-8,5.5,0,6.283);ctx.fill();txt('SHOT',b.x,b.y+29,{size:11,align:'center',lw:3});}
+    else txt(b.label,b.x,b.y+5,{size:b.r>=30?13:10,align:'center',lw:3});
   }
   drawSwipeHint();
 }
@@ -5783,6 +5841,20 @@ function drawDlg(){
   } else if(full&&Math.floor(gtime*3)%2===0)txt(TOUCH?'tap v':'v',x+w-18,y+h-12,{size:12,col:'#ffe14d',out:false,align:TOUCH?'right':'left'});
 }
 let COMBAT_HUD_BOT=64;   // bottom of the combat HUD cluster (the quest tracker sits under it)
+/* one card face at (0,0) in local pixels (cw x ch); the caller positions / rotates / scales the context */
+function drawCardFace(id,cw,ch,sel,idx){
+  const x=0,y=0,c=CARDS.find(q=>q.id===id),ih=TOUCH?26:34;
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(x+3,y+3,cw,ch);
+  ctx.fillStyle=sel?'#fff':'#e8e0c8';ctx.fillRect(x,y,cw,ch);
+  ctx.fillStyle='#17142b';ctx.fillRect(x+2,y+2,cw-4,ch-4);
+  ctx.fillStyle=c.col;ctx.fillRect(x+4,y+4,cw-8,ih);ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x+4,y+4,cw-8,7);
+  draw(SP.ic[id],x+cw/2-(TOUCH?12:16),y+(TOUCH?5:6),TOUCH?1.5:2);
+  txt(cardLabel(c),x+cw/2,y+ch-(TOUCH?19:24),{size:TOUCH?7:9,align:'center',col:'#fff',lw:2});
+  txt(c.pow?String(Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id))):'--',x+cw/2,y+ch-(TOUCH?6:9),{size:TOUCH?10:12,align:'center',col:'#ffe14d',lw:2});
+  if(!TOUCH&&idx!=null)txt(String(idx+1),x+7,y+14,{size:9,col:'#000',out:false});
+  {const rc=RAR[c.rar];ctx.fillStyle=rc.col;ctx.fillRect(x+cw-9,y+3,6,6);if(c.rar!=='common'){ctx.strokeStyle=rc.col;ctx.globalAlpha=.55+.3*Math.sin(gtime*5);ctx.lineWidth=c.rar==='legendary'?2:1;ctx.strokeRect(x+1.5,y+1.5,cw-3,ch-3);ctx.globalAlpha=1;}}
+  if(sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x-1,y-1,cw+2,ch+2);}
+}
 function drawCombatHud(){
   const b=B,px=SL+8,py=ST+8;
   // player panel
@@ -5817,36 +5889,37 @@ function drawCombatHud(){
   txt('SPELL GAUGE',gx+gw/2,gy+34,{size:10,align:'center',col:'#ffe9a0'});
   COMBAT_HUD_BOT=Math.max(py+50,list.length&&(stacked||ex<px+222)?ey+eh:0,gy+40);
   // cards
-  /* hand: 7% larger than the original, and shifted right (~70% of the way to flush-right). On touch (landscape, right-handed) the right edge also
-     stops short of the CAST button; left-handed landscape keeps it centred (the thumb buttons + stick are on the other side then). */
-  const HN=b.hand.length||5,CS=1.07,cw0=TOUCH?(HN>5?44:46):58,ch0=TOUCH?58:70,gap0=TOUCH?(HN>5?4:5):8;
-  const cw=Math.round(cw0*CS),ch=Math.round(ch0*CS),gap=Math.round(gap0*CS),total=HN*cw+(HN-1)*gap,xc=Math.round((VW-total)/2);
-  const land=!(TOUCH&&VH>VW);let x0=xc+Math.round(xc*.7);
-  if(TOUCH&&land){x0=LEFTY?xc:Math.min(x0,Math.round(VW-SR-178-total));}
-  x0=Math.max(SL+2,Math.min(x0,VW-SR-2-total));
-  const y0=TOUCH?(VH>VW?VH-SB-176-ch:VH-SB-ch-8):VH-ch-22-SB;
+  /* hand. Desktop: 7% larger than the original, shifted right. Touch: a fan of cards arcing around the SHOT button under the right thumb
+     (tops point outward, the selected card pops out); left-handed mode mirrors it. Swipe along the fan to cycle, tap to cast, swipe up to cast at the nearest foe. */
+  const HN=b.hand.length||5;
   cardRects=[];
+  if(TOUCH){
+    const F=fanGeom(HN),{pos,CS,cw0,ch0,cw,ch}=F;
+    ctx.save();ctx.globalAlpha=.16;ctx.strokeStyle='#ffe9a0';ctx.lineWidth=ch*.9;ctx.lineCap='round';ctx.beginPath();
+    {const s=F.s,a0=F.start*Math.PI/180-.09,a1=F.end*Math.PI/180+.09;ctx.arc(F.A.x,F.A.y,F.R,s>0?a0:Math.PI-a1,s>0?a1:Math.PI-a0);}
+    ctx.stroke();ctx.restore();
+    const order=[];for(let i=0;i<HN;i++)if(i!==b.sel||!b.hand[i]||b.phase!=='fight')order.push(i);if(b.hand[b.sel]&&b.phase==='fight'&&b.sel<HN)order.push(b.sel);
+    for(let i=0;i<HN;i++){const q=pos[i],pop=(i===b.sel&&b.hand[i]&&b.phase==='fight')?14:0;cardRects[i]={x:q.cx+q.ox*pop-cw/2,y:q.cy+q.oy*pop-ch/2,w:cw,h:ch,cx:q.cx+q.ox*pop,cy:q.cy+q.oy*pop,rot:q.rot};}
+    for(const i of order){
+      const id=b.hand[i],sel=i===b.sel&&id&&b.phase==='fight',r=cardRects[i];
+      ctx.save();ctx.translate(r.cx,r.cy);ctx.rotate(r.rot);ctx.scale(CS,CS);ctx.translate(-cw0/2,-ch0/2);
+      if(!id){ctx.globalAlpha=.25;ctx.fillStyle='#1a1630';ctx.fillRect(0,0,cw0,ch0);ctx.strokeStyle='#4a4470';ctx.lineWidth=1;ctx.strokeRect(.5,.5,cw0-1,ch0-1);ctx.restore();continue;}
+      drawCardFace(id,cw0,ch0,sel);
+      ctx.restore();
+    }
+  } else {
+  const CS=1.07,cw0=58,ch0=70,gap0=8;
+  const cw=Math.round(cw0*CS),ch=Math.round(ch0*CS),gap=Math.round(gap0*CS),total=HN*cw+(HN-1)*gap,xc=Math.round((VW-total)/2);
+  let x0=xc+Math.round(xc*.7);
+  x0=Math.max(SL+2,Math.min(x0,VW-SR-2-total));
+  const y0=VH-ch-22-SB;
   for(let i=0;i<HN;i++){
     const id=b.hand[i],sel=i===b.sel&&id&&b.phase==='fight';
     const X=x0+i*(cw+gap),Y=y0-(sel?8:0);
     cardRects.push({x:X,y:y0-8,w:cw,h:ch+8});
     if(!id){ctx.globalAlpha=.25;ctx.fillStyle='#1a1630';ctx.fillRect(X,y0,cw,ch);ctx.strokeStyle='#4a4470';ctx.lineWidth=1;ctx.strokeRect(X+.5,y0+.5,cw-1,ch-1);ctx.globalAlpha=1;continue;}
-    ctx.save();ctx.translate(X,Y);ctx.scale(CS,CS);
-    {const x=0,y=0,cw=cw0,ch=ch0;
-    const c=CARDS.find(q=>q.id===id),ih=TOUCH?26:34;
-    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(x+3,y+3,cw,ch);
-    ctx.fillStyle=sel?'#fff':'#e8e0c8';ctx.fillRect(x,y,cw,ch);
-    ctx.fillStyle='#17142b';ctx.fillRect(x+2,y+2,cw-4,ch-4);
-    ctx.fillStyle=c.col;ctx.fillRect(x+4,y+4,cw-8,ih);ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x+4,y+4,cw-8,7);
-    draw(SP.ic[id],x+cw/2-(TOUCH?12:16),y+(TOUCH?5:6),TOUCH?1.5:2);
-    txt(cardLabel(c),x+cw/2,y+ch-(TOUCH?19:24),{size:TOUCH?7:9,align:'center',col:'#fff',lw:2});
-    txt(c.pow?String(Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id))):'--',x+cw/2,y+ch-(TOUCH?6:9),{size:TOUCH?10:12,align:'center',col:'#ffe14d',lw:2});
-    if(!TOUCH)txt(String(i+1),x+7,y+14,{size:9,col:'#000',out:false});
-    {const rc=RAR[c.rar];ctx.fillStyle=rc.col;ctx.fillRect(x+cw-9,y+3,6,6);if(c.rar!=='common'){ctx.strokeStyle=rc.col;ctx.globalAlpha=.55+.3*Math.sin(gtime*5);ctx.lineWidth=c.rar==='legendary'?2:1;ctx.strokeRect(x+1.5,y+1.5,cw-3,ch-3);ctx.globalAlpha=1;}}   // rare arcane card shimmer
-    if(sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x-1,y-1,cw+2,ch+2);}
-    }
-    ctx.restore();
-  }
+    ctx.save();ctx.translate(X,Y);ctx.scale(CS,CS);drawCardFace(id,cw0,ch0,sel,i);ctx.restore();
+  }}
   if(!TOUCH)txt('J Shot (hold = charge)   L Next card   K Cast card   WASD Move   P Pause',VW/2,VH-6-SB,{size:10,align:'center',col:'#cfd0ff',alpha:.8,bold:false,lw:2});
   // leash warning
   if(b.fleeT>.05&&b.phase==='fight'){const f=clamp(b.fleeT/2.2,0,1),cx=VW/2,cy=Math.round(VH*.6);txt('ESCAPING...',cx,cy,{size:14,align:'center',col:'#ffb0a0'});bar(cx-60,cy+6,120,6,f,'#ff8a70');}
@@ -6269,38 +6342,65 @@ UI_STATES.push('rush');
    ending the fight safely. Anything that somehow ends up inside the walls is sent home.
    ===================================================================== */
 const TGB=[];                                                                       // guard bolts (visual)
-[[11.5,30.5],[14.5,30.5],[23.5,36.4]].forEach(([tx,ty],i)=>NPCS.push({name:'Town Guard',x:tx*TS,y:ty*TS,spr:'tguard',tguard:true,lv:TOWN.lv,
-  lines:i===2?['Halt, hero! ...Ah, Oakvale\'s own. Crossing the bridge again?','No monster sets foot in Oakvale while the Guard stands. Run to us if a fight turns against you.']
+[[14.5,30.4],[22.5,39.4]].forEach(([tx,ty],i)=>NPCS.push({name:'Town Guard',x:tx*TS,y:ty*TS,hx:tx*TS,hy:ty*TS,gcd:0,spr:'tguard',tguard:true,lv:TOWN.lv,
+  lines:i===1?['Halt, hero! ...Ah, Oakvale\'s own. Crossing the bridge again?','No monster sets foot in Oakvale while the Guard stands. Run to us if a fight turns against you.']
             :['Oakvale\'s Guard, at your service.','Monsters are not allowed past these gates. If something chases you, run inside - we will deal with it.','Stay close to the wall and let our halberds do the talking.']}));
 const guardsOf=()=>NPCS.filter(n=>n.tguard);
+const tBurst=(x,y,c,n,sp,l)=>B?burst(x,y,c,n,sp,l):wfxBurst(x,y,c,n,sp,l),tText=(x,y,t,c,sz)=>B?floatText(x,y,t,c,sz):wfxText(x,y,t,c,sz);   // in or out of a fight
 function townSend(e,fx=true){   // push an enemy back to its home, calm
-  const c=ecen(e);if(fx)burst(c.x,c.y,'#bfe6ff',12,130,.5);
+  const c=ecen(e);if(fx)tBurst(c.x,c.y,'#bfe6ff',12,130,.5);
   if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
   Object.assign(e,{engaged:false,frozen:0,fimm:0,chill:0,hp:e.maxhp,st:'idle',cur:null,dash:null,burn:0,mode:'look',mt:2,chasing:false,calm:5,x:e.hx,y:e.hy});
 }
 function townSlay(e){   // struck down by a guard: gone (no loot / xp for the hero)
-  const c=ecen(e);burst(c.x,c.y,'#fff6d8',16,150,.6);burst(c.x,c.y,'#9ad0ff',10,110,.5);
+  const c=ecen(e);tBurst(c.x,c.y,'#fff6d8',16,150,.6);tBurst(c.x,c.y,'#9ad0ff',10,110,.5);
   if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
   Object.assign(e,{engaged:false,alive:false,dying:false,respawn:55,frozen:0,st:'idle',cur:null,dash:null});
 }
-function guardStrike(e){
+function guardStrike(e,gd){
   const gs=guardsOf();if(!gs.length)return;const c=ecen(e);
-  let g=gs[0],bd=1e9;for(const q of gs){const d=Math.hypot(q.x-c.x,q.y-c.y);if(d<bd){bd=d;g=q;}}
+  let g=gd||gs[0],bd=1e9;if(!gd)for(const q of gs){const d=Math.hypot(q.x-c.x,q.y-c.y);if(d<bd){bd=d;g=q;}}
   TGB.push({x0:g.x,y0:g.y-26,x1:c.x,y1:c.y,t:0,dur:.38});sfx('cshot');
-  if(e.def.boss){e.hp=Math.max(1,e.hp-e.maxhp*.08);e.gHits=(e.gHits||0)+1;floatText(c.x,c.y-34,'GUARD!','#bfe6ff',11);if(e.gHits>=3){floatText(c.x,c.y-34,'DRIVEN OFF','#bfe6ff',11);townSend(e);}}
-  else{floatText(c.x,c.y-30,'GUARD!','#bfe6ff',11);townSlay(e);}
+  if(e.def.boss){e.hp=Math.max(1,e.hp-e.maxhp*.08);e.gHits=(e.gHits||0)+1;tText(c.x,c.y-34,'GUARD!','#bfe6ff',11);if(e.gHits>=3){tText(c.x,c.y-34,'DRIVEN OFF','#bfe6ff',11);townSend(e);}}
+  else{tText(c.x,c.y-30,'GUARD!','#bfe6ff',11);townSlay(e);}
 }
 function townEnd(){
   if(!B)return;resetFighters(false);P.grace=3.5;toast('The Town Guard drove them off!',2.6,'#9ad0ff');sfx('select');B=null;
 }
+/* Guards defend their post on their own: any hostile within GUARD_R tiles of the post (or of the guard) is struck, whether or not
+   the hero is fighting or even in town. They step out toward it (never beyond GUARD_LEASH tiles from the post) and walk back after. */
+const GUARD_R=5*TS,GUARD_LEASH=1.6*TS,GUARD_CD=.85;
+function guardTarget(g){
+  let t=null,bd=1e9;
+  for(const e of enemies){
+    if(!e.alive||e.dying||e.tut||e.rush)continue;
+    const d=Math.min(Math.hypot(e.x-g.hx,e.y-g.hy),Math.hypot(e.x-g.x,e.y-g.y));
+    if(d<=GUARD_R&&d<bd){bd=d;t=e;}
+  }
+  return t;
+}
+function updateGuards(dt){
+  for(const g of guardsOf()){
+    g.gcd=Math.max(0,(g.gcd||0)-dt);
+    const t=guardTarget(g);let gx=g.hx,gy=g.hy;
+    if(t){
+      const dx=t.x-g.hx,dy=t.y-g.hy,dl=Math.hypot(dx,dy)||1,k=Math.min(GUARD_LEASH,Math.max(0,dl-2.5*TS))/dl;   // step out only as far as needed to stay on the target
+      gx=g.hx+dx*k;gy=g.hy+dy*k;g.face=dx<0?-1:1;
+      if(g.gcd<=0){g.gcd=GUARD_CD;g.struck=(g.struck||0)+1;guardStrike(t,g);}
+    }
+    const sx=gx-g.x,sy=gy-g.y,sl=Math.hypot(sx,sy);
+    if(sl>1){const m=Math.min(sl,(t?96:70)*dt);const nx=g.x+sx/sl*m,ny=g.y+sy/sl*m;if(!solidTile(Math.floor(nx/TS),Math.floor(ny/TS))){g.x=nx;g.y=ny;}else{g.x=g.hx;g.y=g.hy;}}
+  }
+}
 function updateTown(dt){
   for(let i=TGB.length-1;i>=0;i--){TGB[i].t+=dt;if(TGB[i].t>=TGB[i].dur)TGB.splice(i,1);}
   if(!townOn())return;
+  updateGuards(dt);
   for(const e of enemies){
     if(e.calm>0)e.calm-=dt;
     if(!e.alive||e.dying||!inTownPx(e.x,e.y-8))continue;
     // a monster inside the walls: repelled (guards strike it when you are in a fight)
-    if(B&&B.ens.includes(e)){TGB.push({x0:(guardsOf()[0]||e).x,y0:(guardsOf()[0]||e).y-26,x1:e.x,y1:e.y-12,t:0,dur:.38});floatText(e.x,e.y-34,'REPELLED','#bfe6ff',11);townSend(e);}
+    if(B&&B.ens.includes(e)){TGB.push({x0:(guardsOf()[0]||e).x,y0:(guardsOf()[0]||e).y-26,x1:e.x,y1:e.y-12,t:0,dur:.38});tText(e.x,e.y-34,'REPELLED','#bfe6ff',11);townSend(e);}
     else townSend(e,false);
   }
   if(!B)return;
@@ -6631,7 +6731,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,settleDying,reapStale,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
