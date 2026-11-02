@@ -539,6 +539,68 @@ buildTiles();
   SP.waystone=autoOutline(makeSprite(16,16,g=>{rect(g,3,13,10,3,'#4a465e');tri(g,8,0,3,14,13,14,'#6a7284');tri(g,8,2,5,13,11,13,'#8a92a4');rect(g,7,6,2,5,'#7df9ff');rect(g,6,8,4,1,'#7df9ff');rect(g,7,4,2,1,'#fff');}),'#14121e');
 })();
 
+/* ---------- src/render/church-art.js ---------- */
+/* =====================================================================
+   OAKVALE CHAPEL ART (tiles, cross, priest) + world-art for the new features (fishing spot ripples, spawner brazier). All code-drawn, original.
+   ===================================================================== */
+Object.assign(T,{CHS:43,CHR:44,CHW:45,CHP:46,CHA:47,CHC:48,CHF:49,CHB:50});
+['CHS','CHR','CHW','CHP','CHA','CHB'].forEach(k=>SOLID.add(T[k]));
+(function buildChurchArt(){
+  const sp=(g,seed,cols,n)=>sprinkle(g,seed,cols,n);
+  // limestone chapel wall
+  TSPR[T.CHB]=[0,1].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#d9d3c1');for(let y=0;y<16;y+=4){rect(g,0,y+3,16,1,'#b3ab96');const off=(y/4+v)%2?0:5;for(let x=off;x<16;x+=10)rect(g,x,y,1,3,'#b3ab96');}
+    rect(g,0,0,16,1,'#ede8d8');sp(g,v+101,['#cbc4b0','#e4dfcf'],8);}));
+  // slate roof + ridge
+  TSPR[T.CHS]=[0,1].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#3c4768');for(let y=0;y<16;y+=4){rect(g,0,y+3,16,1,'#252c46');const off=((y/4)+v)%2?0:4;for(let x=off;x<16;x+=8)rect(g,x,y,1,3,'#2c3452');rect(g,0,y,16,1,'#5a6a94');}}));
+  TSPR[T.CHR]=[0].map(()=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#3c4768');for(let y=6;y<16;y+=4){rect(g,0,y+3,16,1,'#252c46');rect(g,(y/4)%2?0:4,y,1,3,'#2c3452');rect(g,0,y,16,1,'#5a6a94');}
+    rect(g,0,0,16,6,'#2a3150');rect(g,0,0,16,2,'#8d9bc4');rect(g,0,2,16,1,'#6c7ca8');rect(g,0,5,16,1,'#1c2138');}));
+  // stained-glass window set into the wall (three colourways)
+  const GL=[['#e24a4a','#4a7ae2','#f0c53a','#fff1b0'],['#4ac2e2','#a24ae2','#e2884a','#d8f6ff'],['#4ae28a','#e24a8a','#f0e03a','#eaffd0']];
+  TSPR[T.CHW]=GL.map((c,v)=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#d9d3c1');rect(g,0,0,16,1,'#ede8d8');rect(g,0,15,16,1,'#b3ab96');
+    rect(g,3,1,10,15,'#2a2438');rect(g,4,3,8,12,c[0]);rect(g,5,2,6,1,c[0]);rect(g,6,1,4,1,'#2a2438');
+    rect(g,4,3,4,6,c[0]);rect(g,8,3,4,6,c[1]);rect(g,4,9,4,6,c[2]);rect(g,8,9,4,6,c[0]);
+    rect(g,7,2,2,13,'#2a2438');rect(g,4,8,8,1,'#2a2438');rect(g,4,12,8,1,'#2a2438');
+    rect(g,6,4,1,3,c[3]);rect(g,9,10,1,2,c[3]);rect(g,5,10,1,1,c[3]);
+    rect(g,7,3,2,1,'#f6e9a0');}));                                  // a little cross-light at the top
+  // pews, altar, carpet, floor
+  const floor=g=>{rect(g,0,0,16,16,'#cfc8b3');rect(g,0,0,8,8,'#c4bda7');rect(g,8,8,8,8,'#c4bda7');rect(g,0,0,16,1,'#ddd7c4');rect(g,0,8,16,1,'#a9a28c');rect(g,8,0,1,16,'#a9a28c');};
+  TSPR[T.CHF]=[0].map(()=>makeSprite(16,16,g=>{floor(g);sp(g,7,['#bab39d','#d9d3c0'],8);}));
+  TSPR[T.CHC]=[0,1].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#8e1f2a');rect(g,0,0,2,16,'#d9b84a');rect(g,14,0,2,16,'#d9b84a');rect(g,3,0,1,16,'#6a1420');rect(g,12,0,1,16,'#6a1420');
+    for(let y=v?4:0;y<16;y+=8){rect(g,6,y,4,4,'#b13a48');rect(g,7,y+1,2,2,'#d9b84a');}}));
+  TSPR[T.CHP]=[0].map(()=>makeSprite(16,16,g=>{floor(g);rect(g,0,12,16,3,'rgba(60,40,20,.28)');rect(g,0,3,16,4,'#6a3f1e');rect(g,0,3,16,1,'#8a5a2c');rect(g,0,6,16,1,'#4a2a12');
+    rect(g,1,7,14,5,'#a8703c');rect(g,1,7,14,1,'#c8904e');rect(g,1,11,14,1,'#7a4c22');rect(g,0,3,2,10,'#5a3416');rect(g,14,3,2,10,'#5a3416');}));
+  TSPR[T.CHA]=[0].map(()=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#8e1f2a');rect(g,0,0,2,16,'#d9b84a');rect(g,14,0,2,16,'#d9b84a');   // altar standing on the carpet
+    rect(g,1,13,14,2,'rgba(0,0,0,.3)');rect(g,1,5,14,9,'#f2efe4');rect(g,1,5,14,1,'#fff');rect(g,1,13,14,1,'#c9c4b2');rect(g,1,9,14,1,'#d9b84a');
+    rect(g,7,6,2,6,'#d9b84a');rect(g,5,7,6,2,'#d9b84a');rect(g,7,6,2,1,'#fff3b0');                       // gold cross on the cloth
+    rect(g,2,1,2,5,'#fffdf0');rect(g,12,1,2,5,'#fffdf0');rect(g,2,0,2,1,'#ffd34d');rect(g,12,0,2,1,'#ffd34d');}));
+  TSPR.mini[T.CHB]='#d9d3c1';TSPR.mini[T.CHS]='#3c4768';TSPR.mini[T.CHR]='#5a6a94';TSPR.mini[T.CHW]='#e24a4a';TSPR.mini[T.CHP]='#a8703c';TSPR.mini[T.CHA]='#f2efe4';TSPR.mini[T.CHC]='#8e1f2a';TSPR.mini[T.CHF]='#cfc8b3';
+  // the cross on the roof peak (12x18) and the priest
+  SP.chapelCross=autoOutline(makeSprite(12,18,g=>{rect(g,5,0,2,18,'#f1eddd');rect(g,1,4,10,2,'#f1eddd');rect(g,5,0,1,18,'#fffdf0');rect(g,1,4,10,1,'#fffdf0');rect(g,6,5,1,13,'#c9c3ae');rect(g,3,6,8,1,'#c9c3ae');rect(g,5,15,2,3,'#b3ab96');}),'#1c2138');
+  SP.priest=person({body:'#f0ecdc',bodyL:'#ffffff',bodyD:'#b9b29a',hair:'#bdbdc8',skin:'#f2c9a0',dir:'d',belt:'#7a4ab0'});
+  {const g=SP.priest.getContext('2d');rect(g,7,7,2,4,'#7a4ab0');rect(g,7,8,2,1,'#f6e9a0');rect(g,4,0,8,1,'#14182c');                    // purple stole + a small gold cross
+    rect(g,6,12,4,1,'#7a4ab0');}
+  SP.fisher=person({body:'#2f6f8a',bodyL:'#68b4d0',bodyD:'#1d4658',hair:'#8a6a3a',skin:'#e8b88a',dir:'d',belt:'#6a4a2a',hat:'#d8c068',beard:'#9a7a4a'});
+  // fishing spot: a ring of ripples + silver glints (animated in drawFishSpots)
+  SP.rodIcon=autoOutline(makeSprite(16,16,g=>{line(g,2,14,13,2,'#8a5a2c');rect(g,13,2,1,1,'#d9b84a');line(g,13,3,14,10,'#e8e8f0');rect(g,13,11,3,2,'#e24a4a');rect(g,14,11,1,2,'#fff');}),'#14121e');
+  SP.fishIcon=autoOutline(makeSprite(16,16,g=>{ell(g,7,8,5,3,'#8fc8e8');rect(g,5,6,6,1,'#c8e8f8');tri(g,11,8,15,4,15,12,'#6aa8d0');rect(g,4,7,1,1,'#14182c');rect(g,6,9,4,1,'#5a98c0');}),'#14121e');
+})();
+/* coloured light falling through the chapel's windows onto the nave, drawn over the floor */
+function drawChurchFx(){
+  const cx=Math.round(cam.x),cy=Math.round(cam.y),x0=CHAPEL.x0*TS-cx,y0=CHAPEL.y0*TS-cy;
+  if(x0>VW+20||y0>VH+20||x0+(CHAPEL.x1-CHAPEL.x0+1)*TS<-20||y0+(CHAPEL.y1-CHAPEL.y0+1)*TS<-20)return;
+  const cols=['rgba(226,74,74,','rgba(74,122,226,','rgba(240,197,58,'],ws=[19,21,23];
+  ctx.save();
+  ws.forEach((wx,i)=>{const bx=wx*TS-cx,by=(CHAPEL.y0+3)*TS-cy,a=.10+.04*Math.sin(gtime*.8+i*2);
+    ctx.fillStyle=cols[i]+a+')';ctx.beginPath();ctx.moveTo(bx+4,by);ctx.lineTo(bx+28,by);ctx.lineTo(bx+28+34,by+TS*3);ctx.lineTo(bx+4+34,by+TS*3);ctx.closePath();ctx.fill();});
+  for(let k=0;k<6;k++){const t=(gtime*.12+k/6)%1;ctx.fillStyle=`rgba(255,244,200,${.5*(1-Math.abs(t-.5)*2)})`;ctx.fillRect(Math.round(x0+TS*1.5+((k*37)%5)*TS*.9+Math.sin(gtime+k)*3),Math.round(y0+TS*3.2+t*TS*3),2,2);}
+  ctx.restore();
+}
+function drawChapelCross(){
+  const x=CHAPEL.cross.x*TS+TS/2-cam.x,y=(CHAPEL.cross.y)*TS-cam.y+6;
+  drawEntShadow(CHAPEL.cross.x*TS+TS/2,CHAPEL.cross.y*TS+12,6);
+  draw(SP.chapelCross,x-12,y-24,2);
+}
+
 /* ---------- src/render/pet-art.js ---------- */
 /* =====================================================================
    PET + TROPHY + HOUSE ART (all code-drawn, original). 16x16 sprites.
@@ -636,7 +698,7 @@ const zoneOfTy=ty=>ty<OW_H?'ow':ty<=CRY_END?'crypt':ty>=HOUSE_Y0?'house':ty>=ARE
 const zoneOfPx=y=>zoneOfTy(Math.floor(y/TS));
 const ZONE_NAME={snow:'FROSTHOWL PASS',swamp:'MIREWOOD BOG',desert:'SUNDERED RUINS'};
 const inCryptPx=(x,y)=>{const z=zoneOfPx(y);return z==='crypt'||z==='arena';};   // torch-lit indoor lighting
-function areaName(tx,ty){if(regions.crypt(tx,ty))return CRYPT_NAME;const zn=zoneOfTy(ty);if(zn==='arena')return ARENA_NAME;if(zn==='house')return HOUSE_NAME;if(ZONE_NAME[zn])return ZONE_NAME[zn];if(regions.castle(tx,ty))return 'CASTLE DRACORYN';if(regions.village(tx,ty))return 'OAKVALE VILLAGE';if(regions.forest(tx,ty))return 'WHISPERWOOD';if(ty<14&&tx>=18)return 'CASTLE ROAD';return 'GREENMEADOW';}
+function areaName(tx,ty){if(regions.crypt(tx,ty))return CRYPT_NAME;const zn=zoneOfTy(ty);if(zn==='arena')return ARENA_NAME;if(zn==='house')return HOUSE_NAME;if(ZONE_NAME[zn])return ZONE_NAME[zn];if(regions.castle(tx,ty))return 'CASTLE DRACORYN';if(inChapel(tx,ty))return CHAPEL.name;if(regions.village(tx,ty))return 'OAKVALE VILLAGE';if(regions.forest(tx,ty))return 'WHISPERWOOD';if(ty<14&&tx>=18)return 'CASTLE ROAD';return 'GREENMEADOW';}
 function buildMap(){
   for(let y=0;y<MH;y++){map[y]=[];for(let x=0;x<MW;x++)map[y][x]=T.G;}
   const set=(x,y,t)=>{if(x>=0&&y>=0&&x<MW&&y<MH)map[y][x]=t;};
@@ -763,6 +825,75 @@ for(const id in ZONES)MINI[id]={spr:miniZone(id),y0:ZONES[id].y0};
 // the new gate roads connect the overworld: refresh walkability (in place)
 (function(){for(const r of reach)r.fill(false);const sx=Math.floor(SPAWN.x/TS),sy=Math.floor(SPAWN.y/TS),q=[[sx,sy]];reach[sy][sx]=true;
   while(q.length){const [x,y]=q.pop();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(!solidTile(nx,ny)&&!reach[ny][nx]){reach[ny][nx]=true;q.push([nx,ny]);}}}})();
+
+/* ---------- src/data/world-extras.js ---------- */
+/* =====================================================================
+   WORLD EXTRAS (data): Oakvale Chapel footprint, fishing spots, monster spawners (runed braziers). Placed by map/places.js.
+   ===================================================================== */
+// the chapel replaces the north-east cottage of Oakvale: roof rows y0..y0+1, back wall + stained glass, nave with pews, door at x=21
+const CHAPEL={x0:18,x1:24,y0:29,y1:36,door:21,cross:{x:21,y:29},name:'OAKVALE CHAPEL'};
+const inChapel=(tx,ty)=>tx>=CHAPEL.x0&&tx<=CHAPEL.x1&&ty>=CHAPEL.y0&&ty<=CHAPEL.y1;
+/* fishing spots sit on water tiles. lv = fishing level needed, tier = which fish live there, bank = tile to stand on (kept walkable) */
+const FISH_SPOTS=[
+  {id:'oak1', name:'Oakvale River',    tx:25,ty:44,lv:1,tier:0,bank:[24,44]},
+  {id:'oak2', name:'Oakvale River',    tx:25,ty:41,lv:1,tier:0,bank:[24,41]},
+  {id:'mead', name:'Greenmeadow River',tx:25,ty:22,lv:2,tier:1,bank:[24,22]},
+  {id:'wood', name:'Whisperwood Pond', tx:46,ty:36,lv:3,tier:1,bank:[45,36],pond:{x:46,y:36,w:2,h:2}},
+  {id:'bog',  name:'Mirewood Pool',    tx:21,ty:ZONE_Y0.swamp+24, lv:5,tier:2,bank:[21,ZONE_Y0.swamp+23],pond:{x:20,y:ZONE_Y0.swamp+24,w:3,h:2}},
+  {id:'oasis',name:'Sundered Oasis',   tx:45,ty:ZONE_Y0.desert+24,lv:7,tier:3,bank:[45,ZONE_Y0.desert+23],pond:{x:44,y:ZONE_Y0.desert+24,w:3,h:2}},
+];
+/* monster spawners: a caged, runed brazier that keeps summoning its themed monsters (up to cap) while you are near. */
+const SPW=[];
+const SPAWNER_DEFS=[
+  {id:'sp_forest1',tx:53,ty:27, theme:'warren',name:'GOBLIN WARREN BRAZIER', mobs:['goblin','goblin','slime'],cap:3,every:7,hp:240,xp:150,gold:[70,110],card:.35,mats:2},
+  {id:'sp_forest2',tx:55,ty:41, theme:'bone',  name:'BONEFIRE CAGE',         mobs:['knight','slime'],         cap:3,every:8,hp:260,xp:160,gold:[70,110],card:.35,mats:2},
+  {id:'sp_swamp1', tx:46,ty:ZONE_Y0.swamp+19, theme:'bog',   name:'BOG HEX BRAZIER',  mobs:['toad','toad','witch'],cap:3,every:8,hp:340,xp:260,gold:[110,160],card:.4,mats:3},
+  {id:'sp_swamp2', tx:18,ty:ZONE_Y0.swamp+11, theme:'bog',   name:'MIRE-RUNE CAGE',   mobs:['witch','toad'],       cap:3,every:8,hp:340,xp:260,gold:[110,160],card:.4,mats:3},
+  {id:'sp_desert1',tx:36,ty:ZONE_Y0.desert+25,theme:'sun',   name:'SUN-RUNE BRAZIER', mobs:['scorpion','mummy'],   cap:3,every:8,hp:440,xp:340,gold:[150,210],card:.4,mats:3},
+  {id:'sp_desert2',tx:44,ty:ZONE_Y0.desert+18,theme:'sun',   name:'DUNE EMBER CAGE',  mobs:['mummy','scorpion','scorpion'],cap:3,every:8,hp:440,xp:340,gold:[150,210],card:.4,mats:3},
+  {id:'sp_crypt1', tx:9, ty:72, theme:'grave', name:'GRAVE-FLAME BRAZIER', mobs:['bat','bat','wraith'],      cap:3,every:7,hp:540,xp:420,gold:[190,260],card:.45,mats:4},
+  {id:'sp_crypt2', tx:54,ty:72, theme:'grave', name:'HOLLOW KING\'S CAGE', mobs:['wraith','bat'],            cap:3,every:8,hp:540,xp:420,gold:[190,260],card:.45,mats:4},
+];
+
+/* ---------- src/map/places.js ---------- */
+/* =====================================================================
+   PLACES: Oakvale Chapel (replaces the north-east cottage), fishing ponds, cleared ground under the monster spawners.
+   Runs after the zones are built; refreshes the walkability map (reach) at the end.
+   ===================================================================== */
+function buildPlaces(){
+  const set=(x,y,t)=>{if(x>=0&&y>=0&&x<MW&&y<MH)map[y][x]=t;};
+  const fill=(x0,y0,x1,y1,t)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)set(x,y,t);};
+  // ---- Oakvale Chapel ----
+  const C=CHAPEL,mid=C.door;
+  fill(C.x0,C.y0,C.x1,C.y0,T.CHR);fill(C.x0,C.y0+1,C.x1,C.y0+1,T.CHS);                       // slate roof with a ridge
+  fill(C.x0,C.y0+2,C.x1,C.y1,T.CHB);                                                          // limestone walls
+  for(const wx of [19,21,23])set(wx,C.y0+2,T.CHW);                                            // stained glass behind the altar
+  fill(C.x0+1,C.y0+3,C.x1-1,C.y1-1,T.CHF);                                                    // nave floor
+  fill(mid,C.y0+4,mid,C.y1,T.CHC);                                                            // aisle carpet through the door
+  set(mid,C.y0+3,T.CHA);                                                                      // altar
+  for(const px of [19,20,22,23])for(const py of [C.y1-2,C.y1-1])set(px,py,T.CHP);              // pews
+  set(19,C.y1,T.CHW);set(23,C.y1,T.CHW);                                                      // front windows
+  // a little paved forecourt
+  fill(20,C.y1+1,22,C.y1+1,T.P);
+  // ---- fishing ponds ----
+  for(const s of FISH_SPOTS){
+    if(s.pond){const p=s.pond,zn=zoneOfTy(s.ty),floor=zn==='ow'?T.K:ZONES[zn].floor;
+      fill(p.x-1,p.y-1,p.x+p.w,p.y+p.h,floor);fill(p.x,p.y,p.x+p.w-1,p.y+p.h-1,T.W);}
+    else set(s.tx,s.ty,T.W);
+    const [bx,by]=s.bank;if(solidTile(bx,by)||map[by][bx]===T.T)set(bx,by,zoneOfTy(by)==='ow'?(regions.forest(bx,by)?T.K:T.G):ZONES[zoneOfTy(by)].floor);
+  }
+  // ---- spawner sites: a clear 3x3 patch of the local ground ----
+  for(const d of SPAWNER_DEFS){
+    const zn=zoneOfTy(d.ty),fl=zn==='crypt'?T.CF:zn==='ow'?T.K:ZONES[zn].floor;
+    fill(d.tx-1,d.ty-1,d.tx+1,d.ty+1,fl);
+  }
+}
+buildPlaces();
+(function(){for(const r of reach)r.fill(false);const sx=Math.floor(SPAWN.x/TS),sy=Math.floor(SPAWN.y/TS),q=[[sx,sy]];reach[sy][sx]=true;
+  while(q.length){const [x,y]=q.pop();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(!solidTile(nx,ny)&&!reach[ny][nx]){reach[ny][nx]=true;q.push([nx,ny]);}}}})();
+// the minimaps were drawn before the chapel / ponds existed: redraw them
+(function(){const g=miniMap.getContext('2d');for(let y=0;y<OW_H;y++)for(let x=0;x<MW;x++){g.fillStyle=TSPR.mini[map[y][x]]||'#000';g.fillRect(x*2,y*2,2,2);}
+  for(const id in ZONES){const y0=ZONES[id].y0,m=MINI[id].spr.getContext('2d');for(let y=0;y<ZONE_H;y++)for(let x=0;x<MW;x++){m.fillStyle=TSPR.mini[map[y0+y][x]]||'#000';m.fillRect(x*2,y*2,2,2);}}})();
 
 /* ---------- src/map/arena.js ---------- */
 /* =====================================================================
@@ -1169,6 +1300,14 @@ const QUESTS=[
    offer:['The guard tells me you entered the crypt. Then you felt it: the Lich King wakes.','Destroy him in his burial hall at the bottom of the crypt, or the whole valley will fall under his shadow.'],
    prog:['The Lich King sits in the deepest hall of the Crypt of Hollow Kings. Level up and bring your best cards.'],
    done:['The Hollow King is no more! The valley is saved. Here: the finest gifts I have.'],reward:{gold:600,xp:700,card:'timestop',gear:{rar:'legendary'}}},
+  {id:'fish1',giver:'Fisher Tobin',name:'A Line in the Water',obj:{k:'fish',n:3},
+   offer:['The fish have gotten shy of me, and my old knees are tired of the bank.','Catch three fish - any kind - from the river here. If you have no rod, I will lend you mine. Tap the rippling water!'],
+   prog:['Tap the rippling water with a rod. When the bobber dips, tap again, then tap when the marker is in the green.'],
+   done:['Three fine fish! You have the patience for it. Take this for your trouble.'],reward:{gold:70,xp:80}},
+  {id:'fish2',giver:'Fisher Tobin',req:'fish1',name:'The Quiet Waters',obj:{k:'fish',n:6},
+   offer:['You took to it like a duck to water. Now a real test: six more fish, from anywhere - the meadow river, the Whisperwood pond, even the bog if you dare.','Higher fishing levels open better spots. I will make it worth your while.'],
+   prog:['Six fish from any spot. Rippling water in the meadow and the forest pays better than the village river.'],
+   done:['Ha! You will out-fish me soon. A ring I kept for a lucky day - it is yours.'],reward:{gold:120,xp:140,gear:{slot:'ring',rar:'uncommon'}}},
 ];
 const QUEST_BY_ID={};QUESTS.forEach(q=>QUEST_BY_ID[q.id]=q);
 const QWORLD=[{id:'ring',quest:'ring',tx:10,ty:5}];   // quest items lying on the map (visible only while their quest is active)
@@ -1372,6 +1511,12 @@ const ACHS=[
   {id:'daily3', n:'Daily Grind',     d:'Complete 3 daily challenges',      gold:100,p:()=>[DAILY.total,3]},
   {id:'streak', n:'Week of Embers',  d:'Reach a 7-day login streak',       gold:300,p:()=>[ACH.s.streakBest,7]},
   {id:'crypt3', n:'Crypt Wanderer',  d:'Reach floor 3 of a weekly crypt',  gold:100,p:()=>[ACH.s.bestFloor,3]},
+  {id:'fish1',  n:'First Catch',     d:'Catch a fish',                     gold:30, p:()=>[ACH.s.fish,1]},
+  {id:'fish25', n:'Seasoned Angler', d:'Catch 25 fish',                    gold:150,p:()=>[ACH.s.fish,25]},
+  {id:'fishlv', n:'Master Angler',   d:'Reach Fishing level 8',            gold:250,p:()=>[fishLv(),8]},
+  {id:'spw1',   n:'Spawner Smasher', d:'Destroy a monster spawner',        gold:100,p:()=>[ACH.s.spw,1]},
+  {id:'spw5',   n:'Brazier Breaker', d:'Destroy 5 monster spawners',       gold:300,p:()=>[ACH.s.spw,5]},
+  {id:'bless',  n:'Blessed Traveler',d:'Receive a blessing at the chapel', gold:40, p:()=>[ACH.s.bless,1]},
   {id:'crypt7', n:'Crypt Delver',    d:'Conquer all 7 weekly crypt floors',gold:400,p:()=>[ACH.s.bestFloor,7]},
 ];
 
@@ -1394,7 +1539,7 @@ const PAD_MAP={0:'KeyJ',2:'KeyK',3:'KeyL',9:'KeyP',4:'KeyL',5:'KeyL',12:'ArrowUp
 const TUT_STEPS=[
   {id:'move', k:'Walk around: WASD or arrow keys',            t:'Walk around: drag the left stick',            need:'Walk a few steps'},
   {id:'shoot',k:'Fire your bow: press J',                     t:'Fire your bow: tap SHOT',                    need:'Fire a shot'},
-  {id:'talk', k:'Walk up to a villager and press E to talk',  t:'Walk up to a villager and tap TALK',         need:'Talk to someone'},
+  {id:'talk', k:'Walk up to a villager and press E (or click them) to talk',  t:'Tap a villager to walk over and talk',         need:'Talk to someone'},
   {id:'pause',k:'Press P to open the pause menu: deck, quests, skills',t:'Tap II (top right) to open the menu',need:'Open the menu'},
   {id:'fight',k:'Shoot the TRAINING SLIME to begin a battle. Cast cards with K',t:'Shoot the TRAINING SLIME to begin. Tap a card to cast it',need:'Start a battle'},
 ];
@@ -1407,9 +1552,11 @@ function openDlg(npc){
   if(npc.board){openDaily();return;}
   if(npc.house){openHouseNpc(npc);return;}
   if(npc.pets){openPets();return;}
+  if(npc.priest){openPriest(npc);return;}
   if(!npc.way&&storyTalk(npc))return;
   if(!npc.way&&questTalk(npc))return;
   if(npc.way){openWaystone(npc);return;}
+  if(npc.fisher){openFisher(npc);return;}
   if(npc.smith){openShop();return;}
   if(false){
   } else DLG={name:npc.name,lines:npc.lines,i:0,c:0};
@@ -1420,7 +1567,7 @@ function updateDlg(dt){
   if(d.c<line.length){d.c=Math.min(line.length,d.c+dt*60);if(((d.c|0)%3)===0&&Math.random()<.4)sfx('talk');}
   const isChoice=d.choice&&d.i===d.lines.length-1&&d.c>=line.length;
   if(isChoice){
-    if(hit('Enter','KeyY')){d.choice();DLG=null;return;}
+    if(hit('Enter','KeyY')){const af=d.after;d.choice();DLG=af?af():null;return;}
     if(hit('Escape','KeyN')){const f=d.noAct;DLG=null;if(f)f();return;}
   } else if(hit('Enter','KeyE','Space','KeyJ')){
     if(d.c<line.length)d.c=line.length;
@@ -1515,14 +1662,14 @@ function questStatus(id){
 }
 function questProgress(q){
   const o=q.obj;
-  if(o.k==='kill')return Math.min(o.n,QS.n[q.id]|0);
+  if(o.k==='kill'||o.k==='fish')return Math.min(o.n,QS.n[q.id]|0);
   if(o.k==='collect')return Math.min(o.n,QS.items[o.item]|0);
   if(o.k==='find')return QS.items[o.item]?1:0;
   return QS.seen[q.obj.area]?1:0;
 }
-const questNeed=q=>q.obj.k==='kill'||q.obj.k==='collect'?q.obj.n:1;
+const questNeed=q=>q.obj.k==='kill'||q.obj.k==='collect'||q.obj.k==='fish'?q.obj.n:1;
 function questGoalText(q){const o=q.obj;
-  return o.k==='kill'?`Defeat ${o.n} ${ENEMY[o.type].name}${o.n>1?'s':''}`:o.k==='collect'?`Collect ${o.n} ${QITEM[o.item].name}`:o.k==='find'?`Find ${QITEM[o.item].name}`:`Reach the ${CRYPT_NAME.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}`;}
+  return o.k==='fish'?`Catch ${o.n} fish`:o.k==='kill'?`Defeat ${o.n} ${ENEMY[o.type].name}${o.n>1?'s':''}`:o.k==='collect'?`Collect ${o.n} ${QITEM[o.item].name}`:o.k==='find'?`Find ${QITEM[o.item].name}`:`Reach the ${CRYPT_NAME.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}`;}
 function questRewardText(r){
   const p=[];if(r.gold)p.push(r.gold+' G');if(r.xp)p.push(r.xp+' XP');if(r.card)p.push('card: '+CARD[r.card].name);if(r.gear)p.push((r.gear.rar||'random')+(r.gear.slot?' '+r.gear.slot:' gear'));return p.join(', ');}
 function questCheckReady(q){
@@ -1532,6 +1679,7 @@ function questCheckReady(q){
 function questStart(id){
   const q=QUEST_BY_ID[id];if(questStatus(id)!=='avail')return false;
   QS.st[id]='active';QS.ord=QS.ord.filter(x=>x!==id);QS.ord.push(id);if(!trkValid(TRK.id)||(TRK.auto&&!/^q:/.test(TRK.id))){TRK.id='q:'+id;TRK.auto=true;}QS.n[id]=0;if(q.obj.k==='collect'||q.obj.k==='find')QS.items[q.obj.item]=0;
+  if(id==='fish1'&&FSH.rod<0){FSH.rod=0;toast('Tobin lends you a Wooden Rod!',2.6,'#c08a52');}
   toast('NEW QUEST: '+q.name,3,'#ffe14d');sfx('select');questCheckReady(q);saveGame('quest');return true;
 }
 /* world events: ('kill',type) ('area',name) */
@@ -1539,6 +1687,7 @@ function questEvent(kind,v){
   if(kind==='area')QS.seen[v]=true;
   for(const q of QUESTS){
     if(QS.st[q.id]!=='active')continue;const o=q.obj;
+    if(kind==='fish'&&o.k==='fish'){QS.n[q.id]=(QS.n[q.id]|0)+1;if(QS.n[q.id]<o.n)toast(`${q.name}: ${QS.n[q.id]}/${o.n}`,2,'#ffe14d');questCheckReady(q);}
     if(kind==='kill'&&o.k==='kill'&&o.type===v){QS.n[q.id]=(QS.n[q.id]|0)+1;if(QS.n[q.id]<o.n)toast(`${q.name}: ${QS.n[q.id]}/${o.n}`,2,'#ffe14d');questCheckReady(q);}
     if(kind==='area'&&o.k==='reach'&&o.area===v)questCheckReady(q);
   }
@@ -1696,6 +1845,37 @@ const LIGHTS=[
 ];
 const LIGHT_BY={};LIGHTS.forEach(l=>{LIGHT_BY[l.id]=l;});
 
+/* ---------- src/data/fishing.js ---------- */
+/* =====================================================================
+   FISHING DATA: fish, rods, levels. Catches sell for gold, can be cooked & eaten to heal, and drop Silver Scales for crafting.
+   ===================================================================== */
+const FISH_MAX_LV=10;
+const fishNeed=l=>30+25*(l-1);                     // xp to go from level l to l+1
+const FISHES=[
+  {id:'minnow',n:'Silverscale Minnow',tier:0,lv:1,w:10,price:6,  heal:.06,xp:6, dif:.8, col:'#cfe3ff'},
+  {id:'carp',  n:'Mudfin Carp',       tier:0,lv:1,w:8, price:11, heal:.10,xp:9, dif:1.0,col:'#b08a5a'},
+  {id:'trout', n:'Riverbell Trout',   tier:0,lv:2,w:4, price:22, heal:.14,xp:14,dif:1.15,col:'#e8a8c8'},
+  {id:'pike',  n:'Greenwood Pike',    tier:1,lv:3,w:8, price:34, heal:.20,xp:20,dif:1.3, col:'#7ac060'},
+  {id:'bass',  n:'Moonpetal Bass',    tier:1,lv:4,w:4, price:52, heal:.26,xp:28,dif:1.45,col:'#c8b8ff'},
+  {id:'eel',   n:'Bog Lurker Eel',    tier:2,lv:5,w:8, price:70, heal:.30,xp:36,dif:1.6, col:'#8aa860'},
+  {id:'gill',  n:'Glowgill',          tier:2,lv:6,w:4, price:105,heal:.36,xp:48,dif:1.75,col:'#7dffd0'},
+  {id:'perch', n:'Sunscale Perch',    tier:3,lv:7,w:8, price:130,heal:.42,xp:60,dif:1.9, col:'#ffd23f'},
+  {id:'koi',   n:'Mirage Koi',        tier:3,lv:8,w:3, price:210,heal:.55,xp:90,dif:2.1, col:'#ff8a5a'},
+];
+const FISH_JUNK=[
+  {id:'boot', n:'Old Boot',  price:1, col:'#7a5a3a',junk:true,heal:0,xp:0},
+  {id:'pearl',n:'Moon Pearl',price:75,col:'#f4f0ff',junk:true,heal:0,xp:0},
+];
+const FISH_BY={};FISHES.concat(FISH_JUNK).forEach(f=>{FISH_BY[f.id]=f;});
+/* rods: zone = width of the green sweet spot in the reel bar, bite = seconds you have to answer a bite, waitMul = shorter waits, luck = better odds for rare fish */
+const RODS=[
+  {id:'wood',n:'WOODEN ROD',    price:25, zone:.22,bite:1.0,waitMul:1,  luck:0,  col:'#c08a52',desc:'A plain pole - fine for the river.'},
+  {id:'bog', n:'BOGWOOD ROD',   price:150,zone:.30,bite:1.2,waitMul:.8, luck:.15,col:'#9ad03a',desc:'Springy: wider sweet spot, faster bites.'},
+  {id:'star',n:'STARLIGHT ROD', price:480,zone:.38,bite:1.4,waitMul:.6, luck:.35,col:'#9fd8ff',desc:'Silver-strung: huge sweet spot, rare fish bite.'},
+];
+MATS.fscale={n:'Silver Scale',col:'#cfe6ff'};
+RECIPES.push({id:'r_angler',name:"Angler's Band",slot:'ring',rar:'rare',mats:{fscale:5,shard:2},gold:110});
+
 /* ---------- src/player/craft.js ---------- */
 /* =====================================================================
    CRAFTING STATE + LOGIC: monster parts, gear crafting, card upgrades ("Fireball+")
@@ -1750,6 +1930,188 @@ function equipLight(id){if(id&&!LGT.own[id])return false;LGT.eq=id||null;if(id)L
 function toggleLight(){if(!LGT.eq){toast('No light equipped  (buy one at Brum\'s workbench)',2.2,'#ffd98a');return false;}
   LGT.on=!LGT.on;toast(LIGHT_BY[LGT.eq].name+(LGT.on?' lit':' put out'),1.4,LIGHT_BY[LGT.eq].col);sfx('select');return true;}
 const activeLight=()=>LGT.eq&&LGT.on?LIGHT_BY[LGT.eq]:null;
+
+/* ---------- src/player/fishing.js ---------- */
+/* =====================================================================
+   FISHING: tap a rippling spot (or press E next to it) with a rod -> cast, wait for a bite, tap on the bite, then tap when the
+   moving marker is inside the green zone. XP -> fishing levels (unlock better spots + fish). State saved as {rod,xp,caught,fish}.
+   ===================================================================== */
+const FSH={rod:-1,xp:0,caught:0,fish:{}};
+function resetFish(){FSH.rod=-1;FSH.xp=0;FSH.caught=0;FSH.fish={};}
+function packFish(){return {rod:FSH.rod,xp:FSH.xp,caught:FSH.caught,fish:FSH.fish};}
+function unpackFish(s){resetFish();if(!s||typeof s!=='object')return;
+  FSH.rod=clamp(s.rod|0,-1,RODS.length-1);FSH.xp=clamp(s.xp|0,0,99999);FSH.caught=clamp(s.caught|0,0,99999);
+  if(s.fish&&typeof s.fish==='object')for(const k in s.fish)if(FISH_BY[k])FSH.fish[k]=clamp(s.fish[k]|0,0,99);}
+function fishLv(){let l=1,x=FSH.xp;while(l<FISH_MAX_LV&&x>=fishNeed(l)){x-=fishNeed(l);l++;}return l;}
+function fishXpInto(){let l=1,x=FSH.xp;while(l<FISH_MAX_LV&&x>=fishNeed(l)){x-=fishNeed(l);l++;}return [l>=FISH_MAX_LV?fishNeed(l-1):x,l>=FISH_MAX_LV?fishNeed(l-1):fishNeed(l)];}
+const fishCount=()=>Object.values(FSH.fish).reduce((a,b)=>a+b,0);
+const rodPrice=r=>storyGold(r.price);
+function buyRod(i){const r=RODS[i];if(!r||i<=FSH.rod)return false;const p=rodPrice(r);if(P.gold<p)return false;P.gold-=p;FSH.rod=i;return true;}
+function addFishXp(n){const l0=fishLv();FSH.xp+=n;const l1=fishLv();if(l1>l0){toast('FISHING LEVEL '+l1+'!'+(FISH_SPOTS.some(s=>s.lv===l1)?'  New fishing spot unlocked':'')+(FISHES.some(f=>f.lv===l1)?'  New fish':''),3.4,'#7df9ff');sfx('level');}}
+const spotCenter=s=>s.pond?{x:(s.pond.x+s.pond.w/2)*TS,y:(s.pond.y+s.pond.h/2)*TS}:{x:s.tx*TS+TS/2,y:s.ty*TS+TS/2};
+const FISH_REACH=66;
+const spotDist=s=>{const c=spotCenter(s);return Math.hypot(c.x-P.x,c.y-(P.y-10));};
+function fishSpotNear(){let b=null,bd=FISH_REACH;for(const s of FISH_SPOTS){if(zoneOfPx(spotCenter(s).y)!==zoneOfPx(P.y))continue;const d=spotDist(s);if(d<bd){bd=d;b=s;}}return b;}
+/* ---- the cast ---- */
+const FISH={on:false,spot:null,ph:'',t:0,wait:0,pick:null,res:null,tap:false,mk:0,zc:.5,zw:.2,spd:1,stopR:null,combo:0};
+function endFishing(msg,col){FISH.on=false;FISH.ph='';FISH.spot=null;FISH.res=null;FISH.tap=false;FISH.stopR=null;if(msg)toast(msg,2.2,col||'#cfe3ff');}
+function startFishing(spot){
+  if(!spot||B||DLG)return false;
+  if(FSH.rod<0){toast("You need a fishing rod - Brum sells one at the forge!",3.2,'#ffd98a');sfx('clang');return false;}
+  if(fishLv()<spot.lv){toast('Fishing Lv '+spot.lv+' needed for '+spot.name+'  (you are Lv '+fishLv()+')',3.2,'#ffd98a');sfx('clang');return false;}
+  const c=spotCenter(spot);P.dir=Math.abs(c.x-P.x)>Math.abs(c.y-(P.y-10))?(c.x<P.x?'l':'r'):(c.y<P.y-10?'u':'d');P.aim=Math.atan2(c.y-(P.y-10),c.x-P.x);P.moving=false;P.anim=0;
+  FISH.on=true;FISH.spot=spot;FISH.ph='cast';FISH.t=0;FISH.res=null;FISH.tap=false;WCH.on=false;WCH.t=0;sfx('select');return true;
+}
+function fishPick(spot){
+  const rod=RODS[FSH.rod],lv=fishLv();
+  if(Math.random()<.015+rod.luck*.02)return FISH_BY.pearl;
+  if(Math.random()<.08)return FISH_BY.boot;
+  const pool=FISHES.filter(f=>f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);
+  const ws=pool.map(f=>f.w*(f.w<=4?1+rod.luck*2:1)*(f.tier===spot.tier?1.6:1));let t=ws.reduce((a,b)=>a+b,0),r=Math.random()*t;
+  for(let i=0;i<pool.length;i++){r-=ws[i];if(r<=0)return pool[i];}
+  return pool[0]||FISHES[0];
+}
+function fishAward(f){
+  FSH.fish[f.id]=Math.min(99,(FSH.fish[f.id]|0)+1);
+  if(f.junk){toast('You hooked '+(f.id==='pearl'?'a '+f.n+'!':'an '+f.n+'...'),2.2,f.col);return;}
+  FSH.caught++;ACH.s.fish=(ACH.s.fish|0)+1;
+  addFishXp(f.xp);
+  if(Math.random()<.3+.12*f.tier){addMat('fscale',1);toast('+1 '+MATS.fscale.n,1.8,MATS.fscale.col);}
+  questEvent('fish',f.id);
+  if(!B)saveGame('fish');
+}
+function updateFishing(dt){
+  const rod=RODS[FSH.rod]||RODS[0],spot=FISH.spot,F=FISH;
+  const act=F.tap||hit('Space','KeyE','Enter','KeyJ');F.tap=false;
+  if(!spot||B||state!=='play'){endFishing();return;}
+  if(hit('Escape')){endFishing('You stop fishing.');return;}
+  const mv=moveInput();if(mv[2]>.3){endFishing('You stop fishing.');return;}
+  P.moving=false;P.anim=0;F.t+=dt;
+  switch(F.ph){
+    case 'cast':if(F.t>.55){F.ph='wait';F.t=0;F.wait=R(1.5,3.8)*rod.waitMul;sfx('talk');}break;
+    case 'wait':
+      if(act){endFishing('Reeled in too early - the fish got spooked.');return;}
+      if(F.t>=F.wait){F.ph='bite';F.t=0;F.pick=fishPick(spot);sfx('warn');}
+      break;
+    case 'bite':
+      if(act){F.ph='reel';F.t=0;const dif=F.pick.junk?.6:F.pick.dif;F.spd=.85+.35*dif;F.zw=clamp(rod.zone*(1.25-.25*dif),.1,.5);F.zc=R(.3,.7);F.mk=0;sfx('select');}
+      else if(F.t>rod.bite){F.ph='result';F.t=0;F.res={ok:false,msg:'It got away...'};sfx('clang');}
+      break;
+    case 'reel':{
+      F.mk=Math.abs(((F.t*F.spd)%2)-1);
+      const inZ=Math.abs(F.mk-F.zc)<=F.zw/2;
+      if(act){if(inZ){F.ph='result';F.t=0;F.res={ok:true,fish:F.pick};fishAward(F.pick);sfx(F.pick.junk?'select':'coin');}
+        else{F.ph='result';F.t=0;F.res={ok:false,msg:'The line went slack...'};sfx('clang');}}
+      else if(F.t>6){F.ph='result';F.t=0;F.res={ok:false,msg:'The fish slipped away...'};}
+      break;}
+    case 'result':
+      if(act&&F.t>.45){if(!startFishing(spot))endFishing();}
+      else if(F.t>7)endFishing();
+      break;
+  }
+}
+/* tap while fishing (touch/mouse): the STOP button ends it, anything else is the "reel/hook" action */
+function fishTap(p){
+  if(!FISH.on||state!=='play'||B||DLG)return false;
+  if(FISH.stopR&&inRect(p,FISH.stopR)){endFishing('You stop fishing.');return true;}
+  FISH.tap=true;return true;
+}
+/* ---- drawing ---- */
+function drawFishSpot(f){
+  const c=spotCenter(f),sx=Math.round(c.x-cam.x),sy=Math.round(c.y-cam.y);
+  if(sx<-70||sx>VW+70||sy<-70||sy>VH+70)return;
+  const zn=zoneOfPx(c.y);if(zn!==zoneOfPx(P.y))return;
+  const w=f.pond?f.pond.w*TS*.5:TS*.5;
+  ctx.save();
+  for(let i=0;i<3;i++){const k=(gtime*.55+i/3)%1;ctx.globalAlpha=(1-k)*.75;ctx.strokeStyle=i%2?'#d8f0ff':'#ffffff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(sx,sy,6+k*(w*.9),(6+k*(w*.9))*.5,0,0,6.283);ctx.stroke();}
+  ctx.globalAlpha=.55+.4*Math.sin(gtime*5+f.tx);ctx.fillStyle='#fff';ctx.fillRect(sx-9+Math.round(Math.sin(gtime*1.7)*8),sy-3,2,2);ctx.fillRect(sx+6-Math.round(Math.cos(gtime*1.3)*8),sy+3,2,2);
+  ctx.restore();
+  const d=spotDist(f);
+  if(!FISH.on&&d<FISH_REACH+34&&!B&&!DLG){
+    const locked=fishLv()<f.lv,by=sy-36+Math.round(Math.sin(gtime*3)*2);
+    draw(SP.rodIcon,sx-16,by-26,2);
+    txt(locked?'FISH Lv '+f.lv:(FSH.rod<0?'needs rod':(TOUCH?'TAP':'E')),sx,by+12,{size:10,align:'center',col:locked||FSH.rod<0?'#ff9a9a':'#7df9ff',lw:3});
+  }
+}
+function drawFishingWorld(){
+  const F=FISH;if(!F.on||!F.spot)return;
+  const c=spotCenter(F.spot),dirx=c.x>=P.x?1:-1,hand={x:P.x-cam.x+dirx*8,y:P.y-cam.y-14},tip={x:hand.x+dirx*15,y:hand.y-20};
+  let bx=c.x-cam.x,by=c.y-cam.y;
+  if(F.ph==='cast'){const k=Math.min(1,F.t/.5);bx=lerp(tip.x,bx,k);by=lerp(tip.y,by,k)-Math.sin(k*Math.PI)*34;}
+  else by+=F.ph==='bite'?Math.abs(Math.sin(gtime*30))*5:Math.sin(gtime*3)*1.2;
+  ctx.save();
+  ctx.strokeStyle='#6a4420';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(hand.x-dirx*3,hand.y+3);ctx.lineTo(tip.x,tip.y);ctx.stroke();
+  ctx.strokeStyle='#d8a060';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hand.x-dirx*3,hand.y+3);ctx.lineTo(tip.x,tip.y);ctx.stroke();
+  ctx.strokeStyle='rgba(235,240,255,.85)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(tip.x,tip.y);ctx.quadraticCurveTo((tip.x+bx)/2,Math.max(tip.y,by)+10,bx,by);ctx.stroke();
+  if(F.ph==='bite'||F.ph==='reel'){for(let i=0;i<2;i++){const k=(gtime*2+i*.5)%1;ctx.globalAlpha=1-k;ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(bx,by+3,4+k*14,(4+k*14)*.45,0,0,6.283);ctx.stroke();}ctx.globalAlpha=1;}
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by,4,0,6.283);ctx.fill();ctx.fillStyle='#e2403a';ctx.beginPath();ctx.arc(bx,by-1.5,4,Math.PI,0);ctx.fill();ctx.fillStyle='#14182c';ctx.fillRect(bx-4,by-1,8,1);
+  ctx.restore();
+  if(F.ph==='bite')txt('!',bx,by-16,{size:30,align:'center',col:'#ff4040',lw:5});
+}
+function drawFishingHud(){
+  const F=FISH;if(!F.on||state!=='play'||B||DLG)return;
+  const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=Math.round(Math.max(ST+120,VH*.17)),spot=F.spot;
+  const rod=RODS[FSH.rod]||RODS[0];
+  const h=F.ph==='reel'?84:F.ph==='result'?80:56;
+  panel(x,y,w,h,{border:'#7dd0ff'});
+  txt(spot.name+'   Fishing Lv '+fishLv(),x+w/2,y+17,{size:10,align:'center',col:'#9ad0ff',lw:2});
+  const act=TOUCH?'TAP':'SPACE';
+  if(F.ph==='cast')txt('Casting...',x+w/2,y+40,{size:14,align:'center',col:'#fff'});
+  else if(F.ph==='wait'){txt('Waiting for a bite'+'.'.repeat(1+Math.floor(gtime*2)%3),x+w/2,y+38,{size:13,align:'center',col:'#cfe3ff'});txt(act+' = reel in early',x+w/2,y+52,{size:8,align:'center',col:'#8a96b8',bold:false,lw:2});}
+  else if(F.ph==='bite'){const fl=Math.floor(gtime*8)%2;txt('BITE!  '+act+' NOW!',x+w/2,y+40,{size:16,align:'center',col:fl?'#ff6b6b':'#ffe14d',lw:4});
+    bar(x+14,y+47,w-28,4,1-F.t/rod.bite,'#ff9a3d');}
+  else if(F.ph==='reel'){
+    txt(act+' when the marker is in the green!',x+w/2,y+36,{size:10,align:'center',col:'#fff'});
+    const bx=x+16,bw=w-32,by=y+46,bh=18;
+    ctx.fillStyle='#0a0a18';ctx.fillRect(bx-2,by-2,bw+4,bh+4);ctx.fillStyle='#24304e';ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle='#3fd070';ctx.fillRect(bx+Math.round((F.zc-F.zw/2)*bw),by,Math.round(F.zw*bw),bh);ctx.fillStyle='rgba(255,255,255,.28)';ctx.fillRect(bx+Math.round((F.zc-F.zw/2)*bw),by,Math.round(F.zw*bw),4);
+    const mx=bx+Math.round(F.mk*bw);ctx.fillStyle='#fff';ctx.fillRect(mx-2,by-5,4,bh+10);ctx.fillStyle='#e2403a';ctx.fillRect(mx-1,by-5,2,bh+10);
+  } else if(F.ph==='result'){
+    const r=F.res||{};
+    if(r.ok){const f=r.fish;draw(f.junk?SP.fishIcon:SP.fishIcon,x+12,y+26,2);txt((f.junk?'':'CAUGHT: ')+f.n+'!',x+52,y+42,{size:12,col:f.col,lw:3});
+      txt(f.price+' G'+(f.junk?'':'   +'+f.xp+' fishing XP'),x+52,y+58,{size:10,col:'#ffd23f',lw:3});}
+    else txt(r.msg||'',x+w/2,y+44,{size:13,align:'center',col:'#ffb0a0',lw:3});
+    if(F.t>.45)txt(act+' = cast again',x+w/2,y+74,{size:9,align:'center',col:'#7df9ff',lw:2});
+  }
+  // STOP button
+  F.stopR={x:x+w-80,y:y+h+6,w:80,h:26};panel(F.stopR.x,F.stopR.y,80,26,{fill:'#3a1c1c'});txt(TOUCH?'STOP':'ESC: stop',F.stopR.x+40,F.stopR.y+18,{size:10,align:'center',lw:2});
+}
+
+/* ---------- src/player/church.js ---------- */
+/* =====================================================================
+   OAKVALE CHAPEL + RIVERSIDE: Father Anselm (free full-heal blessing, a kind word, and the game is saved) and Fisher Tobin
+   (fishing tips, sells your catch, gives the fishing quests). Both are plain NPCs, so tapping them walks you over and talks.
+   ===================================================================== */
+NPCS.push({name:'Father Anselm',x:19.7*TS,y:33.75*TS,spr:'priest',priest:true,lines:[]});
+NPCS.push({name:'Fisher Tobin',x:24.1*TS,y:39.6*TS,spr:'fisher',fisher:true,lines:[]});
+const PRIEST_WORDS=[
+  '"Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest."  - Joshua 1:9',
+  '"They that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles."  - Isaiah 40:31',
+  '"Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me."  - Psalm 23:4',
+  'Even the longest night gives way to morning. Rest a while, friend, and take heart.',
+  'You carry more courage than you know. Be kind to those you meet on the road, and the road will be kinder to you.',
+];
+const CHURCH={met:false,visits:0};
+function priestBless(){
+  P.hp=maxHp();P.regen=0;sfx('heal');sfx('level');CHURCH.visits++;ACH.s.bless=(ACH.s.bless|0)+1;
+  wfxBurst(P.x,P.y-20,'#fff6c0',26,110,1.1);wfxBurst(P.x,P.y-10,'#ffd34d',12,80,.9);
+  toast('You are blessed - fully healed.  (Game saved)',3.2,'#fff6c0');
+  saveGame('chapel');
+}
+function openPriest(npc){
+  const first=!CHURCH.met;CHURCH.met=true;
+  const lines=first
+    ?['Peace be with you, traveler. You are most welcome in this house.','Oakvale Chapel has stood here since before the dragon woke. All who come in good faith may rest here - the weary most of all.','Would you like a blessing for the road? It costs nothing.']
+    :[['Welcome back, friend. The door is always open.','Peace be with you again, traveler.','Good to see you safe. Come in, rest.'][RI(0,2)],'Would you like a blessing for the road?'];
+  const word=PRIEST_WORDS[RI(0,PRIEST_WORDS.length-1)];
+  DLG={name:'FATHER ANSELM',lines,i:0,c:0,yes:'BLESS',no:'LEAVE',choice:priestBless,
+       noAct:()=>{DLG=null;},
+       after:()=>({name:'FATHER ANSELM',lines:[word,'Go in peace, and may you be kept safe on every road.'],i:0,c:0})};
+}
+function openFisher(npc){
+  const lines=['The river is kind to those who wait, friend.','Rippling water means fish are rising. With a rod in hand, tap the ripples - when the bobber dips, tap again, then tap when the marker is in the green.','Better spots open as your Fishing level grows: the meadow river, the Whisperwood pond, even pools out in the bog and ruins.','Want to sell your catch, or cook some to eat?'];
+  DLG={name:npc.name,lines,i:0,c:0,yes:'MY CATCH',no:'LATER',choice:()=>openFishing('play')};
+}
 
 /* ---------- src/player/daynight.js ---------- */
 /* =====================================================================
@@ -2210,8 +2572,8 @@ function weeklyDlg(res){
    ACHIEVEMENTS: polled once a second against live game state; each pays a small gold bounty.
    ACH.s holds the few counters that are not derivable from other state.
    ===================================================================== */
-const ACH={done:{},s:{crafts:0,rushBest:0,bestFloor:0,weeklyWins:0,streakBest:0}};
-function resetAch(){ACH.done={};ACH.s={crafts:0,rushBest:0,bestFloor:0,weeklyWins:0,streakBest:0};}
+const ACH={done:{},s:{crafts:0,rushBest:0,bestFloor:0,weeklyWins:0,streakBest:0,spw:0,fish:0,bless:0}};
+function resetAch(){ACH.done={};ACH.s={crafts:0,rushBest:0,bestFloor:0,weeklyWins:0,streakBest:0,spw:0,fish:0,bless:0};}
 function packAch(){return {d:ACH.done,s:ACH.s};}
 function unpackAch(s){resetAch();if(!s)return;
   if(s.d)for(const a of ACHS)if(s.d[a.id])ACH.done[a.id]=1;
@@ -2269,7 +2631,7 @@ function moveBox(o,dx,dy,hw,h){
   const blocked=(x,y)=>{
     for(const [cx,cy] of [[x-hw,y-h],[x+hw,y-h],[x-hw,y],[x+hw,y]])if(solidTile(Math.floor(cx/TS),Math.floor(cy/TS)))return true;
     return false;};
-  const npcBlock=(x,y)=>o===P&&NPCS.some(n=>Math.abs(n.x-x)<hw+7&&Math.abs(n.y-y)<h+4);
+  const npcBlock=(x,y)=>(o===P&&NPCS.some(n=>Math.abs(n.x-x)<hw+7&&Math.abs(n.y-y)<h+4))||spwSolidAt(x,y,hw,h);
   if(dx){const nx=o.x+dx;if(!blocked(nx,o.y)&&!npcBlock(nx,o.y))o.x=nx;}
   if(dy){const ny=o.y+dy;if(!blocked(o.x,ny)&&!npcBlock(o.x,ny))o.y=ny;}
 }
@@ -2277,6 +2639,7 @@ function moveInput(){
   let dx=0,dy=0,mag=1;
   if(held(...K_L))dx--;if(held(...K_R))dx++;if(held(...K_U))dy--;if(held(...K_D))dy++;
   if(!(dx||dy)&&joy.on){dx=joy.x;dy=joy.y;mag=Math.min(1,Math.hypot(dx,dy));}
+  if(!(dx||dy)&&!joy.on&&GOTO.k){const g=gotoDir();if(g){dx=g[0];dy=g[1];mag=1;}}      // walking to a tapped NPC / fishing spot
   const l=Math.hypot(dx,dy);
   if(l<.12)return [0,0,0];
   return [dx/l,dy/l,mag];
@@ -2293,6 +2656,8 @@ function updateExplore(dt){
   const frozen=fighting&&B.phase!=='fight';
   if(WARP){updateWarp(dt);return;}
   if(DLG&&!fighting){updateDlg(dt);return;}
+  updateSpawners(dt);updateGoto(dt);
+  if(FISH.on&&!fighting){updateFishing(dt);return;}
   if(!frozen){
     const [dx,dy,mag]=moveInput();
     P.moving=!!mag;
@@ -2316,6 +2681,7 @@ function updateExplore(dt){
       for(const n of NPCS){const d=Math.hypot(n.x-P.x,n.y-P.y);if(d<bd){bd=d;best=n;}}
       if(best)openDlg(best);
       else if(tryInteract()){}
+      else if(hit('KeyE','Enter')&&fishSpotNear()){startFishing(fishSpotNear());}
       else if(hit('KeyJ')&&state==='play'&&!DLG){WCH.on=true;WCH.t=0;}      // press SHOT: start charging (released early = a normal shot)
     }
     updateWorldCharge(dt);
@@ -2323,7 +2689,7 @@ function updateExplore(dt){
   }
   for(const e of enemies){
     if(e.alive&&e.terr)clampTerr(e);
-    if(!e.alive){if(e.night)continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;e.x=e.hx;e.y=e.hy;e.chasing=false;e.engaged=false;e.dying=false;}continue;}
+    if(!e.alive){if(e.night||e.spw)continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;e.x=e.hx;e.y=e.hy;e.chasing=false;e.engaged=false;e.dying=false;}continue;}
     if(e.engaged)continue;
     updateEnemyWorld(e,dt);
   }
@@ -2333,6 +2699,76 @@ function updateExplore(dt){
   const an=areaName(Math.floor(P.x/TS),Math.floor(P.y/TS));
   if(an!==areaCur){const first=areaCur==='';areaCur=an;areaT=3;if(!first)saveGame('area');questEvent('area',an);}
   areaT=Math.max(0,areaT-dt);
+}
+
+/* ---------- src/player/walkto.js ---------- */
+/* =====================================================================
+   TAP-TO-TALK / TAP-TO-FISH: tap (or click) an NPC - or a rippling fishing spot - and you talk to them / cast a line when in range;
+   if you are out of range you first walk there on a path around obstacles. Any steering input, a fight or a dialog cancels the walk.
+   ===================================================================== */
+const GOTO={k:null,ref:null,path:[],i:0,t:0,lx:0,ly:0,st:0};
+const NPC_TALK_R=44;
+function worldTapOk(){return state==='play'&&!B&&!DLG&&!WARP&&!RUSH.on&&!FISH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
+/* what is under a screen point (generous boxes): {k:'npc',ref}|{k:'spot',ref}|null */
+function worldTargetAt(p){
+  if(!worldTapOk())return null;
+  const wx=p.x+cam.x,wy=p.y+cam.y,zn=zoneOfPx(P.y);let best=null,bd=1e9;
+  for(const n of NPCS){if(zoneOfPx(n.y)!==zn)continue;const dx=wx-n.x,dy=wy-(n.y-18);
+    if(Math.abs(dx)<27&&dy>-36&&dy<32){const d=Math.hypot(dx,dy*.8);if(d<bd){bd=d;best={k:'npc',ref:n};}}}
+  for(const s of FISH_SPOTS){const c=spotCenter(s);if(zoneOfPx(c.y)!==zn)continue;const r=s.pond?s.pond.w*TS*.5+14:34;
+    if(Math.hypot(wx-c.x,(wy-c.y)*1.25)<r){const d=Math.hypot(wx-c.x,wy-c.y)+8;if(d<bd){bd=d;best={k:'spot',ref:s};}}}
+  return best;
+}
+const gotoPos=t=>t.k==='npc'?{x:t.ref.x,y:t.ref.y}:spotCenter(t.ref);
+function gotoInRange(t){return t.k==='npc'?Math.hypot(t.ref.x-P.x,t.ref.y-P.y)<NPC_TALK_R:spotDist(t.ref)<FISH_REACH;}
+function gotoArrive(t){
+  const c=gotoPos(t);P.moving=false;P.anim=0;
+  if(t.k==='npc'){const dx=c.x-P.x,dy=c.y-P.y;P.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'l':'r'):(dy<0?'u':'d');openDlg(t.ref);}
+  else startFishing(t.ref);
+}
+const gotoBoxFree=(x,y)=>{for(const [cx,cy] of [[x-6,y-7],[x+6,y-7],[x-6,y],[x+6,y]])if(solidTile(Math.floor(cx/TS),Math.floor(cy/TS)))return false;return true;};
+const gotoSegClear=(a,b)=>{const n=Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/5);for(let i=1;i<=n;i++){if(!gotoBoxFree(a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n))return false;}return true;};
+function gotoPath(t){
+  const c=gotoPos(t),W=MW,sx=Math.floor(P.x/TS),sy=Math.floor((P.y-4)/TS),goalR=t.k==='npc'?NPC_TALK_R-8:FISH_REACH-12;
+  const isGoal=(x,y)=>{const px=x*TS+16,py=y*TS+24;
+    if(t.k==='npc'){if(Math.hypot(c.x-px,c.y-py)>goalR)return false;return !(Math.abs(c.x-px)<14&&Math.abs(c.y-py)<12);}
+    return Math.hypot(c.x-px,c.y-10-py)<goalR||Math.hypot(c.x-px,c.y-py)<goalR;};
+  const prev=new Int32Array(W*MH).fill(-2),q=[sy*W+sx];prev[sy*W+sx]=-1;let goal=-1;
+  for(let h=0;h<q.length;h++){const cur=q[h],x=cur%W,y=(cur/W)|0;
+    if(isGoal(x,y)&&gotoBoxFree(x*TS+16,y*TS+24)){goal=cur;break;}
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=W||ny>=MH||prev[ny*W+nx]!==-2)continue;
+      if(solidTile(nx,ny))continue;prev[ny*W+nx]=cur;q.push(ny*W+nx);}}
+  if(goal<0)return null;
+  const tiles=[];for(let c2=goal;c2>=0;c2=prev[c2])tiles.push({x:(c2%W)*TS+16,y:((c2/W)|0)*TS+24});tiles.reverse();
+  const out=[];let from={x:P.x,y:P.y};                                    // string-pull: skip waypoints we can walk to in a straight line
+  for(let i=0;i<tiles.length;i++){const nxt=tiles[i+1];if(nxt&&gotoSegClear(from,nxt))continue;out.push(tiles[i]);from=tiles[i];}
+  return out;
+}
+function setGoto(t){
+  if(!t||!worldTapOk())return false;
+  if(gotoInRange(t)){GOTO.k=null;gotoArrive(t);return true;}
+  const path=gotoPath(t);if(!path){toast("You can't reach that from here",1.8,'#ffb0a0');return false;}
+  Object.assign(GOTO,{k:t.k,ref:t.ref,path,i:0,t:0,lx:P.x,ly:P.y,st:0});sfx('select');return true;
+}
+const gotoManual=()=>held(...K_L)||held(...K_R)||held(...K_U)||held(...K_D)||(joy.on&&Math.hypot(joy.x,joy.y)>.2);
+function updateGoto(dt){
+  if(!GOTO.k)return;
+  if(B||DLG||WARP||FISH.on||state!=='play'||gotoManual()){GOTO.k=null;return;}
+  const t={k:GOTO.k,ref:GOTO.ref};
+  if(gotoInRange(t)){GOTO.k=null;gotoArrive(t);return;}
+  GOTO.t+=dt;if(GOTO.t>16){GOTO.k=null;return;}
+  const wp=GOTO.path[GOTO.i];
+  if(!wp){GOTO.k=null;return;}
+  if(Math.hypot(wp.x-P.x,wp.y-P.y)<5){GOTO.i++;if(GOTO.i>=GOTO.path.length){GOTO.k=null;}return;}
+  GOTO.st+=dt;if(GOTO.st>.5){if(Math.hypot(P.x-GOTO.lx,P.y-GOTO.ly)<6){GOTO.k=null;return;}GOTO.lx=P.x;GOTO.ly=P.y;GOTO.st=0;}
+}
+function gotoDir(){const wp=GOTO.k&&GOTO.path[GOTO.i];if(!wp)return null;const dx=wp.x-P.x,dy=wp.y-P.y,l=Math.hypot(dx,dy);return l<1?null:[dx/l,dy/l,1];}
+/* a click / short tap on the world */
+function worldTap(p){const t=worldTargetAt(p);if(!t)return false;return setGoto(t);}
+/* destination marker while walking */
+function drawGotoMark(){
+  if(!GOTO.k)return;const c=GOTO.k==='npc'?{x:GOTO.ref.x,y:GOTO.ref.y-52}:spotCenter(GOTO.ref);
+  ctx.save();ctx.globalAlpha=.7+.3*Math.sin(gtime*8);ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x-cam.x,c.y-cam.y+(GOTO.k==='npc'?0:0),10+Math.sin(gtime*6)*2,0,6.283);ctx.stroke();ctx.restore();
 }
 
 /* ---------- src/enemies/world-ai.js ---------- */
@@ -2407,6 +2843,7 @@ function updateWorldShots(dt){
   for(const s of WS){
     s.life-=dt;if(s.life<=0){s.dead=true;continue;}
     if(sweepShot(s,dt)){s.dead=true;continue;}
+    if(hitSpawnerShot(s)){s.dead=true;continue;}
     for(const e of enemies){
       if(!e.alive||e.engaged||e.dying)continue;
       const c=ecen(e);
@@ -2436,6 +2873,150 @@ function drawVision(){
   }
 }
 
+/* ---------- src/enemies/spawners.js ---------- */
+/* =====================================================================
+   MONSTER SPAWNERS (runed, caged braziers). While you are near one it keeps summoning its themed monsters (up to a cap).
+   It has HP: arcane shots, charged shots, fire, sword / lance / quake / meteor cards all damage it. Destroying one pays XP, gold,
+   crafting parts and sometimes a card; it re-kindles after SPW_RESPAWN seconds of play. State saved as {id: seconds-left} for destroyed ones.
+   ===================================================================== */
+const SPW_RANGE=330,SPW_RESPAWN=600,SPW_SHOT_MULT=2.5,SPW_REACH=17;
+const SPW_THEME={
+  warren:{flame:'#ff9a3d',flame2:'#ffe14d',rune:'#ffb060',iron:'#4a3a2a',iron2:'#6a5640',glow:'255,150,60'},
+  bone:  {flame:'#9fdcff',flame2:'#ffffff',rune:'#cfe6ff',iron:'#555868',iron2:'#7a7e94',glow:'150,210,255'},
+  bog:   {flame:'#7dff6a',flame2:'#d8ffb0',rune:'#9aff7a',iron:'#2e4a36',iron2:'#4a7058',glow:'110,255,100'},
+  sun:   {flame:'#ffd23f',flame2:'#fff6c0',rune:'#ffe46b',iron:'#6a5430',iron2:'#9a7c46',glow:'255,210,80'},
+  grave: {flame:'#b07dff',flame2:'#e8d0ff',rune:'#c9a0ff',iron:'#2a2640',iron2:'#4a4468',glow:'170,120,255'},
+};
+/* sprite: 24x28 cage of iron bars on a runed stone plinth (the flame is drawn live behind the bars) */
+function mkSpwSprite(th){
+  return autoOutline(makeSprite(24,28,g=>{
+    rect(g,1,22,22,6,'#4a465e');rect(g,1,22,22,1,'#8a86a4');rect(g,2,27,20,1,'#2c2a3c');rect(g,3,23,18,1,'#5c5876');
+    [[4,25],[9,25],[14,25],[19,25]].forEach(([x,y],i)=>{rect(g,x,y,1,2,th.rune);rect(g,x+(i%2?1:-1),y,1,1,th.rune);});     // glowing runes on the plinth
+    rect(g,5,17,14,5,th.iron);rect(g,5,17,14,1,th.iron2);rect(g,4,20,16,2,th.iron);rect(g,4,20,16,1,th.iron2);                    // bowl
+    for(const x of [4,8,12,15,19]){rect(g,x,4,1,16,th.iron);rect(g,x,4,1,2,th.iron2);}                                         // bars
+    rect(g,4,4,16,1,th.iron2);rect(g,3,3,18,2,th.iron);rect(g,3,3,18,1,th.iron2);                                              // top ring
+    rect(g,10,0,4,3,th.iron);rect(g,11,0,2,1,th.iron2);rect(g,11,10,2,1,th.rune);                                                // finial + a rune on the bars
+    rect(g,3,19,18,1,th.iron);rect(g,3,12,18,1,th.iron);}),'#14101e');
+}
+function mkSpwRubble(th){return autoOutline(makeSprite(24,12,g=>{rect(g,1,6,22,6,'#4a465e');rect(g,2,5,8,4,'#6a6680');rect(g,13,4,8,5,'#5a5670');rect(g,5,3,5,3,'#7a7690');rect(g,6,10,3,1,th.rune);rect(g,16,9,2,1,th.rune);rect(g,10,8,3,2,'#2c2a3c');}),'#14101e');}
+const SPW_ART={};for(const k in SPW_THEME)SPW_ART[k]={spr:mkSpwSprite(SPW_THEME[k]),rub:mkSpwRubble(SPW_THEME[k])};
+const WFX=[];                                    // world-space floating text + sparks (works in and out of battle)
+function wfxText(x,y,s,col='#fff',size=13){WFX.push({k:'t',x,y,s,col,size,t:0,dur:1.0});}
+function wfxBurst(x,y,col,n=10,sp=100,life=.6){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=R(.3,1)*sp;WFX.push({k:'p',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-40,t:0,dur:life*R(.6,1),col,sz:RI(2,3)});}}
+function initSpawners(){
+  SPW.length=0;
+  for(const d of SPAWNER_DEFS)SPW.push({def:d,id:d.id,x:(d.tx+.5)*TS,y:(d.ty+.92)*TS,hp:d.hp,maxhp:d.hp,alive:true,dying:false,dyT:0,left:0,t:2.5,flash:0,pulse:Math.random()*6,near:false,pop:0});
+}
+initSpawners();
+function resetSpawners(){for(const s of SPW){s.hp=s.maxhp;s.alive=true;s.dying=false;s.left=0;s.t=2.5;s.flash=0;}
+  for(let i=enemies.length-1;i>=0;i--)if(enemies[i].spw&&!enemies[i].engaged)enemies.splice(i,1);}
+function packSpawners(){const o={};for(const s of SPW)if(!s.alive||s.dying)o[s.id]=Math.max(1,Math.round(s.left||SPW_RESPAWN));return o;}
+function unpackSpawners(m){resetSpawners();if(!m||typeof m!=='object')return;for(const s of SPW)if(Number.isFinite(m[s.id])){s.alive=false;s.dying=false;s.left=clamp(m[s.id],1,SPW_RESPAWN);}}
+const spwLive=s=>s.alive&&!s.dying;
+const spwCenter=s=>({x:s.x,y:s.y-16});
+const spwMinions=s=>enemies.filter(e=>e.spw===s&&e.alive&&!e.dying);
+const spwSameZone=s=>zoneOfPx(s.y)===zoneOfPx(P.y);
+/* damage entry point used by shots and cards */
+function hurtSpawner(s,dmg,kind){
+  if(!spwLive(s)||!(dmg>0))return false;
+  dmg=Math.max(1,Math.round(dmg*boonDmg()));
+  s.hp-=dmg;s.flash=.16;sfx('hit');
+  wfxText(s.x+R(-10,10),s.y-52,String(dmg),kind==='charged'?'#7df9ff':'#fff',kind==='charged'?17:13);
+  wfxBurst(s.x,s.y-18,SPW_THEME[s.def.theme].flame,5,90,.45);
+  if(s.hp<=0){s.hp=0;destroySpawner(s);}
+  return true;
+}
+function destroySpawner(s){
+  const d=s.def;s.dying=true;s.dyT=0;s.left=SPW_RESPAWN;
+  sfx('boom');if(B)B.shake=Math.max(B.shake,.5);
+  wfxBurst(s.x,s.y-18,SPW_THEME[d.theme].flame,26,170,.9);wfxBurst(s.x,s.y-10,'#d8d4e8',12,120,.8);
+  const xp=Math.round(d.xp*storyXp()),g=RI(d.gold[0],d.gold[1]),lines=[];
+  questGiveXp(xp);P.gold+=g;ACH.s.spw=(ACH.s.spw|0)+1;
+  wfxText(s.x,s.y-70,'+'+xp+' XP','#9ad0ff',14);wfxText(s.x,s.y-86,'+'+g+' G','#ffd23f',14);
+  addMat('shard',d.mats);lines.push('+'+d.mats+' '+MATS.shard.n);
+  const mk=MAT_DROP[d.mobs[0]];if(mk){addMat(mk,2);lines.push('+2 '+MATS[mk].n);}
+  let got=null;
+  if(Math.random()<d.card){const c=randCardOf(pickRarity({common:30,uncommon:38,rare:26,epic:6}));if(c){grantCard(c.id);got=c.name;}}
+  toast('SPAWNER DESTROYED!  +'+xp+' XP  +'+g+' G'+(got?'  +CARD: '+got:''),3.8,'#ffe14d');
+  toast(lines.join('  '),2.6,'#7df9ff');
+  if(B)B.saveSoon=true;else saveGame('spawner');
+}
+function spwRevive(s){s.alive=true;s.dying=false;s.hp=s.maxhp;s.left=0;s.t=2.5;wfxBurst(s.x,s.y-18,SPW_THEME[s.def.theme].flame,14,110,.7);}
+/* shots (world + battle): returns true when the shot hit a spawner */
+function hitSpawnerShot(sh){
+  if(sh.own!=='p'||sh.kind==='pet')return false;
+  for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;const c=spwCenter(s);
+    if(Math.hypot(sh.x-c.x,sh.y-c.y)<sh.r+SPW_REACH){const arc=sh.kind==='arcane'||sh.kind==='charged';hurtSpawner(s,sh.dmg*(arc?SPW_SHOT_MULT:1),sh.kind);return true;}}
+  return false;
+}
+function spwHitArc(o,a,range,half,dmg,kind){for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;const c=spwCenter(s),d=Math.hypot(c.x-o.x,c.y-o.y);
+  if(d<range+SPW_REACH&&Math.abs(angDiff(angTo(o,c),a))<half)hurtSpawner(s,dmg,kind);}}
+function spwHitRadius(x,y,r,dmg,kind){for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;const c=spwCenter(s);if(Math.hypot(c.x-x,c.y-y)<r+SPW_REACH)hurtSpawner(s,dmg,kind);}}
+function spwHitZone(z,dmg,kind){for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;if(inZone(z,spwCenter(s),SPW_REACH))hurtSpawner(s,dmg,kind);}}
+function spwSolidAt(x,y,hw,h){for(const s of SPW){if(!spwLive(s))continue;if(Math.abs(s.x-x)<hw+11&&Math.abs(s.y-y)<h+6&&y>s.y-26)return true;}return false;}
+/* summoning */
+function spwSpawnOne(s){
+  const d=s.def,type=d.mobs[RI(0,d.mobs.length-1)];
+  for(let k=0;k<14;k++){
+    const a=Math.random()*6.283,r=R(38,66),x=s.x+Math.cos(a)*r,y=s.y+Math.sin(a)*r*.8;
+    if(solidTile(Math.floor(x/TS),Math.floor(y/TS))||solidTile(Math.floor((x-8)/TS),Math.floor(y/TS))||solidTile(Math.floor((x+8)/TS),Math.floor(y/TS))||solidTile(Math.floor(x/TS),Math.floor((y-8)/TS)))continue;
+    if(Math.hypot(x-P.x,y-P.y)<72||!losClear({x:s.x,y:s.y-8},{x,y:y-8}))continue;
+    const tx=Math.floor(x/TS),ty=Math.floor(y/TS),e=mkEnemyObj(type,tx,ty);
+    e.x=x;e.y=y;e.hx=s.x;e.hy=s.y+6;e.spw=s;initTerritory(e);applyLevel(e,levelFor(type,tx,ty));e.baseLv=e.lv;
+    e.xpv=Math.round(e.xpv*.6);e.gm*=.6;e.fa=Math.atan2(P.y-y,P.x-x);       // summoned monsters are worth a bit less, so farming a spawner is not the best XP
+    enemies.push(e);wfxBurst(x,y-8,SPW_THEME[d.theme].flame,10,90,.5);sfx('warn');s.pop=.5;return true;}
+  return false;
+}
+function updateSpawners(dt){
+  for(let i=WFX.length-1;i>=0;i--){const f=WFX[i];f.t+=dt;if(f.k==='p'){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=160*dt;}else f.y-=24*dt;if(f.t>=f.dur)WFX.splice(i,1);}
+  for(const s of SPW){
+    s.pulse+=dt;s.flash=Math.max(0,s.flash-dt);s.pop=Math.max(0,s.pop-dt);
+    if(s.dying){s.dyT+=dt;if(Math.random()<dt*14)wfxBurst(s.x+R(-12,12),s.y-R(8,30),SPW_THEME[s.def.theme].flame,2,70,.5);if(s.dyT>1){s.dying=false;s.alive=false;}continue;}
+    if(!s.alive){if(!B)s.left-=dt;if(s.left<=0)spwRevive(s);continue;}
+    if(B||state!=='play'||FISH.on)continue;
+    s.near=spwSameZone(s)&&Math.hypot(P.x-s.x,P.y-s.y)<SPW_RANGE;
+    if(!s.near){s.t=Math.min(s.t,3);continue;}
+    if(spwMinions(s).length>=s.def.cap){s.t=Math.max(s.t,s.def.every*.5);continue;}
+    s.t-=dt;if(s.t<=0){if(spwSpawnOne(s))s.t=s.def.every*R(.85,1.15);else s.t=1.5;}
+  }
+  if(!B)for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(e.spw&&!e.alive&&!e.engaged)enemies.splice(i,1);}
+}
+/* ---- drawing ---- */
+function drawSpawner(s){
+  const th=SPW_THEME[s.def.theme],art=SPW_ART[s.def.theme],sx=Math.round(s.x-cam.x),sy=Math.round(s.y-cam.y);
+  if(sx<-60||sx>VW+60||sy<-80||sy>VH+80)return;
+  if(!s.alive){drawEntShadow(s.x,s.y,14);draw(art.rub,sx-24,sy-24,2);
+    if(Math.random()<.04)wfxBurst(s.x+R(-10,10),s.y-8,'#9a96b0',1,20,.9);return;}
+  const dy=s.dying?Math.min(1,s.dyT):0,fl=Math.sin(s.pulse*9)*.5+Math.sin(s.pulse*5.3)*.5;
+  drawEntShadow(s.x,s.y,17);
+  // glow + live flame behind the bars
+  const fx=sx,fy=sy-26,k=s.dying?1-dy:1,r=(46+fl*5+(s.near?10:0))*k;
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  const gr=ctx.createRadialGradient(fx,fy,2,fx,fy,r);gr.addColorStop(0,`rgba(${th.glow},${.55*k})`);gr.addColorStop(1,`rgba(${th.glow},0)`);ctx.fillStyle=gr;ctx.fillRect(fx-r,fy-r,r*2,r*2);ctx.restore();
+  const fh=(14+fl*3)*k;
+  ctx.fillStyle=th.flame;ctx.beginPath();ctx.moveTo(fx-7,fy+8);ctx.quadraticCurveTo(fx-9,fy-fh*.4,fx+fl*2,fy-fh);ctx.quadraticCurveTo(fx+9,fy-fh*.4,fx+7,fy+8);ctx.closePath();ctx.fill();
+  ctx.fillStyle=th.flame2;ctx.beginPath();ctx.moveTo(fx-3.5,fy+8);ctx.quadraticCurveTo(fx-4,fy-fh*.2,fx+fl,fy-fh*.6);ctx.quadraticCurveTo(fx+4,fy-fh*.2,fx+3.5,fy+8);ctx.closePath();ctx.fill();
+  if(Math.random()<.25&&!s.dying)WFX.push({k:'p',x:s.x+R(-6,6),y:s.y-30,vx:R(-12,12),vy:-R(30,60),t:0,dur:R(.4,.8),col:th.flame2,sz:2});
+  // the cage
+  const bob=s.pop>0?Math.sin(s.pop/.5*Math.PI)*3:0;
+  draw(art.spr,sx-24,sy-56+2-bob,2);
+  if(s.flash>0){ctx.globalAlpha=.85;draw(whiteOf(art.spr),sx-24,sy-56+2-bob,2);ctx.globalAlpha=1;}
+  // glowing runes pulse
+  ctx.save();ctx.globalAlpha=.25+.2*Math.sin(s.pulse*3);ctx.fillStyle=th.rune;for(let i=0;i<4;i++)ctx.fillRect(sx-20+i*10+(i%2?1:0),sy-6,2,4);ctx.restore();
+  // cracks as it takes damage
+  const hf=s.hp/s.maxhp;
+  if(hf<.7){ctx.fillStyle='#14101e';ctx.fillRect(sx-8,sy-40,2,10);ctx.fillRect(sx-6,sy-32,2,6);ctx.fillRect(sx+4,sy-44,2,8);}
+  if(hf<.35){ctx.fillStyle='#14101e';ctx.fillRect(sx-14,sy-30,2,12);ctx.fillRect(sx+8,sy-34,2,12);ctx.fillRect(sx+10,sy-24,3,2);ctx.fillStyle=th.flame2;ctx.fillRect(sx-13,sy-27,1,5);}
+  // name + hp bar when near or hurt
+  const dd=Math.hypot(s.x-P.x,s.y-P.y);
+  if(!s.dying&&(s.hp<s.maxhp||dd<230)){const bw=54,by=sy-70;bar(sx-bw/2,by,bw,5,hf,hf>.35?'#e8504a':'#ff9a3d');txt(s.def.name,sx,by-4,{size:8,align:'center',col:th.rune,lw:3});}
+}
+function drawWorldFx(){
+  for(const f of WFX){const x=f.x-cam.x,y=f.y-cam.y;
+    if(f.k==='t')txt(f.s,Math.round(x),Math.round(y),{size:f.size,align:'center',col:f.col,alpha:clamp(2*(1-f.t/f.dur),0,1),lw:3});
+    else{ctx.globalAlpha=clamp(1-f.t/f.dur,0,1);ctx.fillStyle=f.col;ctx.fillRect(Math.round(x),Math.round(y),f.sz,f.sz);ctx.globalAlpha=1;}}
+}
+
 /* ---------- src/render/world.js ---------- */
 function drawEntShadow(x,y,w){ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(Math.round(x-cam.x),Math.round(y-cam.y)-1,w,w*.38,0,0,6.283);ctx.fill();}
 function drawWorld(){
@@ -2446,18 +3027,23 @@ function drawWorld(){
     const id=map[y][x];ctx.drawImage(tileSprite(id,x,y,gtime),x*TS-cx,y*TS-cy,TS,TS);
     if(id===T.Z)drawFlame(x*TS-cx+16,y*TS-cy+4);
   }
+  drawChurchFx();
   ctx.save();ctx.translate(-cx,-cy);if(!B)drawVision();if(B)drawCombatGround();ctx.restore();
   drawMapMarks();
   const ents=[];
+  ents.push({y:(CHAPEL.cross.y)*TS+8,fn:drawChapelCross});
+  for(const s of SPW)ents.push({y:s.y,fn:()=>drawSpawner(s)});
+  for(const f of FISH_SPOTS)ents.push({y:f.ty*TS+TS-6,fn:()=>drawFishSpot(f)});
   ents.push({y:P.y,fn:drawPlayerWorld});
   for(const n of NPCS)ents.push({y:n.y,fn:()=>{drawEntShadow(n.x,n.y,11);draw(SP[n.spr],n.x-cam.x-16,n.y-cam.y-31+Math.round(Math.sin(gtime*2+n.x)*.6),2);
-    if(!B&&!DLG&&Math.hypot(n.x-P.x,n.y-P.y)<46)txt(TOUCH?'TALK':'E',n.x-cam.x,n.y-cam.y-38,{size:12,align:'center',col:'#ffe14d'});
+    if(!B&&!DLG&&Math.hypot(n.x-P.x,n.y-P.y)<46)txt(TOUCH?'TAP':'E',n.x-cam.x,n.y-cam.y-38,{size:12,align:'center',col:'#ffe14d'});
     else if(!B&&!DLG)drawNpcMarker(n);}});
   if(!B)for(const w of questWorldItems())ents.push({y:w.ty*TS+20,fn:()=>drawQuestItem(w)});
   for(const e of enemies){if(!e.alive||e.hidden)continue;ents.push({y:e.y,fn:()=>drawEnemyWorld(e)});}
   if(PET.active)ents.push({y:PET.y,fn:drawPetWorld});
   drawHouseTrophies().forEach(o=>ents.push(o));
   ents.sort((a,b)=>a.y-b.y).forEach(o=>o.fn());
+  drawWorldFx();drawGotoMark();drawFishingWorld();
   if(B){ctx.save();ctx.translate(-cx,-cy);drawCombatTop();ctx.restore();}
   else if(WS.length){ctx.save();ctx.translate(-cx,-cy);WS.forEach(drawShot);ctx.restore();}
 }
@@ -3046,6 +3632,7 @@ function updateShots(dt){
     s.life-=dt;if(s.life<=0){s.dead=true;continue;}
     if(sweepShot(s,dt)){s.dead=true;burst(s.x,s.y,s.kind==='fire'?'#ff9a3d':'#ddd',4,60,.3);if(s.kind==='fire'&&s.own==='p'){addFx('boom',{k:'circle',x:s.x,y:s.y,r:26},.35);}continue;}
     if(s.own==='p'){
+      if(hitSpawnerShot(s)){s.dead=true;continue;}
       for(const e of enemies){
         if(!e.alive||e.dying)continue;
         const c=ecen(e);
@@ -3442,11 +4029,13 @@ const CAST={
     schedule(.08,()=>{const o=pcen();let aa=a;if(tg&&!tg.dying)aa=angTo(o,ecen(tg));
       addFx('arc',{x:o.x,y:o.y,a:aa,r:64},.28);sfx('slash');
       for(const e of B.ens.slice()){const c=ecen(e);if(e.dying)continue;const d=Math.hypot(c.x-o.x,c.y-o.y);
-        if(d<64+eRad(e)&&Math.abs(angDiff(angTo(o,c),aa))<1.15){damageEnemy(e,ch.pow*m,'sword');if(!e.dying)knock(e,aa,18);}}});},
+        if(d<64+eRad(e)&&Math.abs(angDiff(angTo(o,c),aa))<1.15){damageEnemy(e,ch.pow*m,'sword');if(!e.dying)knock(e,aa,18);}}
+      spwHitArc(o,aa,64,1.15,ch.pow*m,'sword');});},
   fire(ch,m,a,pc){B.shootAnim=.2;B.shots.push({x:pc.x,y:pc.y,vx:Math.cos(a)*250,vy:Math.sin(a)*250,r:8,dmg:ch.pow*m,own:'p',kind:'fire',life:1.6,a});},
   lance(ch,m,a){schedule(.12,()=>{const o=pcen(),z=Z.line(o.x,o.y,a,290,22);addFx('lance',z,.4);sfx('slash');
     B.shots.forEach(s=>{if(s.own==='e'&&inZone(z,s,0))s.dead=true;});
-    for(const e of B.ens.slice()){if(!e.dying&&inZone(z,ecen(e),eRad(e)))damageEnemy(e,ch.pow*m,'lance');}});},
+    for(const e of B.ens.slice()){if(!e.dying&&inZone(z,ecen(e),eRad(e)))damageEnemy(e,ch.pow*m,'lance');}
+    spwHitZone(z,ch.pow*m,'lance');});},
   shield(){B.barrier=9;sfx('shield');},
   heal(ch,m,a,pc){const amt=Math.ceil(maxHp()*.35*holyHeal()*(1+.15*upgLvl('heal')));P.hp=Math.min(maxHp(),P.hp+amt);sfx('heal');
     floatText(pc.x,pc.y-48,'+'+amt,'#4be37a',16);addFx('heal',{x:pc.x,y:pc.y+10},.8);
@@ -3457,6 +4046,7 @@ const CAST={
   quake(ch,m,a,pc){
     const r=118;addFx('quake',{x:P.x,y:P.y,r},.7);sfx('quake');B.shake=Math.max(B.shake,.55);
     for(const e of foesIn(pc.x,pc.y,r)){hurt(e,ch.pow*m,'quake');if(!e.dying){stunEnemy(e,1.2,'quake');knock(e,angTo(pc,ecen(e)),16);}}
+    spwHitRadius(pc.x,pc.y,r,ch.pow*m,'quake');
     B.shots.forEach(s=>{if(s.own==='e'&&Math.hypot(s.x-pc.x,s.y-pc.y)<r)s.dead=true;});
   },
   meteor(ch,m){const tg=aimEnemy();if(!tg)return;newMeteor(tg.x,tg.y,ch.pow*m);sfx('warn');},
@@ -3537,7 +4127,7 @@ function updateExtras(dt){
   for(const mt of B.meteors){mt.t+=dt;
     if(!mt.hit&&mt.t>=mt.dur){mt.hit=true;sfx('meteor');B.shake=Math.max(B.shake,.8);B.hitstop=Math.max(B.hitstop,.06);
       addFx('meteorboom',{x:mt.x,y:mt.y,r:mt.r},.8);
-      for(const e of B.ens.slice()){if(e.dying)continue;const c=ecen(e);if(Math.hypot(e.x-mt.x,e.y-mt.y)<mt.r+eRad(e)*.6){hurt(e,mt.dmg,'meteor');if(!e.dying)knock(e,angTo(mt,e),14);}}}}
+      for(const e of B.ens.slice()){if(e.dying)continue;const c=ecen(e);if(Math.hypot(e.x-mt.x,e.y-mt.y)<mt.r+eRad(e)*.6){hurt(e,mt.dmg,'meteor');if(!e.dying)knock(e,angTo(mt,e),14);}}spwHitRadius(mt.x,mt.y-8,mt.r,mt.dmg,'meteor');}}
   B.meteors=B.meteors.filter(mt=>mt.t<mt.dur+.5);
   B.bolts.forEach(b=>b.t+=dt);B.bolts=B.bolts.filter(b=>b.t<b.dur);
   // spirit wolf
@@ -3765,7 +4355,8 @@ const UI_MODES={
     const r=[];r.push({t:'head',s:'FORGE'});r.push({t:'shot'});
     r.push({t:'head',s:'SPELL CARDS FOR SALE'});SHOP.stock.forEach(id=>r.push({t:'buy',id}));
     r.push({t:'head',s:`New stock after ${Math.max(0,5-(kills-SHOP.kills))} more kills`});
-    r.push({t:'head',s:'LIGHTS  (widen your glow at night / in the crypt)'});LIGHTS.forEach(l=>r.push(lightRow(l)));return r;}},
+    r.push({t:'head',s:'LIGHTS  (widen your glow at night / in the crypt)'});LIGHTS.forEach(l=>r.push(lightRow(l)));
+    r.push({t:'head',s:'FISHING RODS  (tap rippling water to fish)'});RODS.forEach((_,i)=>r.push(rodRow(i)));return r;}},
 };
 function uiRows(){return UI_MODES[UI.mode].rows();}
 const rowH=r=>r.h||(r.t==='head'?24:r.t==='combo'?38:52);
@@ -4084,6 +4675,65 @@ UI_MODES.craft={title:()=>'WORKBENCH',sub:()=>[`Gold ${P.gold} G`,'#ffd23f'],row
   CARDS.filter(c=>COL[c.id]>0).sort((a,b)=>RAR_ORDER.indexOf(a.rar)-RAR_ORDER.indexOf(b.rar)||a.name.localeCompare(b.name)).forEach(c=>r.push(upgradeRow(c)));
   return r;}};
 
+/* ---------- src/ui/fish-screen.js ---------- */
+/* =====================================================================
+   FISHING SCREEN (pause menu "FISHING" / Fisher Tobin): your catch - sell for gold or cook & eat to heal; rod + spot info.
+   Rods are sold at Brum's forge (rodRow, used by the shop screen).
+   ===================================================================== */
+UI_STATES.push('fish');
+function openFishing(from){openUIMode('fish',from);}
+function sellFish(id,all){
+  const f=FISH_BY[id],n=FSH.fish[id]|0;if(!f||n<=0)return 0;const k=all?n:1,g=Math.round(f.price*k*(f.junk?1:1+.04*fishLv()));
+  FSH.fish[id]=n-k;if(!FSH.fish[id])delete FSH.fish[id];P.gold+=g;sfx('coin');saveGame('fish');return g;
+}
+function eatFish(id){
+  const f=FISH_BY[id];if(!f||f.junk||!(FSH.fish[id]>0))return -1;
+  if(P.hp>=maxHp())return -2;
+  const h=Math.max(1,Math.ceil(maxHp()*f.heal));P.hp=Math.min(maxHp(),P.hp+h);FSH.fish[id]--;if(!FSH.fish[id])delete FSH.fish[id];sfx('heal');saveGame('fish');return h;
+}
+const sellAllValue=()=>Object.keys(FSH.fish).reduce((a,k)=>{const f=FISH_BY[k];return a+(f?Math.round(f.price*FSH.fish[k]*(f.junk?1:1+.04*fishLv())):0);},0);
+function fishRow(f){
+  const n=FSH.fish[f.id]|0,val=Math.round(f.price*(f.junk?1:1+.04*fishLv()));
+  const sell=()=>{const g=sellFish(f.id,false);if(g)uiMsg('Sold '+f.n+' for '+g+' G',false);};
+  const eat=()=>{const h=eatFish(f.id);if(h===-2){uiMsg('You are already at full health');sfx('clang');}else if(h>0)uiMsg('Cooked & ate '+f.n+'  +'+h+' HP',false);};
+  return {sel:true,h:52,act:which=>{if(which==='minus')eat();else sell();},tap:sell,
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=f.col;ctx.fillRect(x0,y,3,h);
+      if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
+      ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+10,32,32);draw(SP.fishIcon,x0+6,y+10,2);ctx.globalAlpha=.55;ctx.fillStyle=f.col;ctx.fillRect(x0+6,y+10,32,32);ctx.globalAlpha=1;draw(SP.fishIcon,x0+6,y+10,2);
+      txt(f.n+'  x'+n,x0+46,y+17,{size:10,col:f.col,lw:2});
+      txt(f.junk?'Junk - sells for a little':'Heals '+Math.round(f.heal*100)+'% HP when cooked   Sells '+val+' G',x0+46,y+30,{size:7,col:'#b9b4d8',bold:false,lw:2});
+      txt(f.junk?'':'Fishing XP '+f.xp,x0+46,y+43,{size:7,col:'#7df9ff',bold:false,lw:2});
+      if(!f.junk)uiButton(x0+W-150,y+11,70,30,'COOK',P.hp<maxHp(),()=>{UI.sel=si;eat();},{tag:'eat:'+f.id,clip:true,size:9,sel:si,bg:'#7a4a1a',bd:'#ffb86b'});
+      uiButton(x0+W-74,y+11,66,30,'SELL '+val,true,()=>{UI.sel=si;sell();},{tag:'sell:'+f.id,clip:true,size:9,sel:si});}};
+}
+UI_MODES.fish={title:()=>'FISHING',sub:()=>{const [a,b]=fishXpInto();return [`Lv ${fishLv()}${fishLv()>=FISH_MAX_LV?' (MAX)':'   XP '+a+'/'+b}   Rod: ${FSH.rod>=0?RODS[FSH.rod].n:'none (Brum sells them)'}   Gold ${P.gold}`,'#7df9ff'];},rows(){
+  const r=[];
+  r.push({t:'head',s:'FISHING SPOTS  (tap rippling water with a rod)'});
+  FISH_SPOTS.forEach(s=>r.push({t:'head',s:'  '+(fishLv()>=s.lv?'+ ':'- ')+s.name+'  -  Lv '+s.lv+(fishLv()>=s.lv?'':'  (locked)')}));
+  r.push({t:'head',s:'YOUR CATCH  (sell for gold, or cook & eat to heal)'});
+  const have=FISHES.concat(FISH_JUNK).filter(f=>(FSH.fish[f.id]|0)>0);
+  if(!have.length)r.push({t:'head',s:'  Nothing yet - cast a line at a rippling spot!'});
+  else{have.forEach(f=>r.push(fishRow(f)));
+    const all=()=>{const v=sellAllValue();if(!v){return;}Object.keys(FSH.fish).forEach(k=>sellFish(k,true));uiMsg('Sold everything for '+v+' G',false);};
+    r.push({sel:true,h:44,act:all,tap:all,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
+      if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
+      txt('SELL EVERYTHING',x0+14,y+19,{size:10,col:'#fff',lw:2});txt('Keep a few to cook!  (Silver Scales are for crafting)',x0+14,y+33,{size:7,col:'#b9b4d8',bold:false,lw:2});
+      uiButton(x0+W-110,y+7,102,30,'SELL ALL '+sellAllValue(),sellAllValue()>0,()=>{UI.sel=si;all();},{tag:'sellall',clip:true,size:9,sel:si});}});}
+  return r;}};
+/* Brum's shop: fishing rods */
+function rodRow(i){
+  const r=RODS[i],own=FSH.rod>=i,eq=FSH.rod===i,pr=rodPrice(r),can=!own&&P.gold>=pr;
+  const go=()=>{if(own){uiMsg(eq?'Already your rod':'You have a better rod',false);return;}
+    if(buyRod(i)){sfx('level');uiMsg('Bought '+r.n+'!',false);saveGame('rod');}else{uiMsg('Not enough gold');sfx('clang');}};
+  return {sel:true,h:50,act:go,tap:go,
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=r.col;ctx.fillRect(x0,y,3,h);
+      if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
+      ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+9,32,32);draw(SP.rodIcon,x0+6,y+9,2);
+      txt(r.n,x0+46,y+15,{size:10,col:r.col,lw:2});txt(r.desc,x0+46,y+28,{size:7,col:'#b9b4d8',bold:false,lw:2});
+      txt(own?(eq?'EQUIPPED':'owned'):pr+' G',x0+46,y+42,{size:8,col:own?(eq?'#7dffa0':'#b9b4d8'):P.gold>=pr?'#ffd23f':'#ff9a9a',lw:2});
+      uiButton(x0+W-74,y+10,66,30,own?'OWNED':'BUY',can,()=>{UI.sel=si;go();},{tag:'rod:'+r.id,clip:true,size:9,sel:si});}};
+}
+
 /* ---------- src/ui/travel-screen.js ---------- */
 /* =====================================================================
    FAST TRAVEL SCREEN (waystone menu / pause menu)
@@ -4282,7 +4932,6 @@ function layoutTouch(){
   const r=VW-SR,b=VH-SB;
   const l=SL,m=LEFTY?1:0,X=(dx)=>m?l+dx:r-dx;     // left-handed: thumb buttons on the left, stick on the right
   btn.atk ={x:X(62), y:b-66, r:38,code:'KeyJ',label:'SHOT'};
-  btn.talk={x:X(142),y:b-44, r:28,code:'KeyE',label:'TALK'};
   btn.cast={x:X(142),y:b-44, r:28,code:'KeyK',label:'CAST'};
   btn.next={x:X(130),y:b-110,r:24,code:'KeyL',label:'NEXT'};
   btn.pause={x:X(24),y:ST+132,r:16,code:'KeyP',label:'II'};
@@ -4292,7 +4941,8 @@ function activeButtons(){
   if(state!=='play')return [];
   if(B)return B.phase==='fight'?[btn.atk,btn.cast,btn.next]:[];
   if(DLG)return [];
-  return npcNear()?[btn.atk,btn.talk]:[btn.atk];
+  if(FISH.on)return [];
+  return [btn.atk];
 }
 const inCircle=(p,c,m=0)=>Math.hypot(p.x-c.x,p.y-c.y)<=c.r+m;
 const inRect=(p,r)=>r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
@@ -4307,6 +4957,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     return true;}
   if(TUT.on&&TUT.skipR&&state==='play'&&!DLG&&!B&&inRect(p,TUT.skipR)){tutFinish(true);return true;}
   if(trkTap(p))return true;
+  if(fishTap(p))return true;
   if(isUI())return true;     // handled by drag/tap logic in touchDown / mousedown
   if(state==='paused'){
     const i=pauseRects.findIndex(r=>inRect(p,r));
@@ -4373,11 +5024,12 @@ function touchDown(id,p){
       atkTouch={kind:'btn',code:'KeyJ',defer:true,t0:performance.now(),sx:p.x,sy:p.y,dy:0,cur:p,started:false,swiped:false};touches.set(id,atkTouch);return;}
     if(inCircle(p,b,10)){keys[b.code]=true;pressed[b.code]=true;touches.set(id,{kind:'btn',code:b.code});return;}
   }
+  const wt=worldTargetAt(p);          // a tap on an NPC / fishing spot (a short tap = go there; dragging still steers)
   if(!joy.on&&(LEFTY?p.x>VW*.45:p.x<VW*.55)&&p.y>VH*.18){
     joy.on=true;joy.id=id;
     joy.bx=LEFTY?clamp(p.x,VW*.45,VW-SR-56):clamp(p.x,SL+56,VW*.55);joy.by=clamp(p.y,ST+90,VH-SB-56);
-    joy.kx=p.x;joy.ky=p.y;joy.x=joy.y=0;touches.set(id,{kind:'joy'});
-  }
+    joy.kx=p.x;joy.ky=p.y;joy.x=joy.y=0;touches.set(id,{kind:'joy',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
+  } else if(wt)touches.set(id,{kind:'wtap',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
 }
 function joyMove(p){
   const R=48;let dx=p.x-joy.bx,dy=p.y-joy.by;const l=Math.hypot(dx,dy);
@@ -4398,18 +5050,19 @@ function touchEndId(id){
     if(!t.swiped&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;useCard(t.i);}   // plain tap = select + cast, as before
   }
   else if(t.kind==='ui'){if(!t.moved)uiTap({x:t.sx,y:t.sy});}
-  else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;}
+  else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
+  else if(t.kind==='wtap'){if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
 }
 function releaseAllTouch(){for(const id of [...touches.keys()])touchEndId(id);joy.on=false;joy.x=joy.y=0;}
 cv.addEventListener('touchstart',e=>{e.preventDefault();TOUCH=true;lastTouchT=performance.now();ensureAudio();for(const t of e.changedTouches)touchDown(t.identifier,lpos(t));},{passive:false});
-cv.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches){const q=lpos(t);if(joy.on&&t.identifier===joy.id)joyMove(q);swipeMove(t.identifier,q);}},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches){const q=lpos(t);{const tt=touches.get(t.identifier);if(tt&&tt.wt&&Math.hypot(q.x-tt.sx,q.y-tt.sy)>14)tt.moved=true;}if(joy.on&&t.identifier===joy.id)joyMove(q);swipeMove(t.identifier,q);}},{passive:false});
 const tEnd=e=>{e.preventDefault();lastTouchT=performance.now();ensureAudio();for(const t of e.changedTouches)touchEndId(t.identifier);};
 cv.addEventListener('touchend',tEnd,{passive:false});cv.addEventListener('touchcancel',tEnd,{passive:false});
 ['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('dblclick',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(isUI())uiTap(q);else if(!cardDown('mouse',q))tapUI(q);});
+cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(isUI())uiTap(q);else if(!cardDown('mouse',q)&&!tapUI(q))worldTap(q);});
 addEventListener('mousemove',e=>{if(touches.has('mouse'))swipeMove('mouse',lpos(e));});
 addEventListener('mouseup',()=>{if(touches.has('mouse'))touchEndId('mouse');});
 addEventListener('blur',releaseAllTouch);
@@ -4463,8 +5116,8 @@ function drawTouch(){
   if(state==='play')bs.push(btn.pause);
   for(const b of bs){
     const down=keys[b.code]||(b===btn.atk&&atkTouch);
-    ctx.globalAlpha=down?.9:.55;ctx.fillStyle=b===btn.atk?'#3a2a08':b===btn.talk?'#10304a':'#14102e';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.283);ctx.fill();
-    ctx.strokeStyle=down?'#fff':(b===btn.atk?'#ffd23f':b===btn.talk?'#7dd0ff':'#cfd0ff');ctx.lineWidth=2.5;ctx.stroke();ctx.globalAlpha=1;
+    ctx.globalAlpha=down?.9:.55;ctx.fillStyle=b===btn.atk?'#3a2a08':'#14102e';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.283);ctx.fill();
+    ctx.strokeStyle=down?'#fff':(b===btn.atk?'#ffd23f':'#cfd0ff');ctx.lineWidth=2.5;ctx.stroke();ctx.globalAlpha=1;
     if(b===btn.atk&&(B?B.charge:WCH.t)>.2){const f=Math.min(1,B?B.charge:WCH.t);ctx.strokeStyle=f>=1?'#fff':'#7df9ff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(b.x,b.y,b.r+5,-Math.PI/2,-Math.PI/2+f*6.283);ctx.stroke();}
     if(b===btn.pause){ctx.fillStyle='#fff';ctx.fillRect(b.x-5,b.y-6,4,12);ctx.fillRect(b.x+1,b.y-6,4,12);}
     else if(b===btn.atk){ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(b.x,b.y-6,9,0,6.283);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y-6,4,0,6.283);ctx.fill();txt('SHOT',b.x,b.y+22,{size:9,align:'center',lw:2});}
@@ -4494,7 +5147,7 @@ function drawOverHud(){
   if(!cr){drawDayIcon(mx+10,my+10);for(const m of TMAPS)if(SEC.maps[m.id]&&!SEC.dug[m.id]){ctx.fillStyle='#ffd23f';ctx.fillRect(mx+m.x*2-1,my+m.y*2-3,2,6);ctx.fillRect(mx+m.x*2-3,my+m.y*2-1,6,2);}}
   for(const w of WAYSTONES)if(SEC.ways[w.id]){const q=w.zone?zoneArrive(w.zone):{x:(w.tx+.5)*TS,y:(w.ty+.5)*TS};if(zoneOfPx(q.y)===zn){ctx.fillStyle='#7df9ff';ctx.fillRect(mx+q.x/TS*2-2,my+(q.y-oy)/TS*2-2,4,4);}}
   if(areaT>0){const a=Math.min(1,areaT*1.5,(3-areaT)*3),y=Math.round(VH*.3);ctx.fillStyle=`rgba(0,0,0,${.5*a})`;ctx.fillRect(0,y,VW,34);txt(areaCur,VW/2,y+25,{size:22,align:'center',col:'#ffe9a0',alpha:a});}
-  if(!TOUCH)txt('WASD/Arrows move   J shoot   E talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
+  if(!TOUCH)txt('WASD/Arrows move   J shoot   E / click talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
 }
 function drawRushBar(){
   if(!RUSH.on)return;const w=Math.min(250,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8+112;
@@ -4617,7 +5270,7 @@ function trkEntries(){
   for(const q of QUESTS){
     const st=QS.st[q.id];if(st!=='active'&&st!=='ready')continue;
     const o=q.obj,need=questNeed(q),ready=st==='ready',prog=ready?need:questProgress(q);
-    const item=o.k==='kill'?ENEMY[o.type].name+(o.n>1?'s':''):o.k==='collect'||o.k==='find'?QITEM[o.item].name:'Crypt';
+    const item=o.k==='fish'?'Fish':o.k==='kill'?ENEMY[o.type].name+(o.n>1?'s':''):o.k==='collect'||o.k==='find'?QITEM[o.item].name:'Crypt';
     out.push({id:'q:'+q.id,kind:'quest',q,name:q.name,obj:ready?'Return to '+q.giver:questGoalText(q),short:item,prog,need,ready,order:QS.ord.indexOf(q.id)});
   }
   if(STORY.ch<CHAPTERS.length){const c=CHAPTERS[STORY.ch];
@@ -4641,6 +5294,7 @@ function trkTarget(en){
   const npc=name=>{const n=NPCS.find(m=>m.name===name);return n&&zoneOfPx(n.y)===zn?{x:n.x,y:n.y}:null;};
   const stairs=()=>zn==='ow'?trkTiles(T.CS):null;
   if(en.kind==='quest'){const q=en.q,o=q.obj;if(en.ready)return npc(q.giver);
+    if(o.k==='fish'){let bb=null,bd=1e9;for(const f of FISH_SPOTS){const c=spotCenter(f);if(zoneOfPx(c.y)!==zn||fishLv()<f.lv)continue;const d=Math.hypot(c.x-P.x,c.y-P.y);if(d<bd){bd=d;bb=c;}}return bb||npc(q.giver);}
     if(o.k==='kill')return foe(o.type);if(o.k==='collect')return foe(o.from);
     if(o.k==='find'){const w=QWORLD.find(x=>x.quest===q.id);return w&&zn==='ow'?{x:w.tx*TS+16,y:w.ty*TS+16}:null;}
     return stairs();}
@@ -4662,7 +5316,7 @@ function updateTracker(dt){
   if(TRK.sig!==null&&sig!==TRK.sig){TRK.flash=1.8;TRK.fk=cur.ready?'ready':'prog';}
   TRK.sig=sig;TRK.prev=cur;
 }
-function trkVisible(){return state==='play'&&!B&&!DLG&&!WARP&&!RUSH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
+function trkVisible(){return state==='play'&&!B&&!DLG&&!WARP&&!FISH.on&&!RUSH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
 function drawTracker(){
   TRK.rect=null;
   if(!trkVisible())return;
@@ -4708,11 +5362,11 @@ const SAVE_KEY='arcaneKnight.save.v1',NOSAVE=new URLSearchParams(location.search
 function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&s.P&&isFinite(s.P.x)?s:null;}catch(e){return null;}}
 function saveGame(why){
   if(NOSAVE||state==='title'||P.hp<=0||RUSH.on)return false;
-  try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),why,area:areaCur,bossDown,lichDown,tod:DAY.t,kills,muted,cards:packCards(),gear:packGear(),quests:packQuests(),skills:packSkills(),craft:packCraft(),pets:packPets(),story:packStory(),daily:packDaily(),ach:packAch(),secrets:packSecrets(),
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),why,area:areaCur,bossDown,lichDown,tod:DAY.t,kills,muted,cards:packCards(),gear:packGear(),quests:packQuests(),skills:packSkills(),craft:packCraft(),pets:packPets(),story:packStory(),daily:packDaily(),ach:packAch(),secrets:packSecrets(),spw:packSpawners(),fish:packFish(),
     P:{x:Math.round(P.x),y:Math.round(P.y),dir:P.dir,hp:Math.max(1,Math.round(P.hp)),lv:P.lv,xp:P.xp,gold:P.gold,up:P.up}}));return true;}catch(e){return false;}
 }
 function loadSave(s){
-  unpackGear(s.gear);unpackQuests(s.quests);unpackSkills(s.skills);unpackCraft(s.craft);unpackPets(s.pets);unpackStory(s.story);unpackDaily(s.daily);unpackAch(s.ach);unpackSecrets(s.secrets);Object.assign(P,s.P);P.moving=false;P.grace=3;P.regen=0;P.hp=clamp(P.hp,1,maxHp());
+  unpackGear(s.gear);unpackQuests(s.quests);unpackSkills(s.skills);unpackCraft(s.craft);unpackPets(s.pets);unpackStory(s.story);unpackDaily(s.daily);unpackAch(s.ach);unpackSecrets(s.secrets);unpackSpawners(s.spw);unpackFish(s.fish);Object.assign(P,s.P);P.moving=false;P.grace=3;P.regen=0;P.hp=clamp(P.hp,1,maxHp());
   bossDown=!!s.bossDown;lichDown=!!s.lichDown;if(typeof s.tod==='number'){DAY.t=s.tod;dayCompute();syncNight(true);}kills=s.kills|0;unpackCards(s.cards);if(typeof s.muted==='boolean')muted=s.muted;
   if(bossDown){const d=enemies.find(o=>o.type==='dragon');if(d){d.alive=false;d.respawn=150;}}
   if(lichDown){const d=enemies.find(o=>o.type==='lich');if(d){d.alive=false;d.respawn=240;}}
@@ -4956,7 +5610,7 @@ function startFromTitle(){
   const it=titleMenu.items[titleMenu.sel];
   if(it==='Continue'){loadSave(titleMenu.save);}
   else if(titleMenu.save&&!titleMenu.confirm){titleMenu.confirm=true;sfx('select');return;}   // erasing a save needs a second press
-  else{clearSave();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
+  else{clearSave();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
   state='play';sfx('start');toast(it==='Continue'?'Welcome back, hero!':'Stay out of sight cones - or shoot first!',3.5,'#ffe9a0');areaCur='';
 }
 /* ---- title ---- */
@@ -5018,7 +5672,7 @@ function render(){
     if(B.phase==='alert'&&B.t<.18){ctx.fillStyle=`rgba(255,255,255,${.7*(1-B.t/.18)})`;ctx.fillRect(0,0,VW,VH);}
     drawAimPreview();drawCombatHud();drawRushBar();
   } else drawOverHud();
-  drawTracker();drawTut();drawToasts();drawWarp();
+  drawTracker();drawFishingHud();drawTut();drawToasts();drawWarp();
   if(DLG&&!B)drawDlg();
   if(TOUCH)drawTouch();
   if(state==='paused')drawPause();
@@ -5037,6 +5691,7 @@ const PAUSE_ITEMS=[
   {k:'KeyV',lab:()=>'DAILY'+(chestReady()&&!metaOff()?'  (chest!)':''),col:'#8a6a1a',act:()=>openDaily()},
   {k:'KeyH',lab:()=>'ACHIEVEMENTS',col:'#7a5a1a',act:()=>openAch()},
   {k:'KeyC',lab:()=>'WORKBENCH',col:'#6a5a2a',act:()=>openCraft()},
+  {k:'KeyI',lab:()=>'FISHING'+(FSH.rod>=0?'  ('+fishCount()+')':''),col:'#1f5a7a',act:()=>openFishing()},
   {k:'KeyF',lab:()=>'FAST TRAVEL',col:'#2a4a6a',act:()=>openTravel()},
   {k:'KeyN',lab:()=>'SETTINGS',col:'#2a4a7a',act:()=>openSettings('paused')},
   {k:'KeyM',lab:()=>'SOUND: '+(muted?'OFF':'ON'),col:'#2a2740',act:()=>{muted=!muted;sfx('select');}},
@@ -5070,7 +5725,7 @@ function update(dt){
   if(isUI()){updateUI(dt);return;}
   if(state==='paused'){for(const it of PAUSE_ITEMS)if(it.k!=='KeyP'&&it.k!=='KeyM'&&hit(it.k)){it.act();return;}}
   if(hit('KeyM')){muted=!muted;toast(muted?'Sound off':'Sound on',1);}
-  if(hit('KeyP')||(hit('Escape')&&!DLG)){state=state==='paused'?'play':'paused';if(state==='paused')releaseAllTouch();}
+  if(hit('KeyP')||(hit('Escape')&&!DLG&&!FISH.on)){state=state==='paused'?'play':'paused';if(state==='paused')releaseAllTouch();}
   if(state==='paused'){updateTut(dt);return;}
   if(B&&B.hitstop>0){B.hitstop-=dt;dt=0;}
   updateDayNight(dt);
@@ -5118,7 +5773,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{TRK,trkEntries,trkTarget,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,getPauseRects:()=>pauseRects,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{cam,spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,getPauseRects:()=>pauseRects,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
