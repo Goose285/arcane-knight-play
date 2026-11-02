@@ -2824,7 +2824,19 @@ function applySecrets(){      // re-apply persistent world changes after load/ne
 function resetSecretWorld(){for(const id in ZONE_Y0)map[ZONE_Y0[id]+29][30]=T.GB;}
 function packSecrets(){return {ways:SEC.ways,broken:SEC.broken,opened:SEC.opened,maps:SEC.maps,dug:SEC.dug};}
 function unpackSecrets(s){resetSecretWorld();resetSecrets();if(s){for(const k of ['ways','broken','opened','maps','dug'])if(s[k]&&typeof s[k]==='object')for(const i in s[k])if(s[k][i])SEC[k][i]=true;SEC.ways.village=true;}applySecrets();}
-function activateWay(id){if(SEC.ways[id])return false;SEC.ways[id]=true;toast('Waystone attuned: '+WAYSTONES.find(w=>w.id===id).name,3,'#7df9ff');sfx('level');return true;}
+function activateWay(id){
+  if(SEC.ways[id])return false;SEC.ways[id]=true;
+  const w=WAYSTONES.find(q=>q.id===id),n=NPCS.find(q=>q.way===id);
+  toast('Waystone Unlocked: '+w.name,3.2,'#7df9ff');sfx('level');sfx('select');
+  if(n){n.fxT=gtime;for(let i=0;i<3;i++)wfxBurst(n.x,n.y-22,i?'#d8fdff':'#7df9ff',16,i?60:130,1.1);}   // light-up burst; the rising sparkles are drawn with the stone
+  return true;
+}
+/* walking within ~2 tiles of a waystone attunes it: no interaction needed */
+const WAY_AUTO_R=2*TS;
+function updateWaystones(){
+  if(B||state!=='play'||WARP||DLG)return;
+  for(const n of NPCS){if(!n.way||SEC.ways[n.way])continue;if(Math.hypot(n.x-P.x,n.y-22-(P.y-8))<=WAY_AUTO_R||Math.hypot(n.x-P.x,n.y-P.y)<=WAY_AUTO_R){activateWay(n.way);saveGame('waystone');}}
+}
 function wayDest(w){return w.zone?zoneArrive(w.zone):{...w.to,dir:'d'};}
 const wayHere=()=>{const z=zoneOfPx(P.y);return ZONES[z]?z:null;};
 function canTravel(){return !B&&!WARP&&state!=='title';}
@@ -3330,7 +3342,7 @@ function updateExplore(dt){
   if(!B)reapStale();
   for(const e of enemies){
     if(e.alive&&e.terr)clampTerr(e);
-    if(!e.alive){if(e.night||e.spw)continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;resetEnemyState(e);}continue;}
+    if(!e.alive){if(e.night||e.spw||e.tmp)continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;resetEnemyState(e);}continue;}
     if(e.engaged)continue;
     updateEnemyWorld(e,dt);
   }
@@ -3702,7 +3714,7 @@ function drawPlayerWorld(){
   const f=P.moving?[1,0,2,0][Math.floor(P.anim)&3]:0;
   const fight=!!B&&B.phase!=='alert';
   if(B&&B.phase==='lose'&&Math.floor(B.t*14)%2)return;
-  const blink=(P.grace>0&&!B&&Math.floor(gtime*14)%2===0)||(B&&B.inv>0&&B.phase==='fight'&&Math.floor(gtime*18)%2===0);
+  const blink=(B&&B.inv>0&&B.phase==='fight'&&Math.floor(gtime*18)%2===0);
   let spr=SP.hero[P.dir][f];
   if(B&&(P.dir==='r'||P.dir==='l'))spr=P.dir==='r'?SP.heroB[0]:SP.heroBL;
   const px=P.x-cam.x-16,py=P.y-cam.y-31;
@@ -3726,6 +3738,16 @@ function drawPlayerWorld(){
 /* an attuned waystone glows: pulsing cyan aura on the ground + rising sparks (the dormant ones stay dull grey) */
 function drawWayGlow(n){
   if(!SEC.ways[n.way])return;
+  const age=n.fxT!=null?gtime-n.fxT:9;
+  if(age<2.4){   // just unlocked: expanding light ring + a flash + a column of rising sparkles
+    const x0=n.x-cam.x,y0=n.y-cam.y-16,k=age/2.4;
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const fr=Math.min(1,age/.35)*(1-Math.min(1,age/.9)),g=ctx.createRadialGradient(x0,y0,0,x0,y0,60);g.addColorStop(0,`rgba(255,255,255,${.8*fr})`);g.addColorStop(1,'rgba(125,249,255,0)');ctx.fillStyle=g;ctx.fillRect(x0-60,y0-60,120,120);
+    ctx.globalAlpha=(1-k)*.9;ctx.strokeStyle='#7df9ff';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(x0,y0+14,10+k*54,(10+k*54)*.4,0,0,6.283);ctx.stroke();
+    ctx.globalCompositeOperation='source-over';ctx.fillStyle='#e8ffff';
+    for(let i=0;i<10;i++){const u=(age*.55+i/10)%1;ctx.globalAlpha=(1-k)*(1-u);ctx.fillRect(Math.round(x0-18+i*4+Math.sin(age*5+i)*4),Math.round(y0+16-u*60),2,2+(i%2));}
+    ctx.restore();
+  }
   const x=n.x-cam.x,y=n.y-cam.y-16,p=.5+.5*Math.sin(gtime*2.6+n.x),r=34+6*p;
   ctx.save();ctx.globalCompositeOperation='lighter';
   const g=ctx.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,`rgba(125,249,255,${.42+.18*p})`);g.addColorStop(1,'rgba(125,249,255,0)');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);
@@ -3895,7 +3917,7 @@ function startEncounter(e,byPlayer){
   if(byPlayer){B.phase='fight';B.t=0;B.dim=1;dealHand();setBanner('AMBUSH!',.9,'#ffe14d');e.atkCd=1.4;e.joinT=0;}
 }
 // boss phase change: interrupt the current attack, brief breather, flare of energy
-function bossPhase(e){const c=ecen(e);e.st='idle';e.cur=null;e.atkCd=1.5;B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);burst(c.x,c.y,e.type==='lich'?'#9dffb0':'#ff7a2a',30,200,.9);}
+function bossPhase(e){const c=ecen(e);e.st='idle';e.cur=null;e.atkCd=1.5;B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);burst(c.x,c.y,e.type==='lich'?'#9dffb0':'#ff7a2a',30,200,.9);if(typeof bossMechPhase==='function')bossMechPhase(e);}
 function schedule(d,fn){B.timers.push({t:d,fn,o:B.owner});}
 function addFx(k,z,dur,o={}){B.fx.push({k,z,t:0,dur:dur||(k==='fire'?.55:.42),...o});}
 function burst(x,y,col,n=10,sp=100,life=.5){for(let i=0;i<n;i++){const a=Math.random()*6.283,s=R(.3,1)*sp;B.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,t:0,life:life*R(.6,1),col,sz:RI(2,3)});}}
@@ -3962,6 +3984,7 @@ function damageEnemy(e,d,kind){
   if((kind==='ice'||kind==='steam')&&skillRank('frost')>=3)e.chill=Math.max(e.chill||0,2.5);
   const cursed=e.curse>0;if(cursed)d*=2;           // Curse card: double damage
   const crit=!quiet&&Math.random()<.05+gearStats().crit;if(crit)d*=1.6;   // gear crit chance
+  if(e.shield>0&&kind!=='dot')return bossShieldHit(e,Math.round(d),c,top);
   d=Math.round(d);const d0=d;d=eliteShield(e,d,c,top);if(d<=0){burst(c.x,c.y,'#cfefff',4,80,.3);eliteAfterHit(e,d0,kind);return true;}
   e.lastDealt=Math.min(d,Math.max(0,e.hp));e.hp-=d;e.flash=quiet?.06:.12;
   if(!quiet){sfx('hit');B.hitstop=Math.max(B.hitstop,kind==='arcane'?.015:.05);}
@@ -3978,13 +4001,14 @@ function damageEnemy(e,d,kind){
 function killEnemy(e){
   if(e.dying)return;
   if(e.lab){labKill(e);return;}
-  e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;
+  e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;e.shield=0;
+  if(e.def.boss){B.pools=[];B.ens.filter(o=>o.tmp&&!o.dying).forEach(o=>{o.hp=0;killEnemy(o);});}
   B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);
   const c=ecen(e);sfx('boom');B.shake=Math.max(B.shake,.4);eliteDeath(e,c);
   for(let i=0;i<4;i++)addFx('boom',{k:'circle',x:c.x+R(-14,14),y:c.y+R(-14,14),r:20},.5);
   burst(c.x,c.y,'#ffb23f',18,150,.7);
   const d=e.def,g=Math.round(RI(d.gold[0],d.gold[1])*e.gm),xpv=Math.round(e.xpv*(e.rush?1:storyXp()));
-  B.gainXp+=xpv;B.gainGold+=g;P.xp+=xpv;P.gold+=g;kills++;dailyEvent('kill',e);dailyEvent('gold',g);B.defeated[e.type]=(B.defeated[e.type]||0)+1;
+  B.gainXp+=xpv;B.gainGold+=g;P.xp+=xpv;P.gold+=g;kills++;dailyEvent('kill',e);dailyEvent('gold',g);B.defeated[e.type]=(B.defeated[e.type]||0)+1;if(e.tmp)kills--;
   floatText(c.x,c.y-34,'+'+xpv+' XP','#9ad0ff',13);floatText(c.x,c.y-18,'+'+g+' G','#ffd23f',13);sfx('coin');   // non-blocking reward popups
   while(P.xp>=xpNeed()){P.xp-=xpNeed();P.lv++;B.levels++;P.hp=maxHp();sfx('level');floatText(P.x,P.y-50,'LEVEL UP!','#7dffa0',16);toast(`LEVEL UP!  Lv ${P.lv}  -  HP restored  +1 SKILL POINT`,2.6,'#7dffa0');B.saveSoon=true;}
   if(e.rush){}
@@ -4252,6 +4276,143 @@ ATK.colossus=mkBoss({proj:'sandb',fx:'sand',w:[25,40,40],   // signature: a stom
   uniq:(e,c,p,a,ph)=>{const z=Z.ring(c.x,c.y,50,170,19),z2=Z.circle(c.x,c.y,230,19);
     return{windup:1.1*ph,zones:[z],recover:.9,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.4;e.hop=.4;hitZones([z],30,'sand');schedule(.5,()=>{if(B.phase!=='fight')return;warnZones([z2],.7);schedule(.7,()=>{if(B.phase==='fight')hitZones([z2],22,'sand');});});}};}});
 
+/* ---------- src/enemies/boss-mech.js ---------- */
+/* =====================================================================
+   BOSS MECHANICS: every boss gets its own signature moves on top of the shared telegraphed attack kit (see docs/bosses.md).
+   Primitives: knockback (push the hero), lingering hazard pools, summoned minions, breakable shields (break = a stagger), teleports.
+   Each boss tries a signature move on ~40% of its attacks (cooldown per move); otherwise its usual pattern plays.
+   ===================================================================== */
+/* push the hero away from a point over ~.28s (walls still stop him) */
+function knockPlayer(fx,fy,dist){
+  const p=pcen(),a=Math.atan2(p.y-fy,p.x-fx),T=.28;
+  B.pk={vx:Math.cos(a)*dist/T,vy:Math.sin(a)*dist/T,t:T};
+  burst(p.x,p.y,'#e8f0ff',8,110,.4);floatText(p.x,p.y-32,'KNOCKED BACK','#dfeaff',11);
+}
+/* a lingering hazard on the ground: ticks the hero every .5s while he stands in it */
+function addPool(x,y,r,dur,dmg,fx){
+  B.pools=B.pools||[];const o=B.owner;B.pools.push({x,y,r,t:0,dur,dmg:Math.round(dmg*(o&&o.dm||1)),fx,tk:.35,o});
+}
+/* summon minions (never more than 4 alive): they carry no loot / xp, fall with their master and are removed from the world afterwards */
+function summonMinions(e,type,n,lv,spots){
+  const c=ecen(e),alive=B.ens.filter(o=>o.tmp&&!o.dying).length;n=Math.min(n,4-alive);const made=[];
+  for(let i=0;i<n;i++){
+    const sp=spots&&spots[i]||scatterSpot(c,c,Math.cos(i*2.4+Math.random())*80,Math.sin(i*2.4+Math.random())*80,eOff(e)),o=mkEnemyObj(type,0,0);
+    o.x=o.hx=sp.x;o.y=o.hy=sp.y+13;applyLevel(o,Math.max(1,Math.round(lv)));o.baseLv=o.lv;o.xpv=0;o.gm=0;o.elite=null;o.tmp=true;o.rush=true;
+    enemies.push(o);initCombatEnemy(o,.6);B.ens.push(o);made.push(o);burst(sp.x,sp.y,'#b99cff',12,110,.6);
+  }
+  if(made.length){sfx('warn');floatText(c.x,c.y-60,'SUMMONED!','#d4b3ff',12);}
+  return made;
+}
+/* a shield the hero has to break: it soaks damage; breaking it staggers the boss; it fades after `dur` seconds */
+function giveShield(e,frac,dur=14,msg='SHIELDED - BREAK IT!'){
+  e.shield=e.shieldMax=Math.max(20,Math.round(e.maxhp*frac));e.shieldT=dur;
+  setBanner(msg,1.3,'#9ad0ff');sfx('shield');const c=ecen(e);burst(c.x,c.y,'#9ad0ff',18,140,.7);
+}
+function bossShieldHit(e,d,c,top){
+  e.shield-=d;sfx('clang');floatText(c.x+R(-8,8),top,String(Math.round(d)),'#9ad0ff',12);burst(c.x,c.y,'#cfefff',6,100,.35);
+  if(e.shield<=0){
+    e.shield=0;e.stun=2.6;e.stunK='stun';B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);e.st='idle';e.cur=null;e.charge=0;e.atkCd=2.8;e.dash=null;
+    setBanner('SHIELD BROKEN!',1.1,'#ffe14d');floatText(c.x,top-14,'STAGGERED!','#ffe14d',14);sfx('boom');B.shake=Math.max(B.shake,.3);burst(c.x,c.y,'#ffffff',22,170,.7);
+  }
+  return true;
+}
+/* a teleport: the landing spot is telegraphed first; the boss reappears there with a slam */
+function bossSpotNear(e,p,r){
+  for(let i=0;i<12;i++){const a=Math.random()*6.283,x=p.x+Math.cos(a)*r,y=p.y+Math.sin(a)*r,q=clampRay(p,7,{x,y},7);
+    if(!solidTile(Math.floor((q.x-12)/TS),Math.floor((q.y+20)/TS))&&!solidTile(Math.floor((q.x+12)/TS),Math.floor((q.y+20)/TS))&&Math.hypot(q.x-p.x,q.y-p.y)>r*.6)return q;}
+  return clampRay(p,7,{x:p.x+r,y:p.y},7);
+}
+function bossTeleport(e,dest){const dy=ecen(e).y-e.y;e.x=dest.x;e.y=dest.y-dy;e.dash=null;burst(dest.x,dest.y,'#d4b3ff',16,130,.6);}
+
+/* ---- per-boss move books: name -> () => attack ---- */
+const BOSS_MOVES={
+  dragon:(e,c,p,a)=>({
+    gust:()=>{const z=Z.cone(c.x,c.y,a,205,.9);return{windup:.95,zones:[z],recover:.7,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.5;e.hop=.3;const hit=inZone(z,pcen());hitZones([z],14,'slash');if(hit&&B.phase==='fight')knockPlayer(c.x,c.y,125);}};},   // WING GUST: damage + knockback
+    flamewall:()=>{const z=Z.cone(c.x,c.y,a,235,.6);return{windup:.9,zones:[z],recover:.9,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.6;hitZones([z],28,'fire');
+      for(const k of [85,145,205]){const q=clampRay(c,19,{x:c.x+Math.cos(a)*k,y:c.y+Math.sin(a)*k},7);addPool(q.x,q.y,32,7,9,'fire');}}};},   // phase 2: the breath leaves FLAME POOLS
+  }),
+  lich:(e,c,p,a)=>({
+    raise:()=>{const sp=[0,1].map(i=>scatterSpot(c,c,Math.cos(a+(i?1:-1)*1.1)*95,Math.sin(a+(i?1:-1)*1.1)*95,eOff(e))),zs=sp.map(s=>Z.circle(s.x,s.y,30,7));
+      return{windup:1.05,zones:zs,recover:.8,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.5;summonMinions(e,'knight',2,Math.max(3,(e.lv||16)*.55),sp);}};},   // RAISE THE DEAD
+    step:()=>{const d=bossSpotNear(e,pcen(),125),z=Z.circle(d.x,d.y,78,7);
+      return{windup:.95,zones:[z],recover:.7,start(e){e.charge=1;},strike(e){e.charge=0;bossTeleport(e,d);e.dragonOpen=.5;hitZones([z],26,'void');}};},   // PHASE STEP: teleports onto a marked spot
+  }),
+  rimegar:(e,c,p,a)=>({
+    slam:()=>{const q=clampRay(c,19,p,7),z=Z.circle(q.x,q.y,100,7),z2=Z.ring(q.x,q.y,100,215,7);
+      return{windup:1.25,zones:[z],recover:.9,start(e){e.charge=1;},strike(e){e.charge=0;e.hop=.4;e.dragonOpen=.4;hitZones([z],30,'frost');
+        schedule(.3,()=>{if(B.phase!=='fight')return;warnZones([z2],.7);schedule(.7,()=>{if(B.phase==='fight')hitZones([z2],22,'frost');});});}};},   // GLACIAL SLAM + shockwave ring
+    gale:()=>{const z=Z.cone(c.x,c.y,a,215,.95);return{windup:1.0,zones:[z],recover:.8,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.5;const hit=inZone(z,pcen());hitZones([z],16,'frost');if(hit&&B.phase==='fight')knockPlayer(c.x,c.y,110);}};},   // BITTER GALE knockback
+  }),
+  mossback:(e,c,p,a)=>({
+    spit:()=>{const zs=scatterZones(c,p,3,38,40,120,19);return{windup:1.05,zones:zs,recover:.8,strike(e){e.hop=.3;e.dragonOpen=.4;hitZones(zs,16,'mire');zs.forEach(z=>addPool(z.x,z.y,34,7,8,'mire'));}};},   // POISON SPIT leaves toxic pools
+    hatch:()=>{const sp=[0,1].map(i=>scatterSpot(c,c,Math.cos(a+(i?1:-1)*1.3)*90,Math.sin(a+(i?1:-1)*1.3)*90,eOff(e))),zs=sp.map(s=>Z.circle(s.x,s.y,28,7));
+      return{windup:1.0,zones:zs,recover:.8,strike(e){e.dragonOpen=.4;summonMinions(e,'toad',2,Math.max(2,(e.lv||17)*.45),sp);}};},   // HATCH: bog toads
+  }),
+  colossus:(e,c,p,a)=>({
+    storm:()=>{const z=Z.ring(c.x,c.y,0,205,19);return{windup:1.1,zones:[z],recover:.9,start(e){e.charge=1;},strike(e){e.charge=0;e.dragonOpen=.5;e.hop=.4;const hit=inZone(z,pcen());hitZones([z],14,'sand');if(hit&&B.phase==='fight')knockPlayer(c.x,c.y,150);}};},   // SANDSTORM: blasts everything outward
+    burrow:()=>{const q=clampRay(c,19,pcen(),7),z=Z.circle(q.x,q.y,85,7);return{windup:1.35,zones:[z],recover:.9,start(e){e.charge=1;},strike(e){e.charge=0;bossTeleport(e,q);e.dragonOpen=.5;e.hop=.4;hitZones([z],30,'sand');}};},   // BURROW: erupts where you were standing
+  }),
+};
+/* which moves each boss tries, with cooldowns (s) and conditions */
+const BOSS_BOOK={
+  dragon:[['gust',9,(e,d)=>d<230],['flamewall',10,(e)=>e.p2]],
+  lich:[['raise',16,e=>true],['step',9,e=>true]],
+  rimegar:[['slam',9,e=>true],['gale',9,(e,d)=>d<230]],
+  mossback:[['spit',8,e=>true],['hatch',17,e=>e.p2||true]],
+  colossus:[['storm',9,(e,d)=>d<230],['burrow',10,e=>true]],
+};
+function bossMove(e,name){B.owner=e;ZOFF=eOff(e);const c=ecen(e),p=aimPos();return BOSS_MOVES[e.type](e,c,p,angTo(c,p))[name]();}
+/* wrap each boss's normal attack picker */
+for(const t in BOSS_BOOK){
+  const base=ATK[t];
+  ATK[t]=function(e){
+    const c=ecen(e),p=aimPos(),d=Math.hypot(p.x-c.x,p.y-c.y),mm=e.mc=e.mc||{};
+    if(Math.random()<(e.p3?.55:e.p2?.48:.38)){
+      const book=BOSS_BOOK[t].filter(([k,cd,cond])=>(B.t-(mm[k]===undefined?-99:mm[k]))>=cd&&cond(e,d));
+      if(book.length){const k=book[RI(0,book.length-1)][0];mm[k]=B.t;return BOSS_MOVES[t](e,c,p,angTo(c,p))[k]();}
+    }
+    return base(e);
+  };
+}
+/* phase changes: new mechanics arrive with the new phase */
+function bossMechPhase(e){
+  const c=ecen(e),ph=e.p3?3:2;
+  if(e.type==='dragon'){for(let i=0;i<4;i++){const q=clampRay(c,19,{x:c.x+Math.cos(i*1.57+.6)*115,y:c.y+Math.sin(i*1.57+.6)*115},7);addPool(q.x,q.y,36,8,10,'fire');}setBanner('FLAMES ERUPT!',1.3,'#ff9a3d');}
+  else if(e.type==='lich')giveShield(e,ph===3?.07:.05,16,'SOUL WARD - BREAK IT!');
+  else if(e.type==='rimegar')giveShield(e,.06,15,'ICE ARMOR - BREAK IT!');
+  else if(e.type==='colossus')giveShield(e,ph===3?.08:.06,15,'STONE SKIN - BREAK IT!');
+  else if(e.type==='mossback'){summonMinions(e,'toad',2,Math.max(2,(e.lv||17)*.45));}
+}
+function updateBossMech(dt){
+  if(B.pk){const s=Math.min(dt,B.pk.t);moveBox(P,B.pk.vx*s,0,6,7);moveBox(P,0,B.pk.vy*s,6,7);B.pk.t-=dt;if(B.pk.t<=0)B.pk=null;}
+  if(B.pools&&B.pools.length){
+    for(const q of B.pools){
+      q.t+=dt;if(B.phase!=='fight'||(q.o&&q.o.dying)){q.t=q.dur;continue;}
+      q.tk-=dt;if(q.tk<=0){q.tk=.5;const p=pcen();if(Math.hypot(p.x-q.x,p.y-q.y)<=q.r+6){damagePlayer(q.dmg,q.o);}}
+    }
+    B.pools=B.pools.filter(q=>q.t<q.dur);
+  }
+  for(const e of B.ens)if(e.shield>0){e.shieldT-=dt;if(e.shieldT<=0){e.shield=0;const c=ecen(e);burst(c.x,c.y,'#9ad0ff',14,120,.6);floatText(c.x,c.y-50,'WARD FADES','#9ad0ff',11);}}
+}
+function drawBossPools(){
+  if(!B||!B.pools)return;
+  for(const q of B.pools){
+    const k=Math.min(1,(q.dur-q.t)/1.2,q.t/.25),fire=q.fx==='fire',pul=.5+.5*Math.sin(gtime*7+q.x);
+    ctx.save();ctx.globalAlpha=(.38+.18*pul)*k;ctx.fillStyle=fire?'#ff6a1f':'#7bbf2a';ctx.beginPath();ctx.ellipse(q.x,q.y+4,q.r,q.r*.62,0,0,6.283);ctx.fill();
+    ctx.globalAlpha=.7*k;ctx.strokeStyle=fire?'#ffd23f':'#d3f08a';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle=fire?'#ffe27a':'#e6ffb0';for(let i=0;i<4;i++){const u=(gtime*.9+i/4+q.x*.01)%1;ctx.globalAlpha=(1-u)*.8*k;ctx.fillRect(Math.round(q.x-q.r*.5+i*q.r*.33),Math.round(q.y-u*20),2,3);}
+    ctx.restore();
+  }
+}
+function drawBossShields(){
+  if(!B)return;
+  for(const e of B.ens){
+    if(!(e.shield>0)||e.dying)continue;const c=ecen(e),r=e.def.big?42:30,f=e.shield/e.shieldMax,pul=.5+.5*Math.sin(gtime*6);
+    ctx.save();ctx.globalAlpha=.25+.15*pul;ctx.fillStyle='#9ad0ff';ctx.beginPath();ctx.arc(c.x,c.y,r,0,6.283);ctx.fill();
+    ctx.globalAlpha=.8;ctx.strokeStyle='#e6f6ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,r,-1.57,-1.57+6.283*f);ctx.stroke();ctx.restore();
+  }
+}
+
 /* ---------- src/combat/player-combat.js ---------- */
 
 /* ---- player ---- */
@@ -4383,6 +4544,7 @@ function loseBattle(){
    'engaged' + dying forever (it would never be updated again and drew as a frozen pale-white blob). */
 function settleDying(e){e.alive=false;e.engaged=false;e.flash=0;e.respawn=e.type==='lich'?240:e.def.boss?150:55;}
 function reapStale(){
+  for(let i=enemies.length-1;i>=0;i--)if(enemies[i].tmp&&!enemies[i].alive&&!enemies[i].engaged)enemies.splice(i,1);   // summoned minions leave the world with their fight
   for(const e of enemies){
     if(!e.alive){if(e.flash)e.flash=0;continue;}
     if(e.dying){if(!B||!B.ens.includes(e)||e.dyT>1.6)settleDying(e);continue;}
@@ -4392,7 +4554,8 @@ function reapStale(){
 function resetFighters(home){
   for(const e of B.ens){
     if(e.dying){settleDying(e);continue;}
-    e.flash=0;
+    if(e.tmp){e.alive=false;e.engaged=false;e.flash=0;continue;}
+    e.flash=0;e.shield=0;
     e.engaged=false;e.frozen=0;e.fimm=0;e.chill=0;e.hp=e.maxhp;e.st='idle';e.guard=0;e.burn=0;e.dash=null;e.alert=0;e.mode='look';e.mt=2;e.cur=null;
     if(home){e.chasing=false;e.x=e.hx;e.y=e.hy;}
   }
@@ -4417,7 +4580,7 @@ function updateBattle(dt){
   B.fx.forEach(f=>f.t+=dt);B.fx=B.fx.filter(f=>f.t<f.dur);
   B.texts.forEach(t=>t.t+=dt);B.texts=B.texts.filter(t=>t.t<1);
   B.parts.forEach(q=>{q.t+=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=260*dt;});B.parts=B.parts.filter(q=>q.t<q.life);
-  B.zones.forEach(w=>w.t+=dt);B.zones=B.zones.filter(w=>w.t<w.dur);
+  B.zones.forEach(w=>w.t+=dt);B.zones=B.zones.filter(w=>w.t<w.dur);updateBossMech(dt);
   if(B.banner){B.banner.t+=dt;if(B.banner.t>B.banner.dur)B.banner=null;}
   for(const tm of B.timers)tm.t-=dt;
   const due=B.timers.filter(t=>t.t<=0);B.timers=B.timers.filter(t=>t.t>0);due.forEach(t=>{B.owner=t.o;t.fn();});
@@ -4505,7 +4668,7 @@ function drawCombatGround(){
     shapePath(w,p);ctx.fillStyle=last?'rgba(255,80,60,.55)':'rgba(255,240,150,.35)';ctx.fill();
     shapePath(w);ctx.strokeStyle=last?'#fff':'#fff6b0';ctx.lineWidth=2;ctx.stroke();
   }
-  drawExtrasGround();
+  drawBossPools();drawExtrasGround();
 }
 function drawShot(s){
   const a=Math.atan2(s.vy,s.vx);
@@ -4577,7 +4740,7 @@ function drawCombatTop(){
   const b=B;
   b.shots.forEach(drawShot);
   b.fx.forEach(drawFx);
-  drawExtrasTop();
+  drawBossShields();drawExtrasTop();
   b.parts.forEach(q=>{ctx.globalAlpha=clamp(1-q.t/q.life,0,1);ctx.fillStyle=q.col;ctx.fillRect(Math.round(q.x),Math.round(q.y),q.sz,q.sz);});ctx.globalAlpha=1;
   b.texts.forEach(t=>{txt(t.s,t.x,t.y-t.t*28,{size:t.size,align:'center',col:t.col,alpha:clamp(2-t.t*1.8,0,1)});});
   const bounce=Math.abs(Math.sin(gtime*12))*5;
@@ -7013,7 +7176,7 @@ function update(dt){
   if(hit('KeyP')||(hit('Escape')&&!DLG&&!FISH.on)){state=state==='paused'?'play':'paused';pauseReset();if(state==='paused')releaseAllTouch();}
   if(state==='paused'){updateTut(dt);return;}
   if(B&&B.hitstop>0){B.hitstop-=dt;dt=0;}
-  updateDayNight(dt);updateTown(dt);updateHome(dt);
+  updateDayNight(dt);updateTown(dt);updateHome(dt);updateWaystones();
   updateExplore(dt);
   if(B)updateBattle(dt);
   updateRush(dt);updateLab(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);updateTracker(dt);
@@ -7058,7 +7221,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
