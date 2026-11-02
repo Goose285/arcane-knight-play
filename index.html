@@ -339,6 +339,9 @@ function buildSprites(){
   SP.guard=person({body:'#a02828',bodyL:'#e06a6a',bodyD:'#701818',helm:true,plume:'#f0d040',dir:'d'});
   {const base=person({body:'#8fa6bd',bodyL:'#d4e4f4',bodyD:'#566c84',helm:true,plume:'#ffffff',belt:'#2a4a9a',boots:'#3a4658',dir:'d'});   // Town Guard: heavy steel plate, blue tabard, halberd
    SP.tguard=makeSprite(16,16,g=>{g.drawImage(base,0,0);rect(g,14,1,1,14,'#6a4a2a');rect(g,13,0,3,3,'#dfe9f2');rect(g,13,0,1,1,'#fff');rect(g,6,8,4,3,'#2a4a9a');rect(g,7,8,2,1,'#6a8ae8');rect(g,3,7,3,3,'#b8cde0');rect(g,10,7,3,3,'#b8cde0');});}
+   SP.dummy=makeSprite(16,16,g=>{rect(g,4,14,8,2,'#5a3e22');rect(g,7,6,2,9,'#7a5530');rect(g,1,6,14,2,'#8a6540');rect(g,3,5,10,8,'#d9b97a');rect(g,3,5,10,1,'#f0d9a0');rect(g,3,12,10,1,'#b8955a');
+     rect(g,5,0,6,5,'#e8cf94');rect(g,5,0,6,1,'#f6e6b8');rect(g,6,2,1,1,'#3a2a14');rect(g,9,2,1,1,'#3a2a14');rect(g,7,3,2,1,'#3a2a14');
+     rect(g,5,6,6,5,'#c0392b');rect(g,6,7,4,3,'#f6ecd2');rect(g,7,8,2,1,'#c0392b');rect(g,0,5,2,3,'#d9b97a');rect(g,14,5,2,3,'#d9b97a');});
   // Slime
   SP.slime=fromMap([
     '................','................','................','................',
@@ -3138,7 +3141,7 @@ function checkStairs(){
   const t=map[ty][tx];
   if(t===T.CS)startWarp('crypt');else if(t===T.CX)startWarp('out');
   else if(t===T.GT){const z=GATES[tx+','+ty];if(z)startWarp(zoneArrive(z));}
-  else if(t===T.GX){const z=ZEXITS[tx+','+ty];if(z==='arena')rushLeave();else if(z==='house')startWarp(HOUSE_OUT);else if(z)startWarp(zoneGateOut(z));}
+  else if(t===T.GX){const z=ZEXITS[tx+','+ty];if(z==='arena'){if(labOn())labLeave();else rushLeave();}else if(z==='house')startWarp(HOUSE_OUT);else if(z)startWarp(zoneGateOut(z));}
 }
 function updateWarp(dt){
   WARP.t+=dt;
@@ -3616,7 +3619,7 @@ function drawPlayerWorld(){
   }
 }
 function drawEnemyWorld(e){
-  const sx=e.x-cam.x,sy=e.y-cam.y,spr=SP[e.def.spr];
+  const sx=e.x-cam.x,sy=e.y-cam.y,spr=SP[e.dummy?'dummy':e.def.spr];
   const fighting=!!B&&e.engaged;
   if(fighting&&e.dying&&Math.floor(e.dyT*18)%2)return;
   const flip=e.type==='goblin'?e.face>0:e.face<0;
@@ -3859,6 +3862,7 @@ function damageEnemy(e,d,kind){
 }
 function killEnemy(e){
   if(e.dying)return;
+  if(e.lab){labKill(e);return;}
   e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;
   B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);
   const c=ecen(e);sfx('boom');B.shake=Math.max(B.shake,.4);eliteDeath(e,c);
@@ -4012,7 +4016,12 @@ function startAttack(e,a){e.st='windup';e.cur=a;e.t=a.windup;if(a.zones&&a.zones
 function updateEnemyCombat(e,dt){updateEnemyCombat0(e,dt);clampTerr(e);}
 function updateEnemyCombat0(e,dt){
   e.flash=Math.max(0,e.flash-dt);
-  if(e.dying)return;e.hop=Math.max(0,e.hop-dt);e.guard=Math.max(0,e.guard-dt);e.lunge=Math.max(0,e.lunge-dt);e.draw=Math.max(0,e.draw-dt);e.dragonOpen=Math.max(0,e.dragonOpen-dt);e.bob+=dt*5;
+  if(e.dying)return;
+  if(e.dummy){   // Combat Lab training dummy: never moves or attacks; statuses wear off; heals back up
+    e.hop=Math.max(0,e.hop-dt);e.bob+=dt*2;e.st='idle';e.cur=null;e.dash=null;e.atkCd=1e9;e.joinT=0;
+    for(const k of ['frozen','chill','burn','stun','pois','curse'])if(e[k]>0)e[k]=Math.max(0,e[k]-dt);
+    e.hp=Math.min(e.maxhp,e.hp+e.maxhp*.2*dt);return;}
+  e.hop=Math.max(0,e.hop-dt);e.guard=Math.max(0,e.guard-dt);e.lunge=Math.max(0,e.lunge-dt);e.draw=Math.max(0,e.draw-dt);e.dragonOpen=Math.max(0,e.dragonOpen-dt);e.bob+=dt*5;
   e.chill=Math.max(0,e.chill-dt);const cs=e.chill>0?.6:1;   // chilled: -40% move & attack speed
   const sp=(e.p3?1.6:e.p2?1.35:1)*e.as*cs,c=ecen(e),p=aimPos(),d=Math.hypot(p.x-c.x,p.y-c.y);
   if(Math.abs(p.x-c.x)>6)e.face=p.x<c.x?1:-1;
@@ -4133,11 +4142,13 @@ ATK.colossus=mkBoss({proj:'sandb',fx:'sand',w:[25,40,40],   // signature: a stom
 /* ---- player ---- */
 function nextSel(dir=1){const N=B.hand.length||5;for(let i=1;i<=N;i++){const j=(B.sel+i*dir+70)%N;if(B.hand[j]){B.sel=j;return;}}}
 function nearestEnemy(){
+  if(B.xt&&B.xt.e&&!B.xt.e.dying)return B.xt.e;          // experimental cards: the foe you tapped
   const pc=pcen();let best=null,bd=1e9;
   for(const e of B.ens){if(e.dying)continue;const c=ecen(e),d=Math.hypot(c.x-pc.x,c.y-pc.y);if(d<bd){bd=d;best=e;}}
   return best;
 }
 function aimEnemy(){
+  if(B.xt)return B.xt.tg;                                 // experimental cards: tapped foe / ground marker (null = nothing there)
   const pc=pcen(),near=nearestEnemy();
   if(!near||!P.moving)return near;
   let best=null,bd=1e9;                                  // moving: nearest enemy inside a cone around the aim direction
@@ -4145,6 +4156,7 @@ function aimEnemy(){
   return best||near;
 }
 function fireAngle(){
+  if(B.xt)return angTo(pcen(),B.xt);
   const pc=pcen(),near=nearestEnemy();
   if(!near)return P.aim;
   if(!P.moving)return angTo(pc,ecen(near));
@@ -4211,9 +4223,10 @@ function updatePlayerCombat(dt){
   B.carry=false;
   if(hit('KeyL'))if(B.hand.some(Boolean)){nextSel(1);sfx('select');}
   if(hit('KeyK'))castFacingNearest();          // K auto-faces the nearest enemy
-  ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'].forEach((k,i)=>{if(hit(k))useCard(i);});
-  B.gauge+=dt/8.5*(1+gearStats().gauge);
-  if(B.gauge>=1){B.gauge=0;dealHand();toast('NEW SPELL CARDS!',1.4,'#ffe14d');}
+  ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'].forEach((k,i)=>{if(hit(k))cardUse(i);});
+  if(expCards())expDealTick(dt);                                   // experimental: one card every 2.5s, no full refresh
+  else{B.gauge+=dt/8.5*(1+gearStats().gauge);
+  if(B.gauge>=1){B.gauge=0;dealHand();toast('NEW SPELL CARDS!',1.4,'#ffe14d');}}
   B.gaugeFlash=Math.max(0,B.gaugeFlash-dt*1.5);
   // leash: run far enough away and the monster gives up
   if(breakingAway(dt))B.fleeT+=dt;else B.fleeT=Math.max(0,B.fleeT-dt*2);
@@ -4580,7 +4593,7 @@ function drawFromDeck(){
   if(!B.pile||!B.pile.length){B.pile=shuffle(DECK.slice());if(!B.pile.length)B.pile=['sword','fire','heal'];}
   return B.pile.pop();
 }
-function dealHand(){B.hand=[];for(let i=0;i<handN();i++)B.hand.push(drawFromDeck());B.sel=0;B.gaugeFlash=1;sfx('deal');}
+function dealHand(){if(expCards()){expDealInit();return;}B.hand=[];for(let i=0;i<handN();i++)B.hand.push(drawFromDeck());B.sel=0;B.gaugeFlash=1;sfx('deal');}
 function initExtras(){Object.assign(B,{clk:0,pile:null,lastCard:null,haste:0,ward:0,reflect:0,tstop:0,sanct:0,sanctT:0,ghost:0,channel:null,wolf:null,decoy:null,clouds:[],meteors:[],bolts:[]});}
 
 /* ---- helpers ---- */
@@ -4607,7 +4620,7 @@ function swordLock(reach,from){
     if(d<=reach*1.6+eRad(e)&&d<bd&&losW(o,7,c,7)){bd=d;best=e;}}
   return best?{e:best,a:angTo(o,ecen(best)),d:bd,gap:bd-(reach+eRad(best))}:null;
 }
-function dashAngle(){return P.moving?P.aim:fireAngle();}
+function dashAngle(){return P.moving&&!B.xt?P.aim:fireAngle();}
 function doShadowStep(a,dist=130){
   const from={x:P.x,y:P.y},to=stepDest(a,dist);
   B.bolts.push({k:'shadow',x0:from.x,y0:from.y-12,x1:to.x,y1:to.y-12,t:0,dur:.5});
@@ -4848,7 +4861,8 @@ const AIM_KIND={fire:'proj',lance:'line',frostbolt:'bolt',crimsonbolt:'bolt',cur
   frostburst:'area',crimsonburst:'area',meteor:'area',poison:'area',quake:'self',dragonfire:'cone',shadow:'dash'};
 const AIM_NEEDS_TARGET={bolt:1,chain:1,area:1};
 const AIM_AREA_R={frostburst:70,crimsonburst:70,meteor:62,poison:68,quake:118};
-function heldCardId(){                                   // the card under a finger/mouse that has not been swiped yet
+function heldCardId(){
+  const xid=typeof expAimId==='function'?expAimId():null;if(xid&&state==='play')return xid;                                   // the card under a finger/mouse that has not been swiped yet
   const t=cardTouch;
   if(!t||t.swiped||typeof B==='undefined'||!B||B.phase!=='fight'||state!=='play')return null;
   return B.hand[t.i]||null;
@@ -4896,7 +4910,8 @@ function aimPlan(id){
   return pl;
 }
 function drawAimPreview(){
-  const id=heldCardId();if(!id)return;const pl=aimPlan(id);if(!pl)return;
+  drawExpAim();
+  const id=heldCardId();if(!id)return;const xid=expAimId(),pl=xid?expWith(expPointer(xid),()=>aimPlan(id)):aimPlan(id);if(!pl)return;
   const bad=pl.blocked||(pl.noTarget&&!!AIM_NEEDS_TARGET[pl.kind]);
   const col=bad?'#ff7a7a':pl.col,ox=cam.x,oy=cam.y,pulse=.5+.5*Math.sin(gtime*7);
   AIMV.drawn++;AIMV.last={id,kind:pl.kind,bad,hits:pl.hits.length};
@@ -5633,7 +5648,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     if(dlgRects.yes)return true;
     pressed.Enter=true;return true;}
   if(B&&B.phase==='reward'){pressed.Space=true;return true;}
-  if(B&&B.phase==='fight'){const i=cardAt(p);if(i>=0){B.sel=i;useCard(i);return true;}}
+  if(B&&B.phase==='fight'){const i=cardAt(p);if(i>=0){B.sel=i;cardUse(i);return true;}}
   return false;
 }
 /* ---- hold SHOT + swipe up = cast the highlighted card at the nearest enemy (touch) ---- */
@@ -5687,10 +5702,11 @@ function swipeMove(id,p){
 }
 function touchDown(id,p){
   if(isUI()){touches.set(id,{kind:'ui',sx:p.x,sy:p.y,ly:p.y,moved:false});return;}
-  if(TOUCH&&state!=='title'&&inCircle(p,btn.pause,6)){pressed.KeyP=true;touches.set(id,{kind:'tap'});return;}
+  if(TOUCH&&state!=='title'&&inCircle(p,btn.pause,6)){expCancel();pressed.KeyP=true;touches.set(id,{kind:'tap'});return;}
   if(cardDown(id,p))return;
-  if(tapUI(p)){touches.set(id,{kind:'tap'});return;}
+  if(tapUI(p)){expCancel();touches.set(id,{kind:'tap'});return;}
   for(const b of activeButtons()){
+    if(inCircle(p,b,10))expCancel();   // pressing SHOT / CAST cancels a pending aimed card
     if(inCircle(p,b,10)&&b.code==='KeyJ'&&B&&B.phase==='fight'){   // deferred: tap/hold/swipe decided later
       atkTouch={kind:'btn',code:'KeyJ',defer:true,t0:performance.now(),sx:p.x,sy:p.y,dy:0,cur:p,started:false,swiped:false};touches.set(id,atkTouch);return;}
     if(inCircle(p,b,10)){keys[b.code]=true;pressed[b.code]=true;touches.set(id,{kind:'btn',code:b.code});return;}
@@ -5701,9 +5717,11 @@ function touchDown(id,p){
     joy.on=true;joy.id=id;
     joy.bx=clamp(p.x,jz.x0+(LEFTY?0:30),jz.x1-(LEFTY?30:0));joy.by=clamp(p.y,ST+90,VH-SB-56);
     joy.kx=p.x;joy.ky=p.y;joy.x=joy.y=0;touches.set(id,{kind:'joy',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
-  } else if(wt)touches.set(id,{kind:'wtap',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
+  } else if(expSelActive())touches.set(id,{kind:'xtap',sx:p.x,sy:p.y,t0:performance.now()});   // experimental cards: a tap in the world casts there
+  else if(wt)touches.set(id,{kind:'wtap',wt,sx:p.x,sy:p.y,t0:performance.now(),moved:false});
 }
 function joyMove(p){
+  {const tt=touches.get(joy.id);if(tt)tt.maxd=Math.max(tt.maxd||0,Math.hypot(p.x-tt.sx,p.y-tt.sy));}
   const R=48;let dx=p.x-joy.bx,dy=p.y-joy.by;const l=Math.hypot(dx,dy);
   if(l>R){joy.bx+=dx/l*(l-R);joy.by+=dy/l*(l-R);dx=p.x-joy.bx;dy=p.y-joy.by;}   // base follows the thumb
   joy.kx=joy.bx+clamp(dx,-R,R);joy.ky=joy.by+clamp(dy,-R,R);
@@ -5719,10 +5737,12 @@ function touchEndId(id){
   else if(t.kind==='btn'){keys[t.code]=false;released[t.code]=true;}
   else if(t.kind==='card'){
     if(cardTouch===t)cardTouch=null;
-    if(!t.swiped&&!t.cyc&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;useCard(t.i);}   // plain tap = select + cast, as before
+    if(!t.swiped&&!t.cyc&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;cardUse(t.i);}   // plain tap = select + cast, as before
   }
   else if(t.kind==='ui'){if(!t.moved)uiTap({x:t.sx,y:t.sy});}
-  else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
+  else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);
+    else if(expSelActive()&&(t.maxd||0)<14&&performance.now()-t.t0<420)expTapAt(t.sx,t.sy);}   // a quick tap in the stick zone also aims
+  else if(t.kind==='xtap'){if(expSelActive()&&performance.now()-t.t0<520)expTapAt(t.sx,t.sy);}
   else if(t.kind==='wtap'){if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
 }
 function releaseAllTouch(){for(const id of [...touches.keys()])touchEndId(id);joy.on=false;joy.x=joy.y=0;}
@@ -5734,8 +5754,8 @@ cv.addEventListener('touchend',tEnd,{passive:false});cv.addEventListener('touchc
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('dblclick',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(isUI())uiTap(q);else if(!cardDown('mouse',q)&&!tapUI(q))worldTap(q);});
-addEventListener('mousemove',e=>{if(touches.has('mouse'))swipeMove('mouse',lpos(e));});
+cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
+addEventListener('mousemove',e=>{if(touches.has('mouse'))swipeMove('mouse',lpos(e));if(B&&B.xsel>=0){const q=lpos(e);B.xptr={x:q.x+cam.x,y:q.y+cam.y};}});
 addEventListener('mouseup',()=>{if(touches.has('mouse'))touchEndId('mouse');});
 addEventListener('blur',releaseAllTouch);
 addEventListener('orientationchange',()=>setTimeout(resize,120));
@@ -5803,7 +5823,8 @@ function drawOverHud(){
   bar(px+8,py+22,160,9,hpf,hpf<.3?'#ff4040':'#44d96a');txt(Math.ceil(P.hp)+'/'+maxHp(),px+8,py+44,{size:9,col:'#fff',lw:2});
   bar(px+8,py+48,160,5,P.xp/xpNeed(),'#58a8ff');
   txt('G '+P.gold,px+170,py+44,{size:11,col:'#ffd23f',align:'right'});
-  if(RUSH.on){const q=py+66;panel(px,q,178,34,{});txt(RUSH.mode==='weekly'?'WEEKLY  F'+(RUSH.round+1)+'/'+WEEKLY_CFG.floors:'BOSS RUSH  R'+(RUSH.round+1),px+8,q+14,{size:10,col:'#ff9a6a',lw:2});txt('SCORE '+RUSH.score,px+170,q+14,{size:10,col:'#ffe14d',align:'right',lw:2});txt(rushTime(RUSH.t),px+8,q+28,{size:9,col:'#cfd0ff',lw:2});txt(RUSH.cur&&!B?'next boss in '+Math.max(0,Math.ceil(RUSH.wait)):RUSH.cur?'':'Get ready...',px+170,q+28,{size:9,col:'#9aa0ff',align:'right',lw:2,bold:false});}
+  if(labOn()){const q=py+66;panel(px,q,178,24,{});txt('COMBAT LAB  (practice)',px+8,q+16,{size:10,col:'#7df9ff',lw:2});}
+  else if(RUSH.on){const q=py+66;panel(px,q,178,34,{});txt(RUSH.mode==='weekly'?'WEEKLY  F'+(RUSH.round+1)+'/'+WEEKLY_CFG.floors:'BOSS RUSH  R'+(RUSH.round+1),px+8,q+14,{size:10,col:'#ff9a6a',lw:2});txt('SCORE '+RUSH.score,px+170,q+14,{size:10,col:'#ffe14d',align:'right',lw:2});txt(rushTime(RUSH.t),px+8,q+28,{size:9,col:'#cfd0ff',lw:2});txt(RUSH.cur&&!B?'next boss in '+Math.max(0,Math.ceil(RUSH.wait)):RUSH.cur?'':'Get ready...',px+170,q+28,{size:9,col:'#9aa0ff',align:'right',lw:2,bold:false});}
   // minimap
   const mx=VW-SR-8-128,my=ST+8;panel(mx-2,my-2,132,100,{fill:'#0a0814'});
   const zn=zoneOfPx(P.y),mz=MINI[zn]||MINI.ow,cr=zn!=='ow',oy=mz.y0*TS;
@@ -5817,7 +5838,7 @@ function drawOverHud(){
   if(!TOUCH)txt('WASD/Arrows move   J shoot   E / click talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
 }
 function drawRushBar(){
-  if(!RUSH.on)return;const w=Math.min(250,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8+112;
+  if(!RUSH.on||labOn())return;const w=Math.min(250,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8+112;
   panel(x,y,w,22,{});txt((RUSH.mode==='weekly'?'WEEKLY F':'RUSH R')+(RUSH.round+1)+'   SCORE '+RUSH.score+'   '+rushTime(RUSH.t),VW/2,y+15,{size:9,align:'center',col:'#ffb070',lw:2});
 }
 function drawToasts(){
@@ -5886,7 +5907,7 @@ function drawCombatHud(){
   const gcol=b.gaugeFlash>0&&Math.floor(gtime*16)%2?'#fff':'#ffcf3a';
   ctx.fillStyle=gcol;ctx.fillRect(gx,gy+3,Math.round(gw*clamp(b.gauge,0,1)),16);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fillRect(gx,gy+3,Math.round(gw*clamp(b.gauge,0,1)),4);
   for(let i=1;i<5;i++){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(gx+gw*i/5,gy+3,1,16);}
-  txt('SPELL GAUGE',gx+gw/2,gy+34,{size:10,align:'center',col:'#ffe9a0'});
+  txt(expCards()?'NEXT CARD':'SPELL GAUGE',gx+gw/2,gy+34,{size:10,align:'center',col:'#ffe9a0'});
   COMBAT_HUD_BOT=Math.max(py+50,list.length&&(stacked||ex<px+222)?ey+eh:0,gy+40);
   // cards
   /* hand. Desktop: 7% larger than the original, shifted right. Touch: a fan of cards arcing around the SHOT button under the right thumb
@@ -5904,7 +5925,7 @@ function drawCombatHud(){
       const id=b.hand[i],sel=i===b.sel&&id&&b.phase==='fight',r=cardRects[i];
       ctx.save();ctx.translate(r.cx,r.cy);ctx.rotate(r.rot);ctx.scale(CS,CS);ctx.translate(-cw0/2,-ch0/2);
       if(!id){ctx.globalAlpha=.25;ctx.fillStyle='#1a1630';ctx.fillRect(0,0,cw0,ch0);ctx.strokeStyle='#4a4470';ctx.lineWidth=1;ctx.strokeRect(.5,.5,cw0-1,ch0-1);ctx.restore();continue;}
-      drawCardFace(id,cw0,ch0,sel);
+      drawCardFace(id,cw0,ch0,sel);if(b.xsel===i)expMark(cw0,ch0);
       ctx.restore();
     }
   } else {
@@ -5918,7 +5939,7 @@ function drawCombatHud(){
     const X=x0+i*(cw+gap),Y=y0-(sel?8:0);
     cardRects.push({x:X,y:y0-8,w:cw,h:ch+8});
     if(!id){ctx.globalAlpha=.25;ctx.fillStyle='#1a1630';ctx.fillRect(X,y0,cw,ch);ctx.strokeStyle='#4a4470';ctx.lineWidth=1;ctx.strokeRect(X+.5,y0+.5,cw-1,ch-1);ctx.globalAlpha=1;continue;}
-    ctx.save();ctx.translate(X,Y);ctx.scale(CS,CS);drawCardFace(id,cw0,ch0,sel,i);ctx.restore();
+    ctx.save();ctx.translate(X,Y);ctx.scale(CS,CS);drawCardFace(id,cw0,ch0,sel,i);if(b.xsel===i)expMark(cw0,ch0);ctx.restore();
   }}
   if(!TOUCH)txt('J Shot (hold = charge)   L Next card   K Cast card   WASD Move   P Pause',VW/2,VH-6-SB,{size:10,align:'center',col:'#cfd0ff',alpha:.8,bold:false,lw:2});
   // leash warning
@@ -6284,7 +6305,7 @@ function rushClear(){
   if(wk)ACH.s.bestFloor=Math.max(ACH.s.bestFloor,RUSH.round);else ACH.s.rushBest=Math.max(ACH.s.rushBest,RUSH.round);
 }
 function updateRush(dt){
-  if(!RUSH.on||WARP||state!=='play'||DLG||zoneOfPx(P.y)!=='arena')return;
+  if(!RUSH.on||RUSH.mode==='lab'||WARP||state!=='play'||DLG||zoneOfPx(P.y)!=='arena')return;
   RUSH.t+=dt;
   if(B){if(RUSH.cur)RUSH.rt+=dt;return;}
   const c=RUSH.cur;
@@ -6313,6 +6334,139 @@ NPCS.push({name:'Arena Master',x:16.5*TS,y:41.6*TS,spr:'guard',rush:true,lines:[
 function openArenaMaster(){
   DLG={name:'ARENA MASTER',lines:['Welcome to the Ember Arena! Five champions, one after another, each lap stronger.','Heal only a little between rounds. Fall, and your score is posted on the board. Ready?'],i:0,c:0,yes:'ENTER',no:'BOARD',
     choice(){rushStart();},noAct(){openUIMode('rush','play');}};
+}
+
+/* ---------- src/player/lab.js ---------- */
+/* =====================================================================
+   COMBAT LAB: a practice room (the Ember Arena) with training dummies and a few real foes that respawn. Nothing there is saved or
+   rewarded, the hero cannot fall, and it is where the EXPERIMENTAL card system lives:
+     1. a hand of 4 cards at most;
+     2. no full-hand refresh when the gauge fills - ONE new card every 2.5s into an empty slot (the timer waits while the hand is full);
+     3. tapping an attack card only SELECTS it (reticle + range ring); the next tap / click in the world casts it THERE. Tap the card
+        again or any HUD control to cancel. Non-targeted buffs (heal, barrier, haste, ward ...) still cast on a tap.
+   The whole thing sits behind EXPCARD.enabled (forced on only while the Lab is open). Flip the flag to promote it to the main game.
+   ===================================================================== */
+const EXPCARD={enabled:false,hand:4,deal:2.5,snap:70};
+const labOn=()=>RUSH.on&&RUSH.mode==='lab';
+const expCards=()=>EXPCARD.enabled||labOn();
+const EXP_INSTANT=new Set(['shield','heal','haste','decoy','ward','reflect','timestop','quake','wolf']);   // no aim needed: cast on tap
+const EXP_GROUND=new Set(['meteor','poison','frostburst','crimsonburst']);                                 // may land on bare ground
+const EXP_NEEDS_FOE=new Set(['frostbolt','crimsonbolt','chain','curse','drain']);                          // must be pointed at a creature
+const expAimed=id=>!!id&&!EXP_INSTANT.has(id);
+/* ---- dealing: one card every EXPCARD.deal seconds into the first empty slot ---- */
+function expDealInit(){B.hand=[];for(let i=0;i<EXPCARD.hand;i++)B.hand.push(null);B.sel=0;B.xsel=-1;B.xdeal=EXPCARD.deal;B.xt=null;B.xptr=null;B.gauge=1;}
+function expDealTick(dt){
+  const free=B.hand.indexOf(null);
+  if(free<0){B.xdeal=Math.min(B.xdeal,EXPCARD.deal);B.gauge=1;return;}      // full: the timer waits
+  B.xdeal+=dt;B.gauge=clamp(B.xdeal/EXPCARD.deal,0,1);
+  if(B.xdeal>=EXPCARD.deal){B.xdeal=0;B.hand[free]=drawFromDeck();if(!B.hand[B.sel])B.sel=free;B.gaugeFlash=.6;sfx('deal');}
+}
+/* ---- selecting / casting ---- */
+const expSelActive=()=>!!(B&&expCards()&&B.xsel>=0&&B.hand[B.xsel]&&B.phase==='fight');
+function expCancel(){if(B&&B.xsel>=0){B.xsel=-1;}}
+function expCardTap(i){   // a card was tapped / clicked / number-keyed
+  if(!B||B.phase!=='fight')return;const id=B.hand[i];if(!id)return;
+  if(!expAimed(id)){B.sel=i;useCard(i);return;}
+  if(B.xsel===i){B.xsel=-1;sfx('select');return;}                    // tap the same card again = cancel
+  B.xsel=i;B.sel=i;sfx('select');try{navigator.vibrate&&navigator.vibrate(8);}catch(e){}
+}
+const cardUse=i=>{if(expCards())expCardTap(i);else useCard(i);};
+/* what a world point means for a card: {x,y,e,tg}  (tg = a real foe, or a ground marker for area cards) */
+function expPick(wx,wy,id){
+  let best=null,bd=1e9;
+  for(const e of B.ens){if(e.dying)continue;const c=ecen(e),d=Math.hypot(c.x-wx,c.y-wy);if(d<EXPCARD.snap+eRad(e)&&d<bd){bd=d;best=e;}}
+  if(best){const c=ecen(best);return {x:c.x,y:c.y,e:best,tg:best};}
+  if(EXP_GROUND.has(id))return {x:wx,y:wy,e:null,tg:{x:wx,y:wy,type:'slime',sz:0,def:{big:false},dying:false,pseudo:true}};
+  return {x:wx,y:wy,e:null,tg:null};
+}
+function expWith(xt,fn){const old=B.xt;B.xt=xt;try{return fn();}finally{B.xt=old;}}
+function expPointer(id){   // where the reticle sits: the mouse, else the nearest foe
+  if(B.xptr)return expPick(B.xptr.x,B.xptr.y,id);
+  const ne=(()=>{let b=null,bd=1e9;const pc=pcen();for(const e of B.ens){if(e.dying)continue;const c=ecen(e),d=Math.hypot(c.x-pc.x,c.y-pc.y);if(d<bd){bd=d;b=e;}}return b;})();
+  if(ne){const c=ecen(ne);return {x:c.x,y:c.y,e:ne,tg:ne};}
+  const pc=pcen();return {x:pc.x+Math.cos(P.aim)*120,y:pc.y+Math.sin(P.aim)*120,e:null,tg:null};
+}
+function expCastAt(wx,wy){
+  if(!expSelActive())return false;
+  const i=B.xsel,id=B.hand[i],xt=expPick(wx,wy,id);
+  if(EXP_NEEDS_FOE.has(id)&&!xt.e){floatText(wx,wy-16,'NO TARGET','#ffb0a0',11);sfx('clang');return true;}
+  const mv=P.moving;P.moving=false;
+  expWith(xt,()=>useCard(i));P.moving=mv;
+  if(!B)return true;
+  B.swipeFlash={t:0,tx:xt.x,ty:xt.y,col:(CARD[id]||{}).col||'#fff'};
+  if(!B.hand[i])B.xsel=-1;                                           // cast: selection is spent (a failed cast keeps card + selection)
+  return true;
+}
+const expTapAt=(sx,sy)=>expCastAt(sx+cam.x,sy+cam.y);
+const expAimId=()=>expSelActive()?B.hand[B.xsel]:null;
+/* ---- drawing: reticle for aimed cards that have no preview shape, range ring, hint ---- */
+function drawExpAim(){
+  if(!B||!expCards()||B.phase!=='fight')return;
+  const id=expAimId();if(!id)return;
+  const ch=CARD[id],col=ch.col,xt=expPointer(id),pulse=.5+.5*Math.sin(gtime*7),pc=pcen();
+  ctx.save();ctx.lineCap='round';
+  // ring around the hero + a faint "cast point" reticle at the pointer
+  ctx.globalAlpha=.22;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.setLineDash([4,8]);ctx.lineDashOffset=-gtime*20;ctx.beginPath();ctx.arc(pc.x-cam.x,pc.y-cam.y,170,0,6.283);ctx.stroke();ctx.setLineDash([]);
+  if(!AIM_KIND[id]){const x=xt.x-cam.x,y=xt.y-cam.y,r=10+2*pulse;ctx.globalAlpha=1;ctx.strokeStyle='#0a0818';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.stroke();
+    ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.moveTo(x-r-5,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+5,y);ctx.moveTo(x,y-r-5);ctx.lineTo(x,y-r+4);ctx.moveTo(x,y+r-4);ctx.lineTo(x,y+r+5);ctx.stroke();}
+  ctx.restore();
+  const w=Math.min(300,VW-SL-SR-20),x=Math.round(SL+(VW-SL-SR)/2-w/2),y=Math.round(Math.max(COMBAT_HUD_BOT+(typeof TRK!=='undefined'&&trkVisible()?30:8),VH*.2));
+  panel(x,y,w,34,{});txt(cardFullName(ch)+':  TAP A SPOT TO CAST',x+w/2,y+14,{size:9,align:'center',col,lw:2});
+  txt('tap the card again or any button to cancel',x+w/2,y+27,{size:8,align:'center',col:'#cfd0ff',bold:false,lw:2});
+}
+function expMark(cw,ch){   // 'AIM' frame on the selected card (drawn inside the card transform)
+  ctx.save();ctx.globalAlpha=.6+.4*Math.sin(gtime*8);ctx.strokeStyle='#7df9ff';ctx.lineWidth=3;ctx.strokeRect(-1.5,-1.5,cw+3,ch+3);ctx.restore();
+  txt('AIM',cw/2,ch-4,{size:9,align:'center',col:'#7df9ff',lw:3});
+}
+/* ---- the lab itself ---- */
+const LAB={set:false,units:[],ret:null};
+const LAB_SPOTS=[['dummy',27,201],['dummy',32,201],['dummy',37,201],['slime',23,198],['knight',41,198],['goblin',32,196]];
+function labMake(kind,tx,ty){
+  const t=kind==='dummy'?'slime':kind,e=mkEnemyObj(t,tx,ty);
+  e.rush=true;e.lab=true;e.terr={x0:ARENA_TERR.tx0*TS+10,x1:(ARENA_TERR.tx1+1)*TS-10,y0:ARENA_TERR.ty0*TS+8,y1:(ARENA_TERR.ty1+1)*TS-1};
+  applyLevel(e,kind==='dummy'?1:2);e.baseLv=e.lv;e.xpv=0;e.gm=0;e.mt=1e9;e.lk=1e9;e.elite=null;e.calm=0;
+  if(kind==='dummy'){e.dummy=true;e.mhp=e.maxhp=e.hp=6000;e.title='Training Dummy';e.tname='DUMMY';e.sz=1;e.name='TRAINING DUMMY';}
+  return e;
+}
+function labStart(){
+  if(RUSH.on||!canTravel())return false;
+  Object.assign(RUSH,{mode:'lab',boons:[],on:true,round:0,score:0,t:0,rt:0,wait:0,cur:null,ret:{x:P.x,y:P.y},result:null});
+  LAB.set=false;LAB.units=[];P.hp=maxHp();state='play';UI.mode=null;startWarp(ARENA.start);return true;
+}
+function labClean(){
+  for(let i=enemies.length-1;i>=0;i--)if(enemies[i].lab)enemies.splice(i,1);
+  LAB.units=[];LAB.set=false;
+}
+function labLeave(){
+  if(!labOn())return;
+  if(B){resetFighters(true);B=null;}
+  labClean();RUSH.on=false;RUSH.mode='rush';P.hp=maxHp();P.grace=3;const to={x:RUSH.ret.x,y:RUSH.ret.y,dir:'d'};
+  if(!WARP)startWarp(to);else{P.x=to.x;P.y=to.y;snapCam();}
+}
+function labKill(e){   // nothing dies for real in the lab: dummies reset, foes fade and respawn
+  const c=ecen(e);
+  if(e.dummy){e.hp=e.maxhp;floatText(c.x,c.y-34,'RESET','#9ad0ff',11);burst(c.x,c.y,'#d9b97a',8,90,.4);return;}
+  e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;
+  B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);
+  sfx('boom');burst(c.x,c.y,'#ffb23f',14,140,.6);floatText(c.x,c.y-30,'DOWN','#ffe14d',12);
+}
+function updateLab(dt){
+  if(!labOn())return;
+  RUSH.t+=dt;
+  if(WARP||state!=='play'||DLG||zoneOfPx(P.y)!=='arena')return;
+  if(!LAB.set){
+    LAB.set=true;LAB.units=LAB_SPOTS.map(([k,x,y])=>labMake(k,x,y));LAB.units.forEach(e=>enemies.push(e));
+    if(!B){const first=LAB.units[1];P.grace=0;startEncounter(first,true);
+      let k=0;for(const o of LAB.units){if(B.ens.includes(o))continue;initCombatEnemy(o,.2+k*.25);B.ens.push(o);k++;}B.total=LAB.units.length;}
+    return;
+  }
+  if(!B)return;
+  P.hp=Math.max(P.hp,maxHp()*.45);B.fleeT=0;                       // the lab keeps you in one piece
+  for(const o of LAB.units)if(!o.alive&&o.respawn>4)o.respawn=4;      // quick respawns
+  for(const o of LAB.units){                                       // respawned foes rejoin the fight
+    if(o.alive&&!o.engaged&&!o.dying&&!B.ens.includes(o)){initCombatEnemy(o,.6);B.ens.push(o);}
+  }
+  if(B.xsel>=0&&!B.hand[B.xsel])B.xsel=-1;
 }
 
 /* ---------- src/ui/rush-screen.js ---------- */
@@ -6441,6 +6595,7 @@ const PAUSE_ITEMS=[
   {k:'KeyI',lab:()=>'FISHING'+(FSH.rod>=0?'  ('+fishCount()+')':''),home:'skills',act:()=>openFishing()},
   {k:'KeyF',lab:()=>'FAST TRAVEL',home:'main',act:()=>openTravel()},
   {k:'KeyN',lab:()=>'SETTINGS',home:'main',act:()=>openSettings('paused')},
+  {k:'KeyU',lab:()=>labOn()?'LEAVE COMBAT LAB':'COMBAT LAB',home:'character',act:()=>{if(labOn()){pressed.KeyP=true;labLeave();}else{if(!labStart())toast('Cannot start practice right now',1.6,'#ffb0a0');else pauseReset();}}},
   {k:'KeyM',lab:()=>'SOUND: '+(muted?'OFF':'ON'),home:'main',act:()=>{muted=!muted;sfx('select');}},
 ];
 const pauseItem=k=>PAUSE_ITEMS.find(i=>i.k===k);
@@ -6451,7 +6606,7 @@ function pauseQuit(){   // save + back to the title screen (second tap confirms)
   if(gtime-PAUSE.qAt>3){PAUSE.qAt=gtime;sfx('select');return;}
   saveGame('menu');
   if(B){resetFighters(false);B=null;}
-  DLG=null;RUSH.on=false;pauseReset();state='title';titleMenu.items.length=0;releaseAllTouch();sfx('select');
+  DLG=null;if(labOn())labClean();RUSH.on=false;pauseReset();state='title';titleMenu.items.length=0;releaseAllTouch();sfx('select');
 }
 const pauseReadyQ=()=>QUESTS.filter(q=>questStatus(q.id)==='ready').length;
 const pauseStoryNew=()=>NPCS.filter(n=>storyReady(n)).length;
@@ -6473,7 +6628,8 @@ function pauseEntries(page){
   if(page==='character')return [
     leaf('pets','PETS','paw','#5a2a5a','KeyO','Companions & their house',()=>''),
     leaf('ach','ACHIEVEMENTS','trophy','#7a5a1a','KeyH','Trophies and titles'),
-    leaf('daily','DAILY','chest','#8a6a1a','KeyV','Rewards and weekly goals',()=>pauseDaily()?'!':'')];
+    leaf('daily','DAILY','chest','#8a6a1a','KeyV','Rewards and weekly goals',()=>pauseDaily()?'!':''),
+    leaf('lab',labOn()?'LEAVE COMBAT LAB':'COMBAT LAB','sword','#1f5a7a','KeyU',labOn()?'Back to where you were':'Practice: dummies + the new card system')];
   if(page==='journal')return [
     leaf('quests','QUESTS','scroll','#2a5a4a','KeyQ','Active and finished',()=>pauseReadyQ()?String(pauseReadyQ()):''),
     leaf('story','CHRONICLE','book','#7a4a2a','KeyB','Stories of the villagers',()=>pauseStoryNew()?String(pauseStoryNew()):'')];
@@ -6502,6 +6658,7 @@ function pauseIcon(id,x,y,s){
     case 'chest':r(0,2,10,8,'#a8741a');r(0,2,10,3,'#d9a05b');r(4,4,2,3,G);r(0,5,10,1,'#6a4a10');break;
     case 'book':r(0,1,10,9,'#7a4a2a');r(1,2,8,7,'#f6ecd2');r(4,2,2,7,'#7a4a2a');r(2,4,2,1,'#8a6a3a');r(6,4,2,1,'#8a6a3a');break;
     case 'fish':r(0,3,7,5,'#7dd3ff');r(7,2,3,7,'#5ab0e0');r(2,4,1,1,D);r(3,7,3,1,'#4a90c0');break;
+    case 'sword':r(7,0,3,3,'#dfe9f2');r(5,2,3,3,'#dfe9f2');r(3,4,3,3,'#bfc8d8');r(1,6,3,2,'#a8741a');r(0,8,3,2,'#7a5530');r(2,5,1,1,'#ffe27a');r(4,7,1,1,'#ffe27a');break;
     case 'hammer':r(0,0,8,4,'#bfc8d8');r(0,0,8,1,W);r(3,4,3,6,'#a8741a');break;
     case 'sound':r(0,3,3,4,W);r(3,2,2,6,W);r(5,1,1,8,W);if(muted){r(7,1,3,1,'#e8504a');r(8,2,1,6,'#e8504a');}else{r(7,3,1,4,W);r(9,2,1,6,W);}break;
   }
@@ -6689,7 +6846,7 @@ function update(dt){
   updateDayNight(dt);updateTown(dt);
   updateExplore(dt);
   if(B)updateBattle(dt);
-  updateRush(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);updateTracker(dt);
+  updateRush(dt);updateLab(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);updateTracker(dt);
 }
 /* ---- sizing: integer pixel scale, fills the whole screen, safe-area aware ---- */
 const probe=document.createElement('div');
@@ -6731,7 +6888,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,settleDying,reapStale,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
