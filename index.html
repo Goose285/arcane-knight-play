@@ -5775,14 +5775,17 @@ function uiButton(x,y,w,h,label,on,act,o={}){
 function drawUI(){
   const deck=UI.mode==='deck',MD=UI_MODES[UI.mode];
   ctx.fillStyle='#080616';ctx.fillRect(0,0,VW,VH);
-  const W=Math.min(VW-SL-SR-14,520),x0=Math.round((VW-W)/2),top=ST+60,bot=VH-SB-68;
+  const split=!!MD.split&&VW>=VH*1.4;   // landscape: a map column + a list column (World Map)
+  let W=Math.min(VW-SL-SR-14,split?820:520),x0=Math.round((VW-W)/2);const top=ST+(split?50:60),bot=VH-SB-(split?56:68);
   UI.top=top;UI.bot=bot;UI.rects=[];UI.offs=[];
   txt(MD.title(),VW/2,ST+26,{size:20,align:'center',col:'#ffe14d',lw:5});
   {const sb=MD.sub();txt(sb[0],VW/2,ST+46,{size:11,align:'center',col:sb[1]});}
-  const rows=uiRows(),sels=uiSelRows(rows);let yy=0;
+  const rows0=uiRows(),sels=uiSelRows(rows0);let yy=0;
+  const rows=split?rows0.slice(1):rows0;
+  if(split){const lw=MD.splitW(bot-top,W);rows0[0].draw(x0,top,lw,bot-top);x0+=lw+8;W-=lw+8;}   // the map row is fixed on the left, the rest scrolls on the right
   rows.forEach(r=>{const h=rowH(r);UI.offs.push({r,y:yy,h});yy+=h+(r.t==='head'?0:4);});UI.total=yy+4;
   uiScrollBy(0);
-  ctx.save();ctx.beginPath();ctx.rect(0,top,VW,bot-top);ctx.clip();
+  ctx.save();ctx.beginPath();ctx.rect(split?x0-2:0,top,VW,bot-top);ctx.clip();
   for(const o of UI.offs){
     const r=o.r,y=top+o.y-UI.scroll,h=o.h;if(y+h<top-2||y>bot+2)continue;
     const si=sels.indexOf(r),isSel=si===UI.sel&&si>=0;
@@ -6112,11 +6115,14 @@ function travelRow(w){
 const wayPos=w=>w.zone?zoneArrive(w.zone):{x:(w.tx+.5)*TS,y:(w.ty+.5)*TS};
 /* the map of the area you are in (or, when you highlight another stone in the list, the area that stone is in): discovered stones,
    a "YOU ARE HERE" ring, the highlighted destination, and the tracked quest's objective / way out */
+function travelZoneNow(){const here=zoneOfPx(P.y),sw=UI.sel!=null?WAYSTONES[UI.sel]:null,dq=sw&&SEC.ways[sw.id]?wayPos(sw):null,dz=dq?zoneOfPx(dq.y):null;return {here,sw,dq,dz,zn:dz||here};}
+/* landscape: the map gets its own column (as big as the screen is tall, frame hugging the picture) and the stone list sits beside it */
+function travelSplitW(h,maxW){const mz=MINI[travelZoneNow().zn]||MINI.ow;return Math.min(Math.round(maxW*.62),Math.round((h-34)*mz.spr.width/mz.spr.height)+16);}
 function travelMapRow(){
   return {sel:false,h:Math.round(Math.min(150,(UI.mapW||360)*.75)+34),
     draw(x0,y,W,h){
-      const here=zoneOfPx(P.y),sw=UI.sel!=null?WAYSTONES[UI.sel]:null,dq=sw&&SEC.ways[sw.id]?wayPos(sw):null,dz=dq?zoneOfPx(dq.y):null;
-      const zn=dz||here,mz=MINI[zn]||MINI.ow,iw=mz.spr.width,ih=mz.spr.height,s=Math.min((W-16)/iw,(h-34)/ih),dw=Math.round(iw*s),dh=Math.round(ih*s);
+      const {here,sw,dq,dz,zn}=travelZoneNow();
+      const mz=MINI[zn]||MINI.ow,iw=mz.spr.width,ih=mz.spr.height,s=Math.min((W-16)/iw,(h-34)/ih),dw=Math.round(iw*s),dh=Math.round(ih*s);
       const mx=x0+Math.round((W-dw)/2),my=y+4;UI.mapW=W;
       ctx.fillStyle='#0a0814';ctx.fillRect(x0,y,W,h);ctx.strokeStyle='#3a3668';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);
       ctx.imageSmoothingEnabled=false;ctx.drawImage(mz.spr,mx,my,dw,dh);
@@ -6142,7 +6148,7 @@ function travelMapRow(){
       txt(cap,x0+W/2,y+h-8,{size:9,align:'center',col,lw:2,bold:false});
     }};
 }
-UI_MODES.travel={title:()=>'WORLD MAP',sub:()=>canTravel()?['Step through light to any stone you have found','#7df9ff']:['Map only - you cannot fast travel '+(B?'during a fight':'right now'),'#ffb0a0'],rows(){
+UI_MODES.travel={split:true,splitW:travelSplitW,title:()=>'WORLD MAP',sub:()=>canTravel()?['Step through light to any stone you have found','#7df9ff']:['Map only - you cannot fast travel '+(B?'during a fight':'right now'),'#ffb0a0'],rows(){
   const r=[travelMapRow(),{t:'head',s:'DISCOVERED '+WAYSTONES.filter(w=>SEC.ways[w.id]).length+' / '+WAYSTONES.length}];WAYSTONES.forEach(w=>r.push(travelRow(w)));return r;}};
 
 /* ---------- src/ui/pet-screen.js ---------- */
