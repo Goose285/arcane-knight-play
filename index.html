@@ -205,7 +205,7 @@ function musWant(){
   if(state==='title'||state==='fishlab')return 'village';
   if(B&&B.phase!=='win'&&B.phase!=='reward'&&B.phase!=='lose')return B.ens.some(e=>e.def.boss&&!e.dying)?'boss':'battle';
   switch(areaName(Math.floor(P.x/TS),Math.floor(P.y/TS))){
-    case 'OAKVALE VILLAGE':return 'village';case 'WHISPERWOOD':return 'forest';case 'CASTLE DRACORYN':return 'castle';case CRYPT_NAME:return 'dungeon';case ARENA_NAME:return 'castle';case HOUSE_NAME:return 'village';case ZONE_NAME.snow:return 'snow';case ZONE_NAME.swamp:return 'swamp';case ZONE_NAME.desert:return 'desert';
+    case 'OAKVALE VILLAGE':case FARM_NAME:return 'village';case 'WHISPERWOOD':return 'forest';case 'CASTLE DRACORYN':return 'castle';case CRYPT_NAME:return 'dungeon';case ARENA_NAME:return 'castle';case HOUSE_NAME:return 'village';case ZONE_NAME.snow:return 'snow';case ZONE_NAME.swamp:return 'swamp';case ZONE_NAME.desert:return 'desert';
     default:return 'meadow';}
 }
 function musUpdate(dt){
@@ -590,6 +590,10 @@ buildTiles();
     {t:'#c0782a',k:'#8a4a14',c:'#d49040',b:'#b8742c',x:'#ff4a2a',l:'#7a4a1a'});
   SP.mummy=mk(['.....wwwwww.....','....wwwwwwww....','....wbwwwwbw....','....wweewweew...','....wwwwwwww....','...wwbwwwwbww...','..wwwwwbbwwwww..','.wwwbwwwwwwbwww.','.wwwwwwwwwwwwww.','.wbwwwbbbwwwwbw.','.wwwwwwwwwwwwww.','..wwbwwwwwbwww..','..wwwwwwwwwwww..','..wwbwwwwwwbww..','..wwww....wwww..','..bbbb....bbbb..'],
     {w:'#d8c89a',b:'#a8946a',e:'#ffd23f'});
+  SP.boar=mk(['................','................','.........dd.dd..','.......ddddddd..','...bbbdddddddd..','..bbbbbdddddbbb.','.pbbbbbbbbbbbbb.','ppbebbbbbbbbbbbb','pppbbbbbbbbbbbbb','wwpbbbbbbbbbbbb.','.wbbbbbbbbbbbbb.','..bbbbbbbbbbbb..','..bb.bb..bb.bb..','..hh.hh..hh.hh..','................','................'],
+    {b:'#8a5a34',d:'#5e3a20',p:'#d8a07a',w:'#fff2d0',e:'#14101a',h:'#3a2412'});
+  SP.scarecrow=mk(['.....hhhhhh.....','....hhhhhhhh....','..hhhhhhhhhhhh..','.....ssssss.....','....sseessee....','....ssssmmss....','.....ssssss.....','sswwwwccccwwwwss','.sscccpccccss...','..wwccccccccww..','....ccccpccc....','.....cccccc.....','.....tt..tt.....','.....tt..tt.....','.....ww..ww.....','................'],
+    {h:'#6b4a2a',s:'#e8c860',e:'#2a1a10',m:'#7a3a20',c:'#b8503a',p:'#4a7ab8',t:'#4a5a8a',w:'#9a7a3a'});
   // ---- bosses (32x32 drawn 2x) ----
   SP.rimegar=autoOutline(makeSprite(32,32,g=>{
     const ice='#8cd0f0',iceD='#4a8cc0',iceL='#dff4ff',fur='#e6eef8';
@@ -1455,12 +1459,13 @@ const CRYPT_NAME='CRYPT OF HOLLOW KINGS';
 const CRYPT_IN={x:5,y:19},CRYPT_ARRIVE={x:31.5*TS,y:83*TS+28},CRYPT_OUT={x:5*TS+16,y:20*TS+28};
 const map=[];
 const SPAWN={x:12.5*TS,y:38*TS};
-const regions={castle:(x,y)=>(x-=OX,y-=OY,x>=18&&x<=46&&y>=1&&y<=11),village:(x,y)=>(x-=OX,y-=OY,x>=3&&x<=24&&y>=29&&y<=44),forest:(x,y)=>(x-=OX,y-=OY,x>=27&&y>=14&&y<=45&&x<=61),crypt:(x,y)=>y>=CRY0&&y<=CRY_END};
+const regions={castle:(x,y)=>(x-=OX,y-=OY,x>=18&&x<=46&&y>=1&&y<=11),village:(x,y)=>(x-=OX,y-=OY,x>=3&&x<=24&&y>=29&&y<=(window.__NOGROW===true?44:60)),farm:(x,y)=>(x-=OX,y-=OY,x>=2&&x<=61&&y>=62&&y<=101&&window.__NOGROW!==true),forest:(x,y)=>(x-=OX,y-=OY,x>=27&&y>=14&&y<=45&&x<=61),crypt:(x,y)=>y>=CRY0&&y<=CRY_END};
 const zoneOfTy=ty=>(ty>=OWY0&&ty<OWY0+OW_H)?'ow':ty<=CRY_END?'crypt':ty>=HOUSE_Y0?'house':ty>=ARENA_Y0?'arena':ty>=ZONE_Y0.desert?'desert':ty>=ZONE_Y0.swamp?'swamp':ty>=ZONE_Y0.snow?'snow':'gap';
 const zoneOfPx=y=>zoneOfTy(Math.floor(y/TS));
+const FARM_NAME='GOLDENFIELD FARMS';
 const ZONE_NAME={snow:'FROSTHOWL PASS',swamp:'MIREWOOD BOG',desert:'SUNDERED RUINS'};
 const inCryptPx=(x,y)=>{const z=zoneOfPx(y);return z==='crypt'||z==='arena';};   // torch-lit indoor lighting
-function areaName(tx,ty){if(regions.crypt(tx,ty))return CRYPT_NAME;const zn=zoneOfTy(ty);if(zn==='arena')return ARENA_NAME;if(zn==='house')return HOUSE_NAME;if(ZONE_NAME[zn])return ZONE_NAME[zn];if(regions.castle(tx,ty))return 'CASTLE DRACORYN';if(inChapel(tx,ty))return CHAPEL.name;if(regions.village(tx,ty))return 'OAKVALE VILLAGE';if(regions.forest(tx,ty))return 'WHISPERWOOD';if(ty-OY<14&&tx-OX>=18)return 'CASTLE ROAD';return 'GREENMEADOW';}
+function areaName(tx,ty){if(regions.crypt(tx,ty))return CRYPT_NAME;const zn=zoneOfTy(ty);if(zn==='arena')return ARENA_NAME;if(zn==='house')return HOUSE_NAME;if(ZONE_NAME[zn])return ZONE_NAME[zn];if(regions.castle(tx,ty))return 'CASTLE DRACORYN';if(zn==='ow'&&regions.farm(tx,ty))return FARM_NAME;if(inChapel(tx,ty))return CHAPEL.name;if(regions.village(tx,ty))return 'OAKVALE VILLAGE';if(regions.forest(tx,ty))return 'WHISPERWOOD';if(ty-OY<14&&tx-OX>=18)return 'CASTLE ROAD';return 'GREENMEADOW';}
 function buildMap(){
   for(let y=0;y<MH;y++){map[y]=[];for(let x=0;x<MW;x++)map[y][x]=T.G;}
   const set=(x,y,t)=>{if(x>=0&&y>=0&&x<MW&&y<MH)map[y][x]=t;};
@@ -1620,6 +1625,8 @@ const FISH_SPOTS=[
   {id:'bog',  name:'Mirewood Pool',    tx:21,ty:ZONE_Y0.swamp+24, lv:5,tier:2,bank:[21,ZONE_Y0.swamp+23],pond:{x:20,y:ZONE_Y0.swamp+24,w:3,h:2}},
   {id:'oasis',name:'Sundered Oasis',   tx:45,ty:ZONE_Y0.desert+24,lv:7,tier:3,bank:[45,ZONE_Y0.desert+23],pond:{x:44,y:ZONE_Y0.desert+24,w:3,h:2}},
 ];
+/* region names drawn on the World Map (tile of the label; shifted with the world when it grows) */
+const REGION_LABELS=[{name:'OAKVALE',tx:13,ty:40},{name:'GREENMEADOW',tx:8,ty:22},{name:'WHISPERWOOD',tx:44,ty:27},{name:'CASTLE DRACORYN',tx:32,ty:6}];
 /* monster spawners: a caged, runed brazier that keeps summoning its themed monsters (up to cap) while you are near. */
 const SPW=[];
 const SPAWNER_DEFS=[
@@ -2196,6 +2203,15 @@ Object.assign(TIERS,{wolf:['WOLF','DIRE WOLF','ALPHA'],yeti:['BRUTE','BERSERKER'
 Object.assign(TITLES,{wolf:['Frost Wolf','Dire Wolf','Alpha Wolf'],yeti:['Rime Brute','Rime Berserker','Rime Warlord'],toad:['Bog Toad','Bog Bullfrog','Bog Tyrant'],witch:['Mire Witch','Mire Hag','Bog Queen'],scorpion:['Dune Scorpion','Dune Stinger','King Stinger'],mummy:['Dust Mummy','Dust Wight','Tomb Lord'],
   rimegar:['Rimegar','Rimegar','Rimegar'],mossback:['Old Mossback','Old Mossback','Old Mossback'],colossus:['The Colossus','The Colossus','The Colossus']});
 
+/* ---- Goldenfield Farms (south of Oakvale): early-mid level field monsters ---- */
+Object.assign(ENEMY,{
+  boar:     {name:'Field Boar',       hp:340,xp:100,gold:[20,34],speed:36,chase:78,aggro:5*TS,spr:'boar',     vr:190,vh:.8,ar:76},
+  scarecrow:{name:'Haunted Scarecrow',hp:470,xp:125,gold:[26,42],speed:24,chase:50,aggro:5*TS,spr:'scarecrow',vr:170,vh:.8,ar:72},
+});
+['boar','scarecrow'].forEach(k=>Object.assign(ENEMY[k],{hs:.17,ds:.10,as:.025,ss:.02,rs:.22,freezeImmune:false}));
+Object.assign(TIERS,{boar:['BOAR','TUSKER','WARBOAR'],scarecrow:['SCARECROW','STRAWMAN','HARVESTER']});
+Object.assign(TITLES,{boar:['Field Boar','Tusker Boar','War Boar'],scarecrow:['Haunted Scarecrow','Straw Revenant','Harvest Horror']});
+
 /* ---------- src/data/elites.js ---------- */
 /* =====================================================================
    ELITE AFFIXES + BOSS RUSH TABLES (data only)
@@ -2311,7 +2327,8 @@ function levelFor(type,tx,ty){
   const owz=zoneOfTy(ty)==='ow';if(type==='wraith'&&owz)return clamp(Math.round(5+R(-.6,1.8)),5,7);   // night wraiths haunting the meadow
   if(!owz&&ty>=CRY0){const t2=clamp((84-ty)/30,0,1),lo2=type==='wraith'?10:8,hi2=type==='wraith'?14:11;return clamp(Math.round(lo2+(hi2-lo2)*t2+R(-.7,.7)),lo2,hi2);}
   let lo,hi,t;
-  if(regions.castle(tx,ty)){lo=6;hi=10;t=clamp(1-(ty-OY-1)/10,0,1);}
+  if(owz&&regions.farm(tx,ty)){lo=5;hi=8;t=clamp((ty-OY-62)/36,0,1);}   // Goldenfield Farms: gentler near the gate, tougher deep south
+  else if(regions.castle(tx,ty)){lo=6;hi=10;t=clamp(1-(ty-OY-1)/10,0,1);}
   else if(regions.forest(tx,ty)){lo=3;hi=6;t=clamp(Math.hypot(tx-OX-27,ty-OY-38)/32,0,1);}
   else{lo=1;hi=3;t=clamp((29-(ty-OY))/13,0,1);}
   const bias=type==='knight'?.4:type==='goblin'?.2:-.2;
@@ -2437,6 +2454,10 @@ const QUESTS=[
    offer:['You took to it like a duck to water. Now a real test: six more fish, from anywhere - the meadow river, the Whisperwood pond, even the bog if you dare.','Higher fishing levels open better spots. I will make it worth your while.'],
    prog:['Six fish from any spot. Rippling water in the meadow and the forest pays better than the village river.'],
    done:['Ha! You will out-fish me soon. A ring I kept for a lucky day - it is yours.'],reward:{gold:120,xp:140,card:'poison',gear:{slot:'ring',rar:'uncommon'}}},
+  {id:'boars',giver:'Farmer Hale',name:'Boars in the Barley',obj:{k:'kill',type:'boar',n:4},
+   offer:['Welcome to Goldenfield, traveler! Fine soil, sweet apples... and a herd of Field Boars rooting up my barley every night.','Drive off four of them and I will see you well paid. They roam the orchard and the meadows west of the river.'],
+   prog:['Four Field Boars, friend. Look around the orchard and the open meadow west of the river - and mind those tusks.'],
+   done:['Quiet at last! The barley can finally ripen. Please, take this - and have a basket of our best apples.'],reward:{gold:160,xp:220,card:'poison',gear:{slot:'armor',rar:'uncommon'}}},
 ];
 const QUEST_BY_ID={};QUESTS.forEach(q=>QUEST_BY_ID[q.id]=q);
 const QWORLD=[{id:'ring',quest:'ring',tx:10,ty:5}];   // quest items lying on the map (visible only while their quest is active)
@@ -6536,6 +6557,7 @@ function travelMapRow(){
       ctx.fillStyle='#0a0814';ctx.fillRect(x0,y,W,h);ctx.strokeStyle='#3a3668';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);
       ctx.imageSmoothingEnabled=false;ctx.drawImage(mz.spr,mx,my,dw,dh);
       const oy=mz.y0*TS,sc=2*s,at=q=>[mx+q.x/TS*sc,my+(q.y-oy)/TS*sc];
+      if(zn==='ow')for(const L of REGION_LABELS){const [lx,ly]=at({x:(L.tx+.5)*TS,y:(L.ty+.5)*TS});txt(L.name,lx,ly,{size:7,align:'center',col:'#fff3d0',lw:3,alpha:.85});}
       for(const w of WAYSTONES)if(SEC.ways[w.id]){const q=wayPos(w);if(zoneOfPx(q.y)===zn){const [qx,qy]=at(q);ctx.fillStyle='#7df9ff';ctx.fillRect(Math.round(qx-2),Math.round(qy-2),5,5);}}
       const pulse=.5+.5*Math.sin(gtime*5);UI.mapInfo={zone:zn,here,dest:dq?sw.id:null,destZone:dz};
       if(here===zn){   // you are here: blinking dot inside a ring
@@ -8151,7 +8173,7 @@ const ED_ITEMS=[
   {cat:'Nature',kind:'p',id:T.BU,name:'Bush'},{cat:'Nature',kind:'p',id:T.ST,name:'Stump'},{cat:'Nature',kind:'p',id:T.RK,name:'Rock'},
   {cat:'Props',kind:'p',id:T.N,name:'Fence'},{cat:'Props',kind:'p',id:T.LN,name:'Lantern'},{cat:'Props',kind:'p',id:T.FR,name:'Campfire'},{cat:'Props',kind:'p',id:T.Z,name:'Brazier'},
   {cat:'Props',kind:'b',w:3,name:'Small house'},{cat:'Props',kind:'b',w:4,name:'House'},{cat:'Props',kind:'b',w:5,name:'Large house'},{cat:'Props',kind:'n',npc:'sign',name:'Sign post'},
-  ...['slime','knight','goblin','wraith','bat','wolf','yeti','toad','witch','scorpion','mummy'].map(t=>({cat:'Enemies',kind:'e',type:t,name:(ENEMY[t].name||t)+' spawn'})),
+  ...['slime','knight','goblin','wraith','bat','wolf','yeti','toad','witch','scorpion','mummy','boar','scarecrow'].map(t=>({cat:'Enemies',kind:'e',type:t,name:(ENEMY[t].name||t)+' spawn'})),
   ...['elder','kid','guard','smith','priest','fisher','keeper'].map(k=>({cat:'NPCs',kind:'n',npc:k,name:ED_NPC_DEFS[k].name})),
 ];
 for(const it of ED_ITEMS)it.key=it.kind+':'+(it.kind==='t'||it.kind==='p'?it.id:it.kind==='b'?it.w:it.kind==='e'?it.type:it.npc);
@@ -8209,7 +8231,7 @@ function edPlaceOp(it,tx,ty){
    ===================================================================== */
 const ED_KEY='ak_world_edits_v1';
 let EDS=0;                                   // pixel-scale override while editing (0 = normal); read by resize()
-const ED={item:'t:'+T.G,cat:'Ground',trayX:0,trayMax:0,cells:[],hover:null,barTop:0,hold:null,holdT:0,expN:8,on:false,tool:'move',ground:T.G,prop:T.T,brush:1,ops:[],redo:[],base:null,ptrs:new Map(),drag:null,pan:null,stroke:null,pinch:null,sel:null,rects:[],msg:'',msgT:0,resetAt:-99,s0:1};
+const ED={bakedOps:[],pub:{msg:'',col:'#fff',t:-99,busy:false},item:'t:'+T.G,cat:'Ground',trayX:0,trayMax:0,cells:[],hover:null,barTop:0,hold:null,holdT:0,expN:8,on:false,tool:'move',ground:T.G,prop:T.T,brush:1,ops:[],redo:[],base:null,ptrs:new Map(),drag:null,pan:null,stroke:null,pinch:null,sel:null,rects:[],msg:'',msgT:0,resetAt:-99,s0:1};
 const edOW=py=>py>=OWY0*TS&&py<(OWY0+OW_H)*TS;                      // is this pixel row inside the overworld block?
 const edIn=(x,y)=>x>=1&&y>=OWY0+1&&x<MW-1&&y<OWY0+OW_H-2;
 function edMini(x,y){try{const g=miniMap.getContext('2d');g.fillStyle=TSPR.mini[map[y][x]]||'#000';g.fillRect(x*2,(y-OWY0)*2,2,2);}catch(e){}}
@@ -8226,7 +8248,7 @@ function edSetTile(x,y,id){if(!edIn(x,y))return;map[y][x]=id;edMini(x,y);edInval
    it moves down to start at row 224 (below the house room) so the interiors (crypt, regions, arena, house) never move. Everything that stands on the overworld
    (NPCs, guards, spawns, doors, gates, waystones, fishing spots, quest spots, the town / chapel / inn rectangles, the player...) is shifted by the same amount.
    OX / OY = how far the authored overworld sits from the top-left of the world now; EXP = tiles added per side. edGeom(W,N,E,S) goes from the current size to any target. */
-const EXP={W:0,N:0,E:0,S:0},ED_MAXSIDE=96;
+const EXP={W:0,N:0,E:0,S:0},EXP0={W:0,N:0,E:0,S:0},ED_MAXSIDE=96;   // EXP0 = the size the game itself ships with (Oakvale's southern quarter + Goldenfield are built in); edits add to it
 function edGeom(nW,nN,nE,nS){
   const oOWY0=OWY0,oOWH=OW_H,oMW=MW,oOX=OX,oOY=OY;
   const reloc=nN>0||nS>0,nOWY0=reloc?224:0,nOWH=48+nN+nS,nMW=64+nW+nE,nMH=reloc?224+nOWH:224,nOX=nW,nOY=nOWY0+nN;
@@ -8249,7 +8271,7 @@ function edGeom(nW,nN,nE,nS){
   INN.x0+=ddx;INN.x1+=ddx;INN.door+=ddx;INN.y0+=ddy;INN.y1+=ddy;
   TOWN.x0+=ddx*TS;TOWN.x1+=ddx*TS;TOWN.y0+=ddy*TS;TOWN.y1+=ddy*TS;
   VILLAGE_POND.x0+=ddx;VILLAGE_POND.x1+=ddx;VILLAGE_POND.y0+=ddy;VILLAGE_POND.y1+=ddy;VILLAGE_FIRE.x+=ddx;VILLAGE_FIRE.y+=ddy;
-  for(const a of ORCHARD){a[0]+=ddx;a[1]+=ddy;}for(const a of VILLAGE_LANTERNS){a[0]+=ddx;a[1]+=ddy;}
+  for(const r of REGION_LABELS)tl(r,'tx','ty');for(const a of ORCHARD){a[0]+=ddx;a[1]+=ddy;}for(const a of VILLAGE_LANTERNS){a[0]+=ddx;a[1]+=ddy;}
   tl(HOUSE_DOOR,'tx','ty');px(HOUSE_FRONT,'x','y');px(HOUSE_OUT,'x','y');tl(GOBLIN_CAMP,'tx','ty');
   px(SPAWN,'x','y');tl(CRYPT_IN,'x','y');px(CRYPT_OUT,'x','y');px(WARP_DEST.out,'x','y');
   if(owPx(PET.y)){px(PET,'x','y');PET.trail.length=0;}
@@ -8268,7 +8290,10 @@ function edGeom(nW,nN,nE,nS){
   }
   map.length=0;for(const r of nm)map.push(r);
   MW=nMW;MH=nMH;OW_H=nOWH;OWY0=nOWY0;OX=nOX;OY=nOY;EXP.W=nW;EXP.N=nN;EXP.E=nE;EXP.S=nS;
-  // 3. everything derived from the map / its size
+  edMapChanged();
+}
+/* everything derived from the map / its size: caches, walkability, minimap (also called after a whole region is authored in code) */
+function edMapChanged(){
   BLOSSOM=new Uint8Array(MW*MH);TREE_TILE=new Array(MW*MH);TREE_TILE_ID=new Uint8Array(MW*MH);BIGT_CACHE.clear();TREE_FADE.clear();
   WE_MASK=null;WE_CACHE.clear();EDGE_MEMO=null;PATH_CACHE.clear();INN_CACHE.clear();TRK.cache={};WS.length=0;
   reach.length=0;for(let y=0;y<MH;y++)reach.push(new Array(MW).fill(false));
@@ -8284,7 +8309,7 @@ function edSnap(){
 }
 function edRestore(){
   const b=ED.base;if(!b)return;
-  if(EXP.W||EXP.N||EXP.E||EXP.S)edGeom(0,0,0,0);   // back to the authored size (the replay re-applies every EXPAND in order)
+  if(EXP.W!==EXP0.W||EXP.N!==EXP0.N||EXP.E!==EXP0.E||EXP.S!==EXP0.S)edGeom(EXP0.W,EXP0.N,EXP0.E,EXP0.S);   // back to the shipped size (the replay re-applies every EXPAND in order)
   for(let y=0;y<OW_H;y++)for(let x=0;x<MW;x++)if(map[y][x]!==b.map[y][x]){map[y][x]=b.map[y][x];edMini(x,y);}
   if(NPCS.length>b.npcs.length)NPCS.length=b.npcs.length;
   NPCS.forEach((n,i)=>{const s=b.npcs[i];if(!s)return;n.x=s.x;n.y=s.y;if(s.hx!=null){n.hx=s.hx;n.hy=s.hy;}if(s.label===undefined)delete n.label;else n.label=s.label;if(s.lines)n.lines=s.lines.slice();});
@@ -8329,8 +8354,8 @@ function edApply(op){
     case 'edel':{const e=edFindEnemy(op);if(e){e.alive=false;e.edDel=true;e.dying=false;e.engaged=false;}break;}
   }
 }
-function edSave(){try{if(ED.ops.length)localStorage.setItem(ED_KEY,JSON.stringify({v:1,ops:ED.ops}));else localStorage.removeItem(ED_KEY);}catch(e){}}
-function edRebuild(){edRestore();for(const o of ED.ops)edApply(o);}
+function edSave(){try{if(ED.ops.length)localStorage.setItem(ED_KEY,JSON.stringify({v:2,g:edGV(),ops:ED.ops}));else localStorage.removeItem(ED_KEY);}catch(e){}}
+function edRebuild(){edRestore();for(const o of ED.bakedOps)edApply(o);for(const o of ED.ops)edApply(o);}   // baked layer (world-edits.json) first, then this device's own edits
 function edPush(op){ED.ops.push(op);ED.redo.length=0;edApply(op);edSave();}
 function edUndo(){if(!ED.ops.length)return edMsg('Nothing to undo');ED.redo.push(ED.ops.pop());edRebuild();edSave();ED.sel=null;edMsg('Undone');}
 function edRedo(){if(!ED.redo.length)return edMsg('Nothing to redo');ED.ops.push(ED.redo.pop());edRebuild();edSave();edMsg('Redone');}
@@ -8339,10 +8364,6 @@ function edReset(){
   ED.ops=[];ED.redo=[];edRebuild();edSave();ED.sel=null;ED.resetAt=-99;edMsg('All edits removed');
 }
 function edMsg(s){ED.msg=s;ED.msgT=gtime;}
-function edLoad(){
-  edSnap();
-  try{const j=JSON.parse(localStorage.getItem(ED_KEY)||'null');if(j&&Array.isArray(j.ops)){ED.ops=j.ops;for(const o of ED.ops){try{edApply(o);}catch(e){}}}}catch(e){}
-}
 const edJSON=()=>JSON.stringify({v:2,world:{cols:MW,rows:OW_H,expand:{n:EXP.N,s:EXP.S,e:EXP.E,w:EXP.W}},ops:ED.ops});
 function edExportBox(){
   let o=document.getElementById('edExport');
@@ -8508,9 +8529,12 @@ const edK=()=>Math.max(.7,ED.s0/(EDS||S));       // UI scale: buttons keep their
 function edBtn(x,y,w,h,lab,act,on,col,hold,ex){const r={x,y,w,h,lab,act,on,col,hold:hold||null};if(ex)Object.assign(r,ex);ED.rects.push(r);return r;}
 function edLayout(){
   ED.rects=[];ED.cells=[];const k=edK(),u=v=>Math.round(v*k),m=u(4),bh=u(32),tb=ST+m,L=SL+m,R=VW-SR-m;let x=L;ED.k=k;
-  const top=[['EXIT',edExit],['UNDO',edUndo],['REDO',edRedo],['  -  ',()=>edZoom(-1)],['  +  ',()=>edZoom(1)]];
-  for(const [l,f] of top){const w=Math.max(u(38),Math.round(l.length*u(8)+u(18)));edBtn(x,tb,w,bh,l,f,false,l==='EXIT'?'#7a2a2a':null);x+=w+u(4);}
-  let rx=R;for(const [l,f,c] of [['RESET',edReset,'#7a2a2a'],['EXPORT',()=>edExportBox(),'#2d6a4f']]){const w=Math.round(l.length*u(8)+u(20));rx-=w;edBtn(rx,tb,w,bh,l,f,false,c);rx-=u(4);}
+  // top bar: left group (EXIT UNDO REDO - +) and right group (KEY SAVE EXPORT RESET); on a narrow screen both shrink so they never overlap
+  const TL=[['EXIT',edExit,'#7a2a2a',44],['UNDO',edUndo,null,48],['REDO',edRedo,null,48],['  -  ',()=>edZoom(-1),null,32],['  +  ',()=>edZoom(1),null,32]];
+  const TR=[['SAVE',()=>edPublish(),'#b8862a',48],['KEY',()=>edSaveBox(),'#34406a',38],['EXPORT',()=>edExportBox(),'#2d6a4f',62],['RESET',edReset,'#7a2a2a',54]];
+  {const gap=u(3),tot=[...TL,...TR].reduce((a,b)=>a+u(b[3])+gap,0)+u(6),f=Math.min(1,(R-L)/tot);
+   for(const [l,fn,c,w0] of TL){const w=Math.floor(u(w0)*f);edBtn(x,tb,w,bh,l,fn,false,c);x+=w+Math.floor(gap*f);}
+   let rx=R;for(const [l,fn,c,w0] of TR){const w=Math.floor(u(w0)*f);rx-=w;edBtn(rx,tb,w,bh,l,fn,false,c);rx-=Math.floor(gap*f);}}
   const build=ED.tool==='paint'||ED.tool==='props',small=VH/k<350,a=small?2:Math.max(2,Math.round(2.5*k)),cw=16*a+u(8),chh=16*a+u(10),yRow=VH-SB-m-bh;
   // left tool rail (squeezes to fit above the tray on short screens)
   const rw=u(52);let ry=tb+bh+u(10);
@@ -8645,6 +8669,7 @@ function drawEditor(){
   edDrawTray();
   if(ED.tool==='expand'&&ED.sizeTxt)txt(ED.sizeTxt,ED.sizeX,ED.sizeY,{size:9,align:'left',col:'#e8d4a8',lw:3,out:'#1c0e06'});
   const sel=ED.sel,info=gtime-ED.msgT<4&&ED.msg?ED.msg:(sel?(sel.kind==='npc'?'Selected: '+(sel.n.label||sel.n.name)+' - drag to move':sel.kind==='enemy'?'Selected: '+sel.e.type+' spawn - drag to move':sel.kind==='house'?'Selected: house - drag to move (door follows)':'Selected: prop - drag to move'):'');
+  if(ED.pub.msg&&(ED.pub.busy||gtime-ED.pub.t<14))txt(ED.pub.msg,VW/2,ST+Math.round(72*(ED.k||1)),{size:11,align:'center',col:ED.pub.col,lw:4,out:'#1c0e06'});
   if(info)txt(info,VW/2,ST+Math.round(56*(ED.k||1)),{size:10,align:'center',col:'#fff3d0',lw:4,out:'#1c0e06'});
   txt(ED.ops.length+' edit'+(ED.ops.length===1?'':'s'),VW-SR-6,Math.min(ED.barTop,VH-SB-8)-4,{size:8,align:'right',col:'#e8d4a8',lw:3,out:'#1c0e06'});
 }
@@ -8654,6 +8679,220 @@ function edFrameFix(pl,fr){
   if(sOX===OX&&sOY===OY)return;
   if(ty>=sOWY0&&ty<sOWY0+sOWH){pl.x+=(OX-sOX)*TS;pl.y+=(OY-sOY)*TS;
     if(pl.x<TS*2||pl.x>(MW-2)*TS||pl.y<(OWY0+2)*TS||pl.y>(OWY0+OW_H-2)*TS||solidTile(Math.floor(pl.x/TS),Math.floor((pl.y-4)/TS))){pl.x=SPAWN.x;pl.y=SPAWN.y;}}
+}
+
+/* ---------- src/map/south.js ---------- */
+/* =====================================================================
+   OAKVALE SOUTH QUARTER + GOLDENFIELD FARMS. The village is doubled in size (a second block of houses, lanes, a market square and a gatehouse
+   to the south) and a new sunny farmland region lies beyond the gate: orchard, barley fields, a river crossing, a lake, field monsters, an
+   NPC family, a waystone and a quest. The world is grown through the same machinery as the editor's EXPAND (edGeom), so every position
+   (NPCs, doors, gates, quests, spawns...) stays consistent; EXP0 records the shipped size so edits / RESET add to it. Tests can opt out with
+   window.__NOGROW=true (the old 64x48 overworld).
+   Authored coordinates below are in the overworld's own frame (x 0..63, y 0..103); X()/Y() move them to where the overworld now sits.
+   ===================================================================== */
+const growOn=()=>window.__NOGROW!==true;
+const GROW={S:56,TOWN_ROWS:16,SEED:4242};
+/* the two new field monsters borrow the fighting style of a wolf (charging bites) and a mummy (slow, heavy swings) */
+Object.assign(ER,{boar:14,scarecrow:14});Object.assign(SHORT,{boar:'BOAR',scarecrow:'SCARECROW'});Object.assign(BAND,{boar:[26,80],scarecrow:[30,70]});
+Object.assign(DODGE_BASE,{boar:.22,scarecrow:.08});Object.assign(MAT_DROP,{boar:'fur',scarecrow:'hide'});FLANKERS.add('boar');FLANKERS.add('scarecrow');
+ATK.boar=ATK.wolf;ATK.scarecrow=ATK.mummy;
+let GROW_NPC0=NPCS.length,GROW_NPC_ADDED=0;
+function buildSouth(){
+  const rnd=mulberry32(GROW.SEED),X=x=>x+OX,Y=y=>y+OY;
+  const set=(x,y,t)=>{const mx=X(x),my=Y(y);if(mx>=0&&my>=0&&mx<MW&&my<MH)map[my][mx]=t;};
+  const get=(x,y)=>map[Y(y)][X(x)];
+  const fill=(x0,y0,x1,y1,t)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)set(x,y,t);};
+  const pth=(x0,y0,x1,y1)=>fill(x0,y0,x1,y1,T.P);
+  const house=(x,y,w)=>{fill(x,y,x+w-1,y,T.R);fill(x,y+1,x+w-1,y+1,T.RL);fill(x,y+2,x+w-1,y+2,T.H);set(x+(w>>1),y+2,T.D);};
+  const lamp=(x,y)=>{if(get(x,y)===T.G||get(x,y)===T.L)set(x,y,T.LN);};
+  const OWB=OW_H;                                   // rows 0..OWB-1 of the overworld; the last two are the tree border
+  // --- frame: tree border down both sides and along the bottom
+  fill(0,46,1,OWB-1,T.T);fill(62,46,63,OWB-1,T.T);fill(0,OWB-2,63,OWB-1,T.T);
+  // --- the village's southern quarter: meadow where the old border rows were
+  fill(2,46,24,60,T.G);
+  for(let y=46;y<=60;y++)for(let x=2;x<=24;x++)if(get(x,y)===T.G&&rnd()<.05)set(x,y,T.L);
+  // forest east of the river (dense; the way on is the gate road)
+  for(let y=46;y<=61;y++)for(let x=27;x<=61;x++)set(x,y,rnd()<.62?T.T:T.K);
+  // river continues south of the village
+  fill(25,46,26,82,T.W);
+  // --- houses, lanes, market square
+  pth(12,45,13,71);                                                  // the main road runs on through the new quarter, the gate and the farms
+  pth(3,49,24,50);pth(3,57,24,58);                                   // two cross lanes
+  house(4,46,5);house(19,46,5);                                      // row B (doors face lane 1)
+  house(4,52,5);house(9,52,3);house(15,52,4);house(20,52,4);       // row C (doors face lane 2 through short paths)
+  for(const dx of [6,10,17,22])pth(dx,55,dx,56);
+  fill(9,46,16,47,T.F);fill(9,48,11,48,T.F);fill(14,48,16,48,T.F);  // market square (stone) around the road
+  pth(12,46,13,48);
+  [[9,46],[16,46],[9,48],[16,48],[3,51],[24,51],[7,56],[18,56],[11,56],[14,56]].forEach(([x,y])=>lamp(x,y));
+  [[10,47],[15,47]].forEach(([x,y])=>{if(get(x,y)===T.F)set(x,y,T.BU);});
+  for(const [x,y] of [[4,51],[8,51],[5,56],[8,56],[20,51],[23,51],[3,59],[6,59],[19,59],[22,59]])if(get(x,y)===T.G||get(x,y)===T.L)set(x,y,T.BU);
+  // --- the south gatehouse: wall across the village, towers either side of the road
+  fill(2,60,9,60,T.BT);fill(2,61,9,61,T.B);fill(16,60,24,60,T.BT);fill(16,61,24,61,T.B);
+  fill(10,59,11,59,T.BT);fill(10,60,11,62,T.B);fill(14,59,15,59,T.BT);fill(14,60,15,62,T.B);
+  pth(12,59,13,63);lamp(9,59);lamp(16,59);set(12,59,T.P);
+  // --- GOLDENFIELD FARMS: sunny meadow, flowers, a few bushes and stones
+  fill(2,62,61,OWB-3,T.G);
+  pth(12,59,13,71);
+  for(let y=62;y<=OWB-3;y++)for(let x=2;x<=61;x++){const r=rnd();if(get(x,y)!==T.G)continue;if(r<.11)set(x,y,T.L);else if(r<.125)set(x,y,T.BU);else if(r<.132)set(x,y,T.RK);}
+  fill(25,62,26,82,T.W);                                            // river
+  // lake at the river's end (soft oval) with a sandy shore
+  for(let y=79;y<=96;y++)for(let x=14;x<=38;x++){const d=((x-26)/10.5)**2+((y-88)/6.2)**2;if(d<=1)set(x,y,T.W);else if(d<=1.45&&get(x,y)===T.G)set(x,y,T.SD);}
+  // roads: the farm road (east across the bridge), a west spur, the field lane south
+  pth(3,70,50,71);fill(25,70,26,71,T.J);                           // the river crossing
+  pth(12,72,13,93);                                                // lane south along the orchard
+  pth(39,72,40,97);                                                // lane between the barley fields
+  pth(49,62,50,69);                                                // lane up to the barn yard
+  // farmstead: farmhouse + barn, yard fence
+  house(42,64,5);house(52,64,5);pth(44,67,44,69);pth(54,67,54,69);
+  for(let x=40;x<=58;x++)if(x<48||x>50)set(x,62,T.N);
+  fill(40,63,40,69,T.N);fill(58,63,58,69,T.N);set(40,70,T.P);
+  // orchard keeper's cottage
+  house(5,64,3);pth(6,67,6,69);
+  // barley fields: fenced plots of tilled soil with crop rows
+  const plot=(x0,y0,x1,y1)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const edge=x===x0||x===x1||y===y0||y===y1;set(x,y,edge?T.N:((y-y0)%2===0?T.MD:T.L));}set((x0+x1)>>1,y0,T.G);set((x0+x1)>>1,y1,T.G);};
+  plot(29,74,37,80);plot(42,74,50,80);plot(29,86,37,92);plot(42,86,50,92);plot(53,74,60,82);
+  // lake-side reeds
+  for(const [x,y] of [[17,88],[18,93],[36,92],[37,86],[24,96],[30,96]])if(get(x,y)===T.G||get(x,y)===T.SD)set(x,y,T.RE);
+  // orchard: rows of apple trees west of the lane, clear of water, roads and the cottage
+  const orch=[];
+  for(const y of [74,77,80,83,86,89,92])for(const x of [4,7,10,16,19,22])if(get(x,y)===T.G||get(x,y)===T.L){set(x,y,T.T);orch.push([X(x),Y(y)]);}
+  for(const o of orch)ORCHARD.push(o);
+  // lantern posts along the gate road, bridge approach and the barn yard
+  [[11,63],[14,63],[11,69],[14,69],[24,69],[27,69],[41,69],[48,69]].forEach(([x,y])=>lamp(x,y));
+  // --- make sure the road tiles beside the new bridge have no tree / bush stuck in them, then fix walkability + minimap + caches
+  for(let y=62;y<=OWB-3;y++)for(let x=2;x<=61;x++){const t=get(x,y);if((t===T.BU||t===T.RK)&&['P','J'].some(k=>[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>get(x+dx,y+dy)===T[k])))set(x,y,T.G);}
+  edMapChanged();
+  // --- Oakvale grows with the village: the town rules (no wandering monsters, guards) cover the new quarter too
+  TOWN.y1+=GROW.TOWN_ROWS*TS;
+  // --- people (feet on the tile; px) and the guards
+  const free=(tx,ty)=>{for(let r=0;r<4;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(!solidTile(X(x),Y(y))&&get(x,y)!==T.W&&get(x,y)!==T.N)return [x,y];}return [tx,ty];};
+  const npc=(name,spr,tx,ty,lines,extra)=>{const [x,y]=free(tx,ty);NPCS.push(Object.assign({name,x:(X(x)+.5)*TS,y:(Y(y)+.9)*TS,spr,lines},extra||{}));GROW_NPC_ADDED++;};
+  npc('Baker Wren','keeper',10,50,['Fresh loaves! The Goldenfield barley makes the best crust in the valley.','They finally built the south quarter - the old village was bursting at the seams.']);
+  npc('Mason Dov','smith',20,55,['Stone by stone: I laid every block of that gatehouse myself.','Past the gate the road runs through Goldenfield Farms. Sunny country - mind the boars.']);
+  npc('Gate Warden Hollis','guard',15,63,['Welcome to the south gate of Oakvale.','Beyond lie the Goldenfield Farms: orchards, barley and a river to cross. The farmers could use a hero.','Field Boars have been getting bold. They are tougher than slimes, so bring your best cards.']);
+  npc('Farmer Hale','elder',44,69,['This is Goldenfield, traveler: the best soil in the valley.'],{});
+  npc('Orchard Keeper Mira','fisher',8,69,['My apples are the sweetest this side of the river.','The orchard trees are heavy this year. The boars love them just as much as I do!','If you fish the river from the bank, the trout here are shy but plump.']);
+  npc('Roadside Sign','houseSign',14,64,['GOLDENFIELD FARMS','Orchard west of the lane - Barley fields east of the river. Beware of boars and bad-tempered scarecrows.']);
+  for(const [tx,ty,lines] of [[8.4,50.5,['Oakvale\'s Guard, now with a south quarter to watch.','Nothing hostile gets past these streets.']],[14.4,58.6,['The gatehouse is ours. Run back through it if a fight turns against you.','Monsters do not set foot in Oakvale - the south quarter included.']]]){
+    NPCS.push({name:'Town Guard',x:(X(tx)+0)*TS,y:(Y(ty)+0)*TS,hx:(X(tx))*TS,hy:(Y(ty))*TS,gcd:0,spr:'tguard',tguard:true,lv:TOWN.lv,lines});GROW_NPC_ADDED++;}
+  // waystone beside the bridge, a fishing spot on the river, labels
+  const wx=28,wy=68;WAYSTONES.push({id:'farm',name:'Goldenfield Waystone',tx:X(wx),ty:Y(wy),to:{x:X(29)*TS+16,y:Y(69)*TS+28}});
+  NPCS.push({name:'Goldenfield Waystone',way:'farm',x:(X(wx)+.5)*TS,y:(Y(wy)+.9)*TS,spr:'waystone',lines:[]});GROW_NPC_ADDED++;
+  FISH_SPOTS.push({id:'farm1',name:'Goldenfield River',tx:X(25),ty:Y(76),lv:2,tier:1,bank:[X(24),Y(76)]});
+  REGION_LABELS.push({name:'OAKVALE SOUTH',tx:X(13),ty:Y(54)},{name:FARM_NAME,tx:X(30),ty:Y(66)},{name:'LAKE',tx:X(26),ty:Y(88)});
+  // --- field monsters: boars roam the orchard and western meadow, scarecrows haunt the barley fields
+  const eadd=(type,tx,ty)=>{const [x,y]=free(tx,ty);addEnemy(type,X(x),Y(y));};
+  [[9,82],[15,78],[6,90],[20,86],[9,96],[23,74]].forEach(([x,y])=>eadd('boar',x,y));
+  [[33,77],[46,77],[33,89],[46,89],[57,78]].forEach(([x,y])=>eadd('scarecrow',x,y));
+  [[44,96],[54,90]].forEach(([x,y])=>eadd('boar',x,y));
+}
+if(growOn()){edGeom(0,0,0,GROW.S);EXP0.S=GROW.S;buildSouth();}
+
+/* ---------- src/ui/editor-publish.js ---------- */
+/* =====================================================================
+   WORLD EDITOR - PUBLISH ("SAVE"). The edit layer can be committed straight to the play site's GitHub repo as world-edits.json (GitHub REST
+   contents API: GET sha, then PUT). The game fetches that file from the site root at boot and applies it BEFORE this device's own layer,
+   so published edits are permanent for everybody. A missing file = nothing to apply. The GitHub token is pasted once (KEY) and lives only
+   in this device's localStorage; it is never part of any export or save.
+   Double-apply safety: after a publish the local layer is kept until the baked file shows it; whenever the baked file ends with the first k ops of the
+   local layer, those k ops are dropped from the local layer (so the same edit is never replayed twice).
+   ===================================================================== */
+const ED_REPO='Goose285/arcane-knight-play',ED_BRANCH='main',ED_FILE='world-edits.json',ED_TOKEN_KEY='ak_gh_token';
+const edGV=()=>growOn()?1:0;                       // 1 = layer authored on the shipped (grown) world; 0 / missing = the old 64x48 overworld
+const edGetToken=()=>{try{return (localStorage.getItem(ED_TOKEN_KEY)||'').trim();}catch(e){return '';}};
+function edPubSay(msg,col,busy){ED.pub.msg=msg;ED.pub.col=col||'#fff3d0';ED.pub.t=gtime;ED.pub.busy=!!busy;const o=document.getElementById('edSaveBox');if(o){const s=o.querySelector('#edPubStatus');if(s){s.textContent=msg;s.style.color=col||'#fff3d0';}}}
+/* ops written before the world grew assumed the overworld started at row 0 (or 224 once expanded): move them onto the shipped layout */
+function edMigrate(l){
+  const ops=l.ops||[];if(!growOn()||(l.g|0)>=1)return ops.slice();
+  let N=0,S=0;const out=[],n0=typeof GROW_NPC0==='number'?GROW_NPC0:1e9,add=typeof GROW_NPC_ADDED==='number'?GROW_NPC_ADDED:0;
+  for(const o of ops){
+    const dy=(N>0||S>0)?0:224,c=JSON.parse(JSON.stringify(o));
+    if(o.k==='expand'){if(o.d==='n')N+=o.n|0;if(o.d==='s')S+=o.n|0;}
+    else{
+      if(dy){
+        if(c.k==='tiles')for(const t of c.t)t[1]+=dy;
+        else if(c.k==='house'){c.y+=dy;c.ny+=dy;}
+        else if(c.k==='npc')c.y+=dy*TS;
+        else if(c.k==='emove'){c.fy+=dy;c.ty+=dy;}
+        else if(c.k==='eadd'||c.k==='nadd')c.ty+=dy;
+        else if(c.k==='edel')c.fy+=dy;
+      }
+      if((c.k==='npc'||c.k==='npcEdit'||c.k==='ndel')&&c.i>=n0)c.i+=add;   // NPCs added after the base list now sit behind the new farm NPCs
+    }
+    out.push(c);
+  }
+  return out;
+}
+function edLoad(){
+  edSnap();
+  let l=null;try{l=JSON.parse(localStorage.getItem(ED_KEY)||'null');}catch(e){}
+  if(l&&Array.isArray(l.ops)){ED.ops=edMigrate(l);for(const o of ED.ops){try{edApply(o);}catch(e){}}if((l.g|0)!==edGV())edSave();}
+  edLoadBaked();
+}
+/* fetch the baked file (network-first via the service worker) and, if it has edits, replay baked + local */
+function edLoadBaked(){
+  if(typeof fetch!=='function')return Promise.resolve(false);
+  let p;try{p=fetch(ED_FILE+'?t='+Date.now(),{cache:'no-store'});}catch(e){return Promise.resolve(false);}
+  return p.then(r=>r&&r.ok?r.json():null).then(j=>{if(!j||!Array.isArray(j.ops))return false;edAdoptBaked(edMigrate(j));return true;}).catch(()=>false);
+}
+function edAdoptBaked(b){
+  const same=JSON.stringify(b)===JSON.stringify(ED.bakedOps);let dropped=0;
+  const L=ED.ops;
+  for(let k=Math.min(L.length,b.length);k>=1;k--)if(JSON.stringify(b.slice(-k))===JSON.stringify(L.slice(0,k))){ED.ops=L.slice(k);ED.redo.length=0;dropped=k;edSave();break;}
+  if(same&&!dropped)return;
+  ED.bakedOps=b;
+  const run=()=>{if(B||ED.stroke||ED.drag){setTimeout(run,1500);return;}edRebuild();};
+  if(b.length||dropped)run();
+}
+/* ---- publish ---- */
+const edB64=s=>btoa(unescape(encodeURIComponent(s)));
+async function edHttpErr(r){let m='';try{m=(await r.json()).message||'';}catch(e){}const c=r.status;
+  return {code:c,msg:c===401?'Token rejected (401) - paste a fresh one with KEY':c===403?'No permission (403) - the token needs Contents: Read and write on arcane-knight-play'+(m?' ['+m+']':''):c===404?'Not found (404) - the token must be allowed to use the arcane-knight-play repo':c===409||c===422?'Conflict ('+c+') - tap SAVE again':'GitHub error '+c+(m?': '+m:'')};}
+async function edPublish(){
+  if(ED.pub.busy)return;
+  const tok=edGetToken();if(!tok){edPubSay('Paste your GitHub token first (KEY)','#ffb0a0');edSaveBox();return;}
+  const full=ED.bakedOps.concat(ED.ops);
+  edPubSay('Saving\u2026','#ffe14d',true);
+  const url='https://api.github.com/repos/'+ED_REPO+'/contents/'+ED_FILE,hd={Authorization:'Bearer '+tok,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+  const body=JSON.stringify({v:2,g:edGV(),saved:new Date().toISOString(),world:{cols:MW,rows:OW_H,expand:{n:EXP.N,s:EXP.S,e:EXP.E,w:EXP.W}},ops:full});
+  try{
+    for(let attempt=0;attempt<2;attempt++){
+      let sha;const g=await fetch(url+'?ref='+ED_BRANCH+'&t='+Date.now(),{headers:hd,cache:'no-store'});
+      if(g.status===200){const j=await g.json();sha=j&&j.sha;}else if(g.status!==404)throw await edHttpErr(g);
+      const put=await fetch(url,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},hd),body:JSON.stringify(Object.assign({message:'World edits from the in-game editor ('+full.length+' changes)',content:edB64(body),branch:ED_BRANCH},sha?{sha}:{}))});
+      if(put.ok){edPubSay('Saved! Live in ~1 min','#7df97d');ED.pub.n=full.length;edPollBaked();return;}
+      if(attempt===0&&(put.status===409||put.status===422))continue;
+      throw await edHttpErr(put);
+    }
+  }catch(e){
+    const msg=e&&e.msg?e.msg:(e instanceof TypeError?'Cannot reach GitHub - check your connection':'Save failed: '+(e&&e.message||e));
+    edPubSay('Save failed: '+msg,'#ff9a8a');if(e&&(e.code===401||e.code===403))setTimeout(edSaveBox,600);
+  }
+}
+/* after a publish, look for the baked file to catch up (GitHub Pages takes about a minute) so the local layer retires itself */
+let edPollT=null;
+function edPollBaked(){if(edPollT)clearInterval(edPollT);let n=0;edPollT=setInterval(()=>{if(++n>12||!ED.ops.length){clearInterval(edPollT);edPollT=null;return;}edLoadBaked();},20000);}
+/* ---- settings box: paste the token once ---- */
+function edSaveBox(){
+  let o=document.getElementById('edSaveBox');
+  if(!o){
+    o=document.createElement('div');o.id='edSaveBox';o.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,6,2,.94);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font:bold 14px monospace;color:#fff3d0;padding:12px;text-align:center;overflow:auto';
+    const t=document.createElement('div');t.textContent='SAVE SETTINGS - publish your edits to the live game';t.style.fontSize='16px';
+    const d=document.createElement('div');d.style.cssText='max-width:560px;font:12px monospace;color:#e8d4a8;line-height:1.5';
+    d.innerHTML='Paste a GitHub <b>fine-grained token</b> (only the arcane-knight-play repo, Contents: Read and write). It is kept only on this device and used only to save <b>world-edits.json</b> to Goose285/arcane-knight-play (main).';
+    const inp=document.createElement('input');inp.id='edTok';inp.type='password';inp.placeholder='github_pat_...';inp.autocomplete='off';inp.spellcheck=false;inp.style.cssText='width:min(86%,520px);font:14px monospace;padding:10px;background:#1c1208;color:#ffe9a0;border:2px solid #c89858;border-radius:6px';
+    const st=document.createElement('div');st.id='edPubStatus';st.style.cssText='min-height:18px;font:13px monospace';
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap;justify-content:center';
+    const mk=(lab,fn,bg)=>{const b=document.createElement('button');b.textContent=lab;b.style.cssText='font:bold 15px monospace;padding:11px 18px;background:'+(bg||'#7a5530')+';color:#fff3d0;border:2px solid #e0b44a;border-radius:6px';b.onclick=fn;return b;};
+    row.appendChild(mk('SAVE KEY',()=>{const v=inp.value.trim();if(!v){edPubSay('Paste the token first','#ffb0a0');return;}try{localStorage.setItem(ED_TOKEN_KEY,v);}catch(e){}inp.value='';inp.placeholder='(key saved on this device)';edPubSay('Key saved. Now tap PUBLISH NOW or SAVE.','#7df97d');},'#2d6a4f'));
+    row.appendChild(mk('SHOW',()=>{inp.type=inp.type==='password'?'text':'password';}));
+    row.appendChild(mk('PUBLISH NOW',()=>{const v=inp.value.trim();if(v){try{localStorage.setItem(ED_TOKEN_KEY,v);}catch(e){}inp.value='';}edPublish();},'#b8862a'));
+    row.appendChild(mk('FORGET KEY',()=>{try{localStorage.removeItem(ED_TOKEN_KEY);}catch(e){}inp.placeholder='github_pat_...';edPubSay('Key removed from this device','#e8d4a8');},'#7a2a2a'));
+    row.appendChild(mk('CLOSE',()=>{o.style.display='none';}));
+    o.appendChild(t);o.appendChild(d);o.appendChild(inp);o.appendChild(row);o.appendChild(st);document.body.appendChild(o);
+  }
+  o.style.display='flex';const i=o.querySelector('#edTok');i.placeholder=edGetToken()?'(a key is saved - paste to replace)':'github_pat_...';
+  const s=o.querySelector('#edPubStatus');s.textContent=ED.pub.msg||'';s.style.color=ED.pub.col;
 }
 if(typeof window!=='undefined')edLoad();
 
@@ -9119,7 +9358,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edSelect,edTool,edWhy,edArt,edInvalidate,edPlaceOp,ED_ITEMS,ED_CATS,ED_ITEM_BY,PATH_CACHE,WE_MASK:()=>WE_MASK,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edPublish,edLoadBaked,edAdoptBaked,edMigrate,edSaveBox,edGetToken,ED_TOKEN_KEY,EXP0,GROW,REGION_LABELS,FARM_NAME,growOn,edMapChanged,edSelect,edTool,edWhy,edArt,edInvalidate,edPlaceOp,ED_ITEMS,ED_CATS,ED_ITEM_BY,PATH_CACHE,WE_MASK:()=>WE_MASK,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
