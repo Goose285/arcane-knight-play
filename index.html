@@ -199,7 +199,7 @@ function musSet(name){
   MUS.live.push({name,d:TRACKS[name],g,step:0,next:now+.08,dead:0});
 }
 function musWant(){
-  if(state==='title')return 'village';
+  if(state==='title'||state==='fishlab')return 'village';
   if(B&&B.phase!=='win'&&B.phase!=='reward'&&B.phase!=='lose')return B.ens.some(e=>e.def.boss&&!e.dying)?'boss':'battle';
   switch(areaName(Math.floor(P.x/TS),Math.floor(P.y/TS))){
     case 'OAKVALE VILLAGE':return 'village';case 'WHISPERWOOD':return 'forest';case 'CASTLE DRACORYN':return 'castle';case CRYPT_NAME:return 'dungeon';case ARENA_NAME:return 'castle';case HOUSE_NAME:return 'village';case ZONE_NAME.snow:return 'snow';case ZONE_NAME.swamp:return 'swamp';case ZONE_NAME.desert:return 'desert';
@@ -5934,7 +5934,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     if(titleMenu.gear&&inRect(p,titleMenu.gear)){openSettings('title');return true;}
     const i=titleMenu.rects.findIndex(r=>inRect(p,r));
     if(i>=0){if(titleMenu.sel!==i)titleMenu.confirm=false;titleMenu.sel=i;pressed.Space=true;}
-    else if(titleMenu.items.length===1)pressed.Space=true;   // single option: tap anywhere to start
+    else if(titleMenu.items.filter(x=>x!=='Fishing Lab').length===1){titleMenu.sel=0;pressed.Space=true;}   // single option: tap anywhere to start
     return true;}
   if(TUT.on&&TUT.skipR&&state==='play'&&!DLG&&!B&&inRect(p,TUT.skipR)){tutFinish(true);return true;}
   if(trkTap(p))return true;
@@ -6003,6 +6003,7 @@ function swipeMove(id,p){
   }
 }
 function touchDown(id,p){
+  if(state==='fishlab'){touches.set(id,{kind:'fl'});flDown(p);return;}
   if(isUI()){touches.set(id,{kind:'ui',sx:p.x,sy:p.y,ly:p.y,moved:false});return;}
   if(TOUCH&&state!=='title'&&inCircle(p,btn.pause,6)){expCancel();pressed.KeyP=true;touches.set(id,{kind:'tap'});return;}
   if(cardDown(id,p))return;
@@ -6041,6 +6042,7 @@ function touchEndId(id){
     if(cardTouch===t)cardTouch=null;
     if(!t.swiped&&!t.cyc&&B&&B.phase==='fight'&&B.hand[t.i]){B.sel=t.i;cardUse(t.i);}   // plain tap = select + cast, as before
   }
+  else if(t.kind==='fl'){flUp();}
   else if(t.kind==='ui'){if(!t.moved)uiTap({x:t.sx,y:t.sy});}
   else if(t.kind==='joy'){joy.on=false;joy.x=joy.y=0;joy.id=null;if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);
     else if(expSelActive()&&(t.maxd||0)<14&&performance.now()-t.t0<420)expTapAt(t.sx,t.sy);}   // a quick tap in the stick zone also aims
@@ -6056,7 +6058,7 @@ cv.addEventListener('touchend',tEnd,{passive:false});cv.addEventListener('touchc
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('dblclick',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
+cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(state==='fishlab'){touches.set('mouse',{kind:'fl'});flDown(q);return;}if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
 addEventListener('mousemove',e=>{if(touches.has('mouse'))swipeMove('mouse',lpos(e));if(B&&B.xsel>=0){const q=lpos(e);B.xptr={x:q.x+cam.x,y:q.y+cam.y};}});
 addEventListener('mouseup',()=>{if(touches.has('mouse'))touchEndId('mouse');});
 addEventListener('blur',releaseAllTouch);
@@ -6421,7 +6423,7 @@ function backupSave(raw){   // raw = the JSON text about to be replaced; keep th
   if(NOSAVE||!raw)return;try{const o=JSON.parse(raw),b=readBackup();if(!o||!o.P||!(o.P.lv>1||o.P.gold>0))return;if(b&&(b.P.lv>o.P.lv||(b.P.lv===o.P.lv&&b.P.gold>=o.P.gold)))return;localStorage.setItem(BAK_KEY,raw);}catch(e){}
 }
 function saveGame(why){
-  if(NOSAVE||state==='title'||P.hp<=0||RUSH.on)return false;
+  if(NOSAVE||state==='title'||state==='fishlab'||P.hp<=0||RUSH.on)return false;
   try{const prev=localStorage.getItem(SAVE_KEY);if(prev){try{const o=JSON.parse(prev);if(o&&o.P&&P.lv<o.P.lv-1)backupSave(prev);}catch(e){}}}catch(e){}
   try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),why,area:areaCur,bossDown,lichDown,tod:DAY.t,kills,muted,cards:packCards(),gear:packGear(),quests:packQuests(),skills:packSkills(),craft:packCraft(),pets:packPets(),story:packStory(),daily:packDaily(),ach:packAch(),secrets:packSecrets(),spw:packSpawners(),fish:packFish(),
     P:{x:Math.round(P.x),y:Math.round(P.y),dir:P.dir,hp:Math.max(1,Math.round(P.hp)),lv:P.lv,xp:P.xp,gold:P.gold,up:P.up}}));return true;}catch(e){return false;}
@@ -7052,14 +7054,302 @@ function updatePauseKeys(){   // keyboard / gamepad: arrows + Enter, hotkeys, Es
   return false;
 }
 
+/* ---------- src/fishlab/fishlab.js ---------- */
+/* =====================================================================
+   FISHING LAB (prototype): a small pond test area on the title menu with 5 fishing mechanics to try out.
+   Totally isolated: own state (FL), own fish table, never touches FISH / the main game's fishing / the save (saveGame is blocked in this state).
+   Every mode is deliberately slow and relaxed.  Tunables are all in FLCFG.
+   ===================================================================== */
+const FLCFG={
+  // timing bar
+  tWait:[3,6.5],tSpeed:.42,tSpeedRar:.03,tZone:.34,tZoneRar:.05,tTimeout:9,   // needle: ~2.4s per sweep; zone shrinks with rarity (common 34% -> legendary 14%)
+  // tug of war
+  gWait:[3,6.5],gHold:.20,gHoldRar:.02,gRelease:.36,gGain:.12,gLoss:.012,gSurgeEvery:[2.6,4.2],gSurge:.10,gSlackMax:5.5,gStart:.25,
+  // idle
+  iCatch:[8,15],iRare:[35,60],iBiteWin:4,
+  // shadows
+  sCount:7,sSpeed:[9,20],sWait:[2.5,4],sSpook:.04,sRespawn:2.5,
+  // hybrid
+  hCatch:[8,15],hRare:[35,60],hBanner:1.2,
+};
+const FL_RAR=[{n:'Common',col:'#cfd6e6',w:55},{n:'Uncommon',col:'#7dff8a',w:26},{n:'Rare',col:'#6ab8ff',w:12},{n:'Epic',col:'#c58aff',w:5},{n:'Legendary',col:'#ffb43a',w:2}];
+const FL_FISH=[['Silverscale Minnow',0,'#cfe3ff'],['Mudfin Carp',0,'#b08a5a'],['Riverbell Trout',1,'#e8a8c8'],['Greenwood Pike',1,'#7ac060'],['Moonpetal Bass',2,'#c8b8ff'],
+  ['Bog Lurker Eel',2,'#8aa860'],['Glowgill',3,'#7dffd0'],['Sunscale Perch',3,'#ffd23f'],['Mirage Koi',4,'#ff8a5a']].map(a=>({n:a[0],rar:a[1],col:a[2]}));
+const FL_MODES=[
+  {n:'TIMING BAR',tab:'1 TIMING',how:'Tap to cast. When something bites, tap while the needle is inside the green zone. Rarer fish = smaller zone.',note:'Pace: relaxed. Bites take ~3-6s, the needle needs ~2.5s per sweep.'},
+  {n:'TUG OF WAR',tab:'2 TUG',how:'Tap to cast. On a bite HOLD to reel and let go to ease the tension. Line snaps at max tension; fish escapes if you stay slack too long.',note:'Pace: gentle. Tension builds slowly, plenty of time to let go.'},
+  {n:'IDLE FISHING',tab:'3 IDLE',how:'Cast once and relax: a fish is caught by itself every few seconds. Now and then a RARE BITE pops up - tap within 4s to land it.',note:'Pace: very slow. A catch every ~8-15s, rare bite about once a minute.'},
+  {n:'SHADOW SPOTTING',tab:'4 SHADOW',how:'Fish shadows drift in the pond - bigger shadow = rarer fish. Tap a shadow to cast at it, wait a moment, and it is yours.',note:'Pace: lazy. Shadows drift slowly, ~3s wait after casting.'},
+  {n:'HYBRID (RECOMMENDED)',tab:'5 HYBRID*',how:'Cast once: common fish bite on their own. A RARE BITE launches a short, easy timing or tug minigame - win it to land the big one.',note:'Pace: relaxed. Idle catch every ~8-15s; rare bites are slow minigames.'},
+];
+const FL={on:false,mode:0,t:0,m:null,pops:[],bob:null,down:false,ripples:[],cfg:FLCFG,rng:()=>Math.random(),
+  stats:FL_MODES.map(()=>({n:0,by:[0,0,0,0,0],esc:0,log:[]}))};
+const flR=(a,b)=>a+(b-a)*FL.rng();
+const flRr=r=>flR(r[0],r[1]);
+function flRoll(lo,hi){   // rarity-weighted fish pick between two rarity tiers
+  let tot=0;for(let r=lo;r<=hi;r++)tot+=FL_RAR[r].w;let x=FL.rng()*tot,rar=lo;
+  for(let r=lo;r<=hi;r++){x-=FL_RAR[r].w;if(x<=0){rar=r;break;}}
+  const pool=FL_FISH.filter(f=>f.rar===rar);return pool[Math.floor(FL.rng()*pool.length)%pool.length];
+}
+function flGeom(){
+  const L=SL+8,R=VW-SR-8,T=ST+6,B=VH-SB-8,th=28,top=T+th+8,pw=Math.floor((R-L)*.62);
+  const g={L,R,T,B,back:{x:L,y:T,w:54,h:th},tabs:[],pond:{x:L,y:top,w:pw,h:B-top},side:{x:L+pw+8,y:top,w:R-L-pw-8,h:B-top}};
+  const tx=L+60,tw=Math.floor((R-tx-4*4)/5);for(let i=0;i<5;i++)g.tabs.push({x:tx+i*(tw+4),y:T,w:tw,h:th});
+  const p=g.pond;g.dock={x:p.x,y:p.y+Math.round(p.h*.6)};g.tip={x:p.x+58,y:g.dock.y-34};
+  g.game={x:p.x+10,y:p.y+p.h-66,w:p.w-20,h:58};g.reel={x:p.x+p.w-96,y:p.y+p.h-34,w:86,h:24};
+  return g;
+}
+const flBobXY=(g,b)=>({x:g.pond.x+b.u*g.pond.w,y:g.pond.y+b.v*g.pond.h});
+function flPop(s,col,x,y){FL.pops.push({s,col:col||'#fff',x,y,t:0});if(FL.pops.length>6)FL.pops.shift();}
+function flCenterPop(s,col){const g=flGeom();flPop(s,col,g.pond.x+g.pond.w*.55,g.pond.y+g.pond.h*.28);}
+function flCatch(f){
+  const st=FL.stats[FL.mode];st.n++;st.by[f.rar]++;st.log.unshift({n:f.n,rar:f.rar,col:f.col});if(st.log.length>7)st.log.pop();
+  const r=FL_RAR[f.rar];flCenterPop(f.n+'!  ('+r.n+')',r.col);sfx(f.rar>=3?'level':f.rar>=2?'coin':'select');
+  if(FL.bob)FL.ripples.push({u:FL.bob.u,v:FL.bob.v,t:0});
+}
+function flEscape(why){FL.stats[FL.mode].esc++;flCenterPop(why||'It got away...','#ff9a8a');sfx('clang');}
+/* ---- mini-games (shared by timing, tug and hybrid) ---- */
+function flTimingNew(rar,quick){const c=FL.cfg,zw=c.tZone-c.tZoneRar*rar,sp=(c.tSpeed+c.tSpeedRar*rar)*(quick?1.1:1);
+  return {k:'timing',rar,pos:0,dir:1,sp,zw,zc:flR(zw/2+.06,1-zw/2-.06),t:0,max:c.tTimeout,done:null};}
+function flTimingUpdate(g,dt){if(g.done)return;g.t+=dt;g.pos+=g.dir*g.sp*dt;if(g.pos>=1){g.pos=1;g.dir=-1;}if(g.pos<=0){g.pos=0;g.dir=1;}if(g.t>g.max){g.done='lose';g.why='Too slow - it got away...';}}
+function flTimingTap(g){if(g.done)return;if(Math.abs(g.pos-g.zc)<=g.zw/2)g.done='win';else{g.done='lose';g.why='Missed the zone - it got away...';}}
+function flTugNew(rar,quick){const c=FL.cfg;return {k:'tug',rar,ten:c.gStart,prog:quick?.4:.12,hold:false,surge:0,surgeT:flRr(c.gSurgeEvery),slack:0,quick:!!quick,t:0,done:null};}
+function flTugUpdate(g,dt,hold){if(g.done)return;const c=FL.cfg;g.t+=dt;g.hold=hold;
+  if(g.surge>0){g.surge-=dt;}else{g.surgeT-=dt;if(g.surgeT<=0){g.surge=1+.15*g.rar;g.surgeT=flRr(c.gSurgeEvery);}}
+  const sg=g.surge>0;
+  if(hold){g.ten+=(c.gHold+c.gHoldRar*g.rar+(sg?c.gSurge+.015*g.rar:0))*dt;g.prog+=(c.gGain*(g.quick?1.5:1)-(sg?.03:0))*dt;}
+  else{g.ten-=(c.gRelease-(sg?.14:0))*dt;g.prog-=(c.gLoss+(sg?.025:0))*dt;}
+  g.ten=Math.max(0,g.ten);g.prog=clamp(g.prog,0,1);
+  if(!hold&&g.ten<.05)g.slack+=dt;else g.slack=Math.max(0,g.slack-dt*2);
+  if(g.ten>=1){g.ten=1;g.done='lose';g.why='SNAP! The line broke...';}
+  else if(g.slack>c.gSlackMax){g.done='lose';g.why='Too much slack - it swam off...';}
+  else if(g.prog>=1)g.done='win';}
+/* ---- per-mode state ---- */
+function flSetMode(i){
+  FL.mode=i;FL.m={ph:'idle',t:0};FL.bob=null;FL.down=false;FL.pops.length=0;FL.ripples.length=0;
+  if(i===3)flShadowInit();
+  sfx('select');
+}
+function flCastTo(u,v){FL.bob={u,v};FL.m.cast=0;sfx('whoosh');}
+function flShadowInit(){const g=flGeom(),m=FL.m;m.sh=[];for(let k=0;k<FL.cfg.sCount;k++)m.sh.push(flShadowMake(g,true));m.respawn=[];}
+function flShadowMake(g,anywhere){
+  const p=g.pond,rr=flRoll(0,4).rar,f=flRoll(rr,rr),a=FL.rng()*6.283,sp=flRr(FL.cfg.sSpeed);
+  return {x:anywhere?flR(p.w*.18,p.w*.92):p.w+10,y:flR(p.h*.12,p.h*.8),vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*.6,rar:rr,f,r:7+rr*4.5,tt:flR(2,5),tap:0};
+}
+function flStartIdle(m,cfg){m.ph='on';m.next=flRr(cfg.iCatch||cfg.hCatch);m.rare=flRr(cfg.iRare||cfg.hRare);m.t=0;}
+/* tap handling: returns nothing, acts on the current mode.  p = pointer position (or null for the keyboard) */
+function flAct(p){
+  const m=FL.m,g=flGeom(),md=FL.mode,pd=g.pond;
+  const inPond=p&&p.x>=pd.x&&p.x<=pd.x+pd.w&&p.y>=pd.y&&p.y<=pd.y+pd.h;
+  if(md===0||md===1){
+    if(m.ph==='idle'){flCastTo(flR(.55,.85),flR(.3,.62));m.ph='cast';m.t=0;}
+    else if(m.ph==='game'&&md===0)flTimingTap(m.g);
+    return;}
+  if(md===2||md===4){
+    if(m.ph==='idle'){flCastTo(flR(.55,.85),flR(.3,.62));m.ph='cast';m.t=0;return;}
+    if(p&&m.ph!=='cast'&&m.ph!=='game'&&m.ph!=='banner'&&inRect(p,g.reel)){m.ph='idle';FL.bob=null;flCenterPop('Reeled in','#cfe0ff');sfx('select');return;}
+    if(md===2&&m.ph==='rare'){const f=flRoll(2,4);flCatch(f);m.ph='on';m.next=flRr(FL.cfg.iCatch);m.rare=flRr(FL.cfg.iRare);return;}
+    if(md===4&&m.ph==='game'&&m.g.k==='timing')flTimingTap(m.g);
+    return;}
+  if(md===3&&p&&inPond&&m.ph==='idle'){
+    let best=null,bd=1e9;for(const s of m.sh){const d=Math.hypot(pd.x+s.x-p.x,pd.y+s.y-p.y);if(d<s.r*1.6+12&&d<bd){bd=d;best=s;}}
+    if(best){m.tgt=best;m.ph='cast';m.t=0;FL.bob={u:best.x/pd.w,v:best.y/pd.h};m.cast=0;sfx('whoosh');}
+    else{FL.ripples.push({u:(p.x-pd.x)/pd.w,v:(p.y-pd.y)/pd.h,t:0});flPop('Nothing there - tap a shadow','#9fd8ff',p.x,p.y-14);}
+  }
+}
+function flUpdate(dt){
+  FL.t+=dt;const m=FL.m,c=FL.cfg,md=FL.mode,g=flGeom();
+  FL.pops.forEach(q=>q.t+=dt);FL.pops=FL.pops.filter(q=>q.t<2.6);FL.ripples.forEach(r=>r.t+=dt);FL.ripples=FL.ripples.filter(r=>r.t<1.4);
+  if(m.cast!=null&&m.cast<1)m.cast=Math.min(1,m.cast+dt/.7);
+  const hold=FL.down||held('Space','KeyJ');
+  if(md===0||md===1){
+    const tug=md===1;
+    if(m.ph==='cast'){m.t+=dt;if(m.t>=.7){m.ph='wait';m.t=0;m.wait=flRr(tug?c.gWait:c.tWait);}}
+    else if(m.ph==='wait'){m.t+=dt;if(m.t>=m.wait){m.ph='bite';m.t=0;m.f=flRoll(0,4);sfx('warn');}}
+    else if(m.ph==='bite'){m.t+=dt;if(m.t>=1){m.ph='game';m.g=tug?flTugNew(m.f.rar):flTimingNew(m.f.rar);}}
+    else if(m.ph==='game'){if(tug)flTugUpdate(m.g,dt,hold);else flTimingUpdate(m.g,dt);if(m.g.done){m.ph='result';m.t=0;if(m.g.done==='win')flCatch(m.f);else flEscape(m.g.why);}}
+    else if(m.ph==='result'){m.t+=dt;if(m.t>=1.6){m.ph='idle';FL.bob=null;}}
+  }
+  else if(md===2||md===4){
+    const hy=md===4;
+    if(m.ph==='cast'){m.t+=dt;if(m.t>=.7)flStartIdle(m,hy?{hCatch:c.hCatch,hRare:c.hRare}:c);}
+    else if(m.ph==='on'){
+      m.next-=dt;m.rare-=dt;
+      if(m.next<=0){flCatch(flRoll(0,1));m.next=flRr(hy?c.hCatch:c.iCatch);}
+      if(m.rare<=0){m.rare=flRr(hy?c.hRare:c.iRare);
+        if(hy){m.ph='banner';m.t=0;m.f=flRoll(2,4);sfx('warn');}else{m.ph='rare';m.t=0;sfx('warn');}}
+    }
+    else if(m.ph==='rare'){m.t+=dt;if(m.t>=c.iBiteWin){m.ph='on';flEscape('Too slow - it got away...');m.next=Math.max(m.next,flRr([4,8]));}}
+    else if(m.ph==='banner'){m.t+=dt;if(m.t>=c.hBanner){m.ph='game';m.g=FL.rng()<.5?flTimingNew(m.f.rar,true):flTugNew(m.f.rar,true);}}
+    else if(m.ph==='game'){const gg=m.g;if(gg.k==='tug')flTugUpdate(gg,dt,hold);else flTimingUpdate(gg,dt);
+      if(gg.done){m.ph='result';m.t=0;if(gg.done==='win')flCatch(m.f);else flEscape(gg.why);}}
+    else if(m.ph==='result'){m.t+=dt;if(m.t>=1.5){m.ph='on';m.next=Math.max(m.next,flRr([4,8]));}}
+  }
+  else if(md===3){
+    const p=g.pond;
+    for(const s of m.sh){
+      s.tt-=dt;if(s.tt<=0){s.tt=flR(2,5);const a=FL.rng()*6.283,sp=flRr(c.sSpeed);s.vx=Math.cos(a)*sp;s.vy=Math.sin(a)*sp*.6;}
+      if(m.tgt===s&&(m.ph==='wait'||m.ph==='cast')){const bx=FL.bob.u*p.w,by=FL.bob.v*p.h;s.vx=(bx-s.x)*.8;s.vy=(by-s.y)*.8;s.tap=1;}
+      s.x+=s.vx*dt;s.y+=s.vy*dt;
+      if(s.x<12){s.x=12;s.vx=Math.abs(s.vx);}if(s.x>p.w-12){s.x=p.w-12;s.vx=-Math.abs(s.vx);}
+      if(s.y<14){s.y=14;s.vy=Math.abs(s.vy);}if(s.y>p.h*.88){s.y=p.h*.88;s.vy=-Math.abs(s.vy);}
+    }
+    if(m.ph==='cast'){m.t+=dt;if(m.t>=.7){m.ph='wait';m.t=0;m.wait=flRr(c.sWait);}}
+    else if(m.ph==='wait'){m.t+=dt;
+      if(m.tgt&&m.sh.includes(m.tgt)){const s=m.tgt;FL.bob.u=s.x/p.w;FL.bob.v=s.y/p.h;}
+      if(m.t>=m.wait){const s=m.tgt;m.sh.splice(m.sh.indexOf(s),1);m.respawn.push(c.sRespawn);
+        if(FL.rng()<c.sSpook*s.rar){flEscape('It spooked and swam off...');}else flCatch(s.f);
+        m.ph='result';m.t=0;m.tgt=null;}}
+    else if(m.ph==='result'){m.t+=dt;if(m.t>=1.2){m.ph='idle';FL.bob=null;}}
+    m.respawn=m.respawn.map(x=>x-dt).filter(x=>{if(x<=0){m.sh.push(flShadowMake(g,false));return false;}return true;});
+  }
+}
+function flEnter(){FL.on=true;state='fishlab';releaseAllTouch();flSetMode(FL.mode||0);}
+function flExit(){
+  FL.on=false;FL.down=false;state='title';releaseAllTouch();sfx('select');
+  titleMenu.items.length=0;initTitleMenu();const i=titleMenu.items.indexOf('Fishing Lab');if(i>=0)titleMenu.sel=i;
+}
+function updateFishLab(dt){
+  if(hit('Escape','Backspace')){flExit();return;}
+  for(let i=0;i<5;i++)if(hit('Digit'+(i+1))&&FL.mode!==i)flSetMode(i);
+  if(hit('KeyQ','ArrowLeft')&&FL.mode>0)flSetMode(FL.mode-1);
+  if(hit('KeyE','ArrowRight')&&FL.mode<4)flSetMode(FL.mode+1);
+  if(hit('Space','Enter','KeyJ'))flAct(null);
+  flUpdate(dt);
+}
+/* pointer input (routed from touch.js / mouse) */
+function flDown(p){
+  const g=flGeom();
+  if(inRect(p,g.back)){flExit();return;}
+  const i=g.tabs.findIndex(r=>inRect(p,r));
+  if(i>=0){if(i!==FL.mode)flSetMode(i);return;}
+  FL.down=true;flAct(p);
+}
+function flUp(){FL.down=false;}
+
+/* ---------- src/fishlab/fishlab-draw.js ---------- */
+/* ---- Fishing Lab drawing (landscape-first: pond on the left, mode info + catch counters on the right) ---- */
+function flButton(r,label,o={}){
+  ctx.fillStyle=o.sel?'#3a5a2a':'#1a1630';ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.strokeStyle=o.sel?'#ffe14d':'#8a86b8';ctx.lineWidth=o.sel?3:2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+  txt(label,r.x+r.w/2,r.y+r.h/2+4,{size:o.size||10,align:'center',col:o.sel?'#fff':'#cfd0ff',lw:3});
+}
+function flFishIcon(x,y,len,col,dir,alpha){
+  ctx.save();ctx.globalAlpha=alpha==null?1:alpha;ctx.translate(x,y);ctx.scale(dir<0?-1:1,1);ctx.fillStyle=col;
+  ctx.beginPath();ctx.ellipse(0,0,len/2,len/4,0,0,6.283);ctx.fill();
+  ctx.beginPath();ctx.moveTo(-len/2+2,0);ctx.lineTo(-len/2-len*.28,-len*.2);ctx.lineTo(-len/2-len*.28,len*.2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(len*.22,-len*.08,Math.max(2,len*.07),Math.max(2,len*.07));ctx.restore();
+}
+function flDrawPond(g){
+  const p=g.pond;ctx.save();
+  ctx.fillStyle='#2c5a2a';ctx.fillRect(p.x,p.y,p.w,p.h);
+  const gr=ctx.createLinearGradient(0,p.y,0,p.y+p.h);gr.addColorStop(0,'#2a7ba6');gr.addColorStop(1,'#14477a');
+  ctx.fillStyle=gr;ctx.fillRect(p.x+4,p.y+4,p.w-8,p.h-8);
+  ctx.beginPath();ctx.rect(p.x+4,p.y+4,p.w-8,p.h-8);ctx.clip();
+  ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=2;
+  for(let i=0;i<14;i++){const yy=p.y+20+(i*37)%(p.h-40),xx=p.x+((i*83+gtime*8*(1+i%3*.3))%(p.w+40))-20;ctx.beginPath();ctx.moveTo(xx,yy);ctx.lineTo(xx+16,yy);ctx.stroke();}
+  [[.3,.2],[.82,.72],[.5,.82],[.9,.2]].forEach(([u,v],i)=>{const x=p.x+u*p.w,y=p.y+v*p.h+Math.sin(gtime*.6+i)*1.5;ctx.fillStyle='#3f8a3a';ctx.beginPath();ctx.ellipse(x,y,13,7,0,0,6.283);ctx.fill();ctx.fillStyle='#ffb0d0';ctx.fillRect(x-2,y-2,4,4);});
+  ctx.restore();
+  ctx.strokeStyle='#e8e0c8';ctx.lineWidth=2;ctx.strokeRect(p.x+1,p.y+1,p.w-2,p.h-2);
+  // dock + angler
+  ctx.fillStyle='#8a5a2a';ctx.fillRect(g.dock.x+2,g.dock.y,64,12);ctx.fillStyle='#6a4018';for(let i=0;i<4;i++)ctx.fillRect(g.dock.x+8+i*16,g.dock.y,3,12);
+  const hs=SP.hero&&SP.hero.r&&SP.hero.r[1];if(hs){const s=2;draw(hs,g.dock.x+14,g.dock.y-hs.height*s+4,s);}
+  ctx.strokeStyle='#c08a52';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(g.dock.x+36,g.dock.y-12);ctx.lineTo(g.tip.x,g.tip.y);ctx.stroke();
+}
+function flBobPos(g){
+  const m=FL.m;if(!FL.bob)return null;const t=flBobXY(g,FL.bob),k=m.cast!=null?m.cast:1;
+  if(k>=1)return t;const x=g.tip.x+(t.x-g.tip.x)*k,y=g.tip.y+(t.y-g.tip.y)*k-Math.sin(k*Math.PI)*40;return {x,y};
+}
+function flDrawLineBob(g){
+  const b=flBobPos(g);if(!b)return;const m=FL.m;
+  const taut=m.ph==='game'&&m.g&&m.g.k==='tug'?clamp(m.g.ten,0,1):.15,sag=(1-taut)*22+4;
+  ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(g.tip.x,g.tip.y);ctx.quadraticCurveTo((g.tip.x+b.x)/2,(g.tip.y+b.y)/2+sag,b.x,b.y);ctx.stroke();
+  const dip=(m.ph==='bite'||(m.ph==='game'&&FL.mode!==2))?Math.abs(Math.sin(gtime*7))*4:(m.ph==='rare'?Math.abs(Math.sin(gtime*7))*4:Math.sin(gtime*1.6)*1.2),by=b.y+dip;
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,by,5,0,6.283);ctx.fill();ctx.fillStyle='#e8504a';ctx.beginPath();ctx.arc(b.x,by-1.5,4,Math.PI,6.283);ctx.fill();
+  for(const r of FL.ripples){const q=flBobXY(g,r);ctx.strokeStyle='rgba(255,255,255,'+(.6*(1-r.t/1.4))+')';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(q.x,q.y,6+r.t*26,3+r.t*12,0,0,6.283);ctx.stroke();}
+}
+function flDrawGame(g,gm){
+  const r=g.game;panel(r.x,r.y,r.w,r.h,{fill:'#10142a'});
+  if(gm.k==='timing'){
+    const bx=r.x+16,bw=r.w-32,by=r.y+26,bh=18;
+    ctx.fillStyle='#000';ctx.fillRect(bx-2,by-2,bw+4,bh+4);ctx.fillStyle='#3a2a2a';ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle=FL_RAR[gm.rar].col;ctx.globalAlpha=.35;ctx.fillRect(bx+(gm.zc-gm.zw/2)*bw-2,by-2,gm.zw*bw+4,bh+4);ctx.globalAlpha=1;
+    ctx.fillStyle='#4fdc6a';ctx.fillRect(bx+(gm.zc-gm.zw/2)*bw,by,gm.zw*bw,bh);
+    const nx=bx+gm.pos*bw;ctx.fillStyle='#fff';ctx.fillRect(nx-2,by-6,4,bh+12);
+    txt('TAP when the needle is in the green!   ('+FL_RAR[gm.rar].n+' fish)',r.x+r.w/2,r.y+16,{size:10,align:'center',col:'#e8e0c8',lw:3});
+  } else {
+    const bx=r.x+16,bw=r.w-32;
+    txt('HOLD to reel - let go to ease the line  ('+FL_RAR[gm.rar].n+' fish)',r.x+r.w/2,r.y+14,{size:10,align:'center',col:'#e8e0c8',lw:3});
+    ctx.fillStyle='#000';ctx.fillRect(bx-2,r.y+19,bw+4,16);ctx.fillStyle='#233';ctx.fillRect(bx,r.y+21,bw,12);
+    ctx.fillStyle='#2a5a2a';ctx.fillRect(bx+bw*.08,r.y+21,bw*.62,12);ctx.fillStyle='#6a2a2a';ctx.fillRect(bx+bw*.8,r.y+21,bw*.2,12);
+    ctx.fillStyle=gm.ten>.8?'#ff5a4a':gm.ten>.6?'#ffd23f':'#7dffa0';ctx.fillRect(bx,r.y+21,bw*gm.ten,12);
+    txt('TENSION',bx+4,r.y+31,{size:8,col:'#fff',lw:2});
+    ctx.fillStyle='#000';ctx.fillRect(bx-2,r.y+38,bw+4,14);ctx.fillStyle='#223';ctx.fillRect(bx,r.y+40,bw,10);ctx.fillStyle='#7dc8ff';ctx.fillRect(bx,r.y+40,bw*gm.prog,10);
+    txt('REELED',bx+4,r.y+49,{size:8,col:'#fff',lw:2});
+  }
+}
+function flDrawPond2(g){
+  const p=g.pond,m=FL.m,md=FL.mode;
+  // shadows (mode 4)
+  if(md===3&&m.sh)for(const s of m.sh){
+    const sel=m.tgt===s;flFishIcon(p.x+s.x,p.y+s.y,s.r*2.4,'#04182c',s.vx<0?-1:1,.55+(sel?.2:0));
+    if(!m.tgt)ctx.globalAlpha=1;
+  }
+  // the hooked fish, swimming under the bobber, during a game
+  if(m.ph==='game'||m.ph==='bite'){const b=flBobPos(g);if(b&&m.f){const k=m.g?(m.g.k==='tug'?m.g.prog:.5):.5;flFishIcon(b.x+Math.sin(gtime*1.3)*14*(1-k*.6),b.y+10+Math.cos(gtime*1.1)*5,16+m.f.rar*5,'rgba(4,24,44,.7)',Math.cos(gtime*1.3)>0?1:-1,.75);}}
+  flDrawLineBob(g);
+  // prompts
+  const cx=p.x+p.w/2,py=p.y+p.h*.2;
+  const cast=(md===3)?'TAP A SHADOW TO CAST':'TAP TO CAST';
+  if(m.ph==='idle')txt(cast,cx,py,{size:15,align:'center',col:'#fff',lw:5,alpha:.7+.3*Math.sin(gtime*3)});
+  if(m.ph==='wait'||(m.ph==='cast'&&md<2))txt('waiting for a bite...',cx,py,{size:11,align:'center',col:'#cfe0ff',lw:3,alpha:.8});
+  if(m.ph==='bite')txt('SOMETHING BIT!',cx,py,{size:18,align:'center',col:'#ffe14d',lw:5});
+  if((md===2||md===4)&&m.ph==='on'){
+    txt('fishing...  relax',cx,py,{size:12,align:'center',col:'#cfe0ff',lw:3,alpha:.8});
+    flButton(g.reel,'REEL IN',{size:9});
+  }
+  if(md===2&&m.ph==='rare'){
+    const f=1-m.t/FL.cfg.iBiteWin;txt('RARE BITE!',cx,p.y+p.h*.36,{size:24,align:'center',col:'#ffb43a',lw:6});
+    txt('TAP NOW!',cx,p.y+p.h*.36+22,{size:14,align:'center',col:'#fff',lw:4});
+    ctx.strokeStyle='#ffe14d';ctx.lineWidth=5;ctx.beginPath();ctx.arc(cx,p.y+p.h*.58,26,-Math.PI/2,-Math.PI/2+f*6.283);ctx.stroke();
+    txt(Math.ceil(FL.cfg.iBiteWin-m.t)+'',cx,p.y+p.h*.58+5,{size:15,align:'center',col:'#fff',lw:4});
+  }
+  if(md===4&&m.ph==='banner'){txt('RARE BITE!',cx,p.y+p.h*.36,{size:24,align:'center',col:'#ffb43a',lw:6});txt('get ready...',cx,p.y+p.h*.36+20,{size:12,align:'center',col:'#fff',lw:4});}
+  if(m.ph==='game'&&m.g)flDrawGame(g,m.g);
+  for(const q of FL.pops){const a=q.t<2?1:1-(q.t-2)/.6;txt(q.s,q.x,q.y-q.t*8,{size:13,align:'center',col:q.col,lw:4,alpha:a});}
+}
+function flDrawSide(g){
+  const s=g.side,md=FL_MODES[FL.mode],st=FL.stats[FL.mode];panel(s.x,s.y,s.w,s.h,{fill:'#14102a'});
+  let y=s.y+18;const x=s.x+10,w=s.w-20,font='bold '+scaleText(9)+'px "Courier New",monospace';
+  txt(md.n,x,y,{size:12,col:'#ffcf3a',lw:4});y+=14;
+  for(const l of wrapText(md.note,w,font)){txt(l,x,y,{size:9,col:'#9fe8ff',lw:3});y+=11;}y+=3;
+  for(const l of wrapText(md.how,w,font)){txt(l,x,y,{size:9,col:'#e8e0c8',lw:3});y+=11;}
+  y=Math.max(y+6,s.y+s.h-132);
+  txt('CAUGHT '+st.n,x,y,{size:13,col:'#fff',lw:4});txt('escaped '+st.esc,x+w,y,{size:9,align:'right',col:'#ff9a8a',lw:3});y+=8;
+  const cw=Math.floor(w/5);
+  for(let i=0;i<5;i++){const cx=x+i*cw;ctx.fillStyle=FL_RAR[i].col;ctx.globalAlpha=st.by[i]?1:.3;ctx.fillRect(cx,y,cw-3,13);ctx.globalAlpha=1;
+    txt(st.by[i]+'',cx+(cw-3)/2,y+10,{size:10,align:'center',col:'#10142a',out:false});txt(FL_RAR[i].n.slice(0,4),cx+(cw-3)/2,y+24,{size:7,align:'center',col:FL_RAR[i].col,lw:2});}
+  y+=36;
+  if(!st.log.length)txt('(no catches yet)',x,y,{size:9,col:'#8a86b8',lw:2});
+  st.log.slice(0,Math.max(1,Math.floor((s.y+s.h-6-y)/11))).forEach((e,i)=>{txt(e.n,x,y+i*11,{size:9,col:e.col,lw:3,alpha:1-i*.08});txt(FL_RAR[e.rar].n,x+w,y+i*11,{size:8,align:'right',col:FL_RAR[e.rar].col,lw:2});});
+}
+function drawFishLab(){
+  const g=flGeom();
+  const gr=ctx.createLinearGradient(0,0,0,VH);gr.addColorStop(0,'#10122e');gr.addColorStop(1,'#1c2a3a');ctx.fillStyle=gr;ctx.fillRect(0,0,VW,VH);
+  flButton(g.back,'< BACK');
+  FL_MODES.forEach((m,i)=>flButton(g.tabs[i],m.tab,{sel:i===FL.mode,size:VW<700?9:10}));
+  flDrawPond(g);flDrawPond2(g);flDrawSide(g);
+}
+
 /* ---------- src/ui/title.js ---------- */
 /* ---- title menu ---- */
 const titleMenu={items:[],sel:0,rects:[],confirm:false,save:null};
 function initTitleMenu(){
   titleMenu.save=readSave();const bk=readBackup();titleMenu.bak=bk&&(!titleMenu.save||bk.P.lv>titleMenu.save.P.lv||(bk.P.lv===titleMenu.save.P.lv&&bk.P.gold>titleMenu.save.P.gold))?bk:null;   // a more advanced backup exists
-  titleMenu.items=titleMenu.save?['Continue','New Game']:['New Game'];if(titleMenu.bak)titleMenu.items.push('Restore Backup');titleMenu.sel=0;titleMenu.confirm=false;}
+  titleMenu.items=titleMenu.save?['Continue','New Game']:['New Game'];if(titleMenu.bak)titleMenu.items.push('Restore Backup');titleMenu.items.push('Fishing Lab');titleMenu.sel=0;titleMenu.confirm=false;}
 function startFromTitle(){
   const it=titleMenu.items[titleMenu.sel];
+  if(it==='Fishing Lab'){flEnter();return;}
   if(it==='Restore Backup'){const b=titleMenu.bak;try{localStorage.setItem(SAVE_KEY,JSON.stringify(b));}catch(e){}titleMenu.save=b;loadSave(b);}
   else if(it==='Continue'){loadSave(titleMenu.save);}
   else if(titleMenu.save&&!titleMenu.confirm){titleMenu.confirm=true;sfx('select');return;}   // erasing a save needs a second press
@@ -7068,6 +7358,7 @@ function startFromTitle(){
 }
 /* ---- title ---- */
 const embers=Array.from({length:40},()=>({x:Math.random()*640,y:Math.random()*448,s:R(8,30),a:Math.random()*6}));
+const TSTEP=()=>titleMenu.items.length>=4?46:52;
 function drawTitle(){
   const s=Math.min(VW/640,VH/448),ox=(VW-640*s)/2,oy=(VH-448*s)/2;
   const gr=ctx.createLinearGradient(0,0,0,VH);gr.addColorStop(0,'#0c0a24');gr.addColorStop(.62,'#3a1c4a');gr.addColorStop(1,'#c4562e');ctx.fillStyle=gr;ctx.fillRect(0,0,VW,VH);
@@ -7089,14 +7380,15 @@ function drawTitle(){
   txt('~ Realm of Embers ~',320,128,{size:16,align:'center',col:'#cfe0ff',lw:4});
   titleMenu.rects=[];
   titleMenu.items.forEach((it,i)=>{
-    const yc=184+i*52,sel=i===titleMenu.sel,lab=it==='New Game'&&titleMenu.confirm?'Erase save? Press again':it;
+    const yc=178+i*TSTEP(),sel=i===titleMenu.sel,lab=it==='New Game'&&titleMenu.confirm?'Erase save? Press again':it;
     if(sel){ctx.fillStyle='rgba(255,207,58,.16)';ctx.fillRect(320-150,yc-26,300,46);ctx.strokeStyle=`rgba(255,207,58,${.55+.3*Math.sin(gtime*5)})`;ctx.lineWidth=2;ctx.strokeRect(320-150,yc-26,300,46);}
-    txt(lab,320,yc,{size:titleMenu.confirm&&sel&&it==='New Game'?18:24,align:'center',col:sel?'#fff':'#a8a0c0',lw:6});
+    txt(lab,320,yc,{size:titleMenu.confirm&&sel&&it==='New Game'?18:(it==='Fishing Lab'?20:24),align:'center',col:sel?'#fff':(it==='Fishing Lab'?'#8fd8e8':'#a8a0c0'),lw:6});
+    if(it==='Fishing Lab')txt('prototype fishing mechanics',320,yc+13,{size:9,align:'center',col:'#9fe8ff',lw:3});
     if(it==='Restore Backup'&&titleMenu.bak){const sv=titleMenu.bak;txt('Lv '+sv.P.lv+'  -  '+(sv.area||'Realm')+'  -  '+sv.P.gold+' G',320,yc+14,{size:9,align:'center',col:'#9dffb0',lw:3});}
     if(it==='Continue'&&titleMenu.save){const sv=titleMenu.save;txt('Lv '+sv.P.lv+'  -  '+(sv.area||'Realm')+'  -  '+sv.P.gold+' G',320,yc+14,{size:9,align:'center',col:'#ffe9a0',lw:3});}
     titleMenu.rects.push({x:ox+(320-150)*s,y:oy+(yc-26)*s,w:300*s,h:46*s});
   });
-  if(!TOUCH)txt('W/S or Arrows: choose   SPACE: select',320,254+(titleMenu.items.length-1)*52,{size:10,align:'center',col:'#cfe0ff',lw:3});
+  if(!TOUCH)txt('W/S or Arrows: choose   SPACE: select',320,230+(titleMenu.items.length-1)*TSTEP(),{size:10,align:'center',col:'#cfe0ff',lw:3});
   panel(100,396,440,44,{fill:'#120e24'});
   if(TOUCH){txt('Left thumb: joystick     SHOT: shoot (hold = charge)',320,414,{size:11,align:'center',col:'#e8e0c8',out:false});txt('Avoid sight cones or shoot first     Tap spell cards to cast',320,430,{size:11,align:'center',col:'#e8e0c8',out:false});}
   else{txt('WASD / Arrows: walk     J: arcane shot (hold = charge)',320,414,{size:11,align:'center',col:'#e8e0c8',out:false});txt('L: next card   K: cast card   E: talk   Avoid sight cones!',320,430,{size:11,align:'center',col:'#e8e0c8',out:false});}
@@ -7113,6 +7405,7 @@ function render(){
   ctx.setTransform(S,0,0,S,0,0);ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#000';ctx.fillRect(0,0,VW,VH);
   if(state==='title'){drawTitle();if(TOUCH)drawTouchTitle();return;}
+  if(state==='fishlab'){drawFishLab();return;}
   const sh=B&&B.shake>0?B.shake:0;
   ctx.save();if(sh)ctx.translate(Math.round((Math.random()-.5)*sh*14),Math.round((Math.random()-.5)*sh*10));
   drawWorld();
@@ -7136,6 +7429,7 @@ function drawTouchTitle(){}
 function update(dt){
   pollPad();gtime+=dt;tickAtkTouch();musUpdate(dt);
   toasts.forEach(t=>t.t+=dt);while(toasts.length&&toasts[0].t>toasts[0].dur)toasts.shift();
+  if(state==='fishlab'){updateFishLab(dt);return;}
   if(state==='title'){
     if(!titleMenu.items.length)initTitleMenu();
     const n=titleMenu.items.length;
@@ -7207,7 +7501,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
