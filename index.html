@@ -870,6 +870,144 @@ function treeLayers(id,x,y){   // {bg: the ground tile, fg: the tree alone on a 
   r={bg:floor[bgv?2:0],fg};BIGT_CACHE.set(key,r);return r;
 }
 
+/* ---------- src/render/house-art.js ---------- */
+/* =====================================================================
+   HOUSE INTERIOR WALLS - mockup options  ?housewall=1..4  (0 / absent = the original grey brick)
+   1 warm timber + plaster with beams   2 log cabin   3 cottage stone with wallpaper trim   4 wooden planks with windows / shelves / rug
+   Only the room edge is built (a 2-row back wall, 1-tile side + front walls); everything outside the room is dark.
+   Pure rendering: the map, collision and tile ids are untouched.
+   ===================================================================== */
+const HOUSEWALL=(()=>{const v=+(new URLSearchParams(location.search).get('housewall')||0);return v>=1&&v<=4?v|0:0;})();
+const HW_DARK='#07050f';
+const HW_CACHE=new Map();
+function hwKind(x,y){   // what a house-zone tile is, for wall painting: 'ub' upper back wall, 'lb' lower back wall, 'l','r' side walls, 'bt' front wall, 'out' dark void, null = floor / other
+  const R=HOUSE_ROOM,ub=R.y0-2,lb=R.y0-1;
+  if(x<R.x0-1||x>R.x1+1||y<ub||y>R.y1+1)return 'out';
+  if(y===ub)return 'ub';if(y===lb)return 'lb';
+  if(x===R.x0-1)return 'l';if(x===R.x1+1)return 'r';
+  if(y===R.y1+1)return 'bt';
+  return null;
+}
+const hwN=(x,y,k)=>hash2(x*7+k,y*13+k*3)&255;
+function hwSpeck(g,col,n,seed){for(let i=0;i<n;i++){const h=hash2(seed+i*31,i*17+seed);rect(g,h&15,(h>>4)&15,1,1,col);}}
+/* ---- 1. warm timber + plaster ---- */
+function hwTimber(g,kind,x,y){
+  const PL='#ecdcb8',PL2='#e0cca4',PD='#cdb68c',T1='#6b4426',T2='#8d5e37',T3='#46281a';
+  const beamV=()=>{rect(g,6,0,4,16,T1);rect(g,6,0,1,16,T2);rect(g,9,0,1,16,T3);};
+  if(kind==='ub'||kind==='lb'){
+    rect(g,0,0,16,16,PL);hwSpeck(g,PL2,7,x*5+y);hwSpeck(g,PD,3,x*3+y*9);
+    if(x%4===0)beamV();
+    if(kind==='ub'){rect(g,0,0,16,4,T1);rect(g,0,0,16,1,T2);rect(g,0,3,16,1,T3);}
+    else{rect(g,0,0,16,1,'#00000014');rect(g,0,9,16,2,T1);rect(g,0,9,16,1,T2);rect(g,0,12,16,4,'#8a5a34');for(let i=0;i<16;i+=5)rect(g,i,12,1,4,'#6b4426');rect(g,0,12,16,1,'#a8703a');rect(g,0,15,16,1,T3);
+      if(x%4===0){rect(g,6,9,4,7,T1);rect(g,6,9,1,7,T2);rect(g,9,9,1,7,T3);}}
+    return;}
+  // side / front strips: a timber post + plaster infill
+  rect(g,0,0,16,16,PL);hwSpeck(g,PL2,6,x*5+y);
+  if(kind==='bt'){rect(g,0,0,16,5,T1);rect(g,0,0,16,1,T2);rect(g,0,4,16,1,T3);if(x%4===0)rect(g,6,0,4,16,T1);return;}
+  const edge=kind==='l'?[13,3]:[0,3];rect(g,edge[0],0,3,16,T1);rect(g,edge[0]+(kind==='l'?0:2),0,1,16,T2);
+  if(y%3===0){rect(g,0,6,16,3,T1);rect(g,0,6,16,1,T2);}
+  rect(g,kind==='l'?10:3,0,3,16,'#0000001c');
+}
+/* ---- 2. log cabin ---- */
+function hwLog(g,kind,x,y){
+  const B='#9a6334',H='#b57a44',S='#6e4421',C='#2e1c0e';
+  const logs=(w0,w1)=>{for(let k=0;k<4;k++){const yy=k*4,seed=hwN(x,y*4+k,2);rect(g,w0,yy,w1-w0,4,B);rect(g,w0,yy,w1-w0,1,H);rect(g,w0,yy+2,w1-w0,1,S);rect(g,w0,yy+3,w1-w0,1,C);
+      rect(g,(seed&7)+w0,yy+1,1,1,S);rect(g,((seed>>3)&7)+w0+3,yy+1,2,1,'#8a5528');if(seed%5===0){rect(g,8+(seed&3),yy+1,3,2,S);rect(g,9+(seed&3),yy+1,1,1,C);}}};
+  if(kind==='ub'||kind==='lb'){logs(0,16);if(kind==='ub')rect(g,0,0,16,1,'#c88f55');else{rect(g,0,0,16,1,'#00000018');}
+    if(kind==='lb'){rect(g,0,15,16,1,C);}
+    return;}
+  if(kind==='bt'){logs(0,16);rect(g,0,0,16,2,'#00000030');return;}
+  // side walls: stacked log ends
+  rect(g,0,0,16,16,'#3a2412');
+  for(let k=0;k<2;k++){const cy=4+k*8,cx=8;ell(g,cx,cy,4,4,C);ell(g,cx,cy,3,3,'#c58c52');ell(g,cx,cy,2,2,'#a8713a');ell(g,cx,cy,1,1,'#8a5528');rect(g,cx-3,cy-3,2,1,'#e0aa70');}
+  rect(g,kind==='l'?12:0,0,4,16,'#00000026');
+}
+/* ---- 3. cottage stone + wallpaper trim ---- */
+function hwStone(g,x,y,top){   // fieldstone, warm grey-beige
+  rect(g,0,0,16,16,'#8e7c64');
+  for(let r=0;r<16;r+=5){const off=((y*3+(r/5|0))&1)?0:3;
+    for(let c=-off;c<16;c+=8){const w=6+(hwN(c+x*16,r+y*16,4)&1),x0=Math.max(0,c),x1=Math.min(16,c+w);if(x1<=x0)continue;
+      rect(g,x0,r,x1-x0,4,'#b8a68b');rect(g,x0,r,x1-x0,1,'#d2c3a8');rect(g,x0,r+3,x1-x0,1,'#9d8b72');if(hwN(c+x*16,r,5)%3===0)rect(g,x0+1,r+1,2,1,'#a89577');}}
+}
+function hwCottage(g,kind,x,y){
+  const PA='#e9eee0',PB='#c6d8c0',PC='#a9c3a4',RAIL='#8a6a48',RAILH='#b08a60',RAILS='#5c4630';
+  if(kind==='ub'){   // wallpaper: cream + sage stripes with tiny flowers, crown trim on top
+    for(let c=0;c<16;c++)rect(g,c,0,1,16,((c+((x&1)*8))%16<8)?PA:PB);
+    for(let c=0;c<16;c+=8)rect(g,(c+((x&1)*8))%16,0,1,16,PC);
+    const f=hwN(x,y,6);rect(g,3+(f&3),6,1,1,'#d68a9a');rect(g,2+(f&3),7,3,1,'#e8a8b4');rect(g,3+(f&3),8,1,1,'#d68a9a');rect(g,11-(f&3),10,1,1,'#d68a9a');rect(g,10-(f&3),11,3,1,'#e8a8b4');rect(g,11-(f&3),12,1,1,'#d68a9a');
+    rect(g,0,0,16,3,RAIL);rect(g,0,0,16,1,RAILH);rect(g,0,2,16,1,RAILS);rect(g,0,3,16,1,'#00000028');
+    rect(g,0,14,16,2,RAIL);rect(g,0,14,16,1,RAILH);rect(g,0,15,16,1,RAILS);return;}
+  if(kind==='lb'){hwStone(g,x,y,false);rect(g,0,0,16,2,RAIL);rect(g,0,0,16,1,RAILH);rect(g,0,2,16,1,'#00000030');rect(g,0,13,16,3,'#00000014');return;}
+  hwStone(g,x,y,false);
+  if(kind==='bt'){rect(g,0,0,16,2,'#00000034');rect(g,0,0,16,1,RAIL);return;}
+  rect(g,kind==='l'?12:0,0,4,16,'#0000002a');
+}
+/* ---- 4. wooden planks + windows / shelves ---- */
+function hwPlank(g,x,y,sx){   // vertical planks 4px wide
+  for(let c=0;c<4;c++){const v=hwN(x*4+c,y,8)&3,base=['#b07a45','#a5703c','#b98350','#aa753f'][v];rect(g,c*4,0,4,16,base);rect(g,c*4,0,1,16,'#c9965c');rect(g,c*4+3,0,1,16,'#6e4421');
+    const k=hwN(x*4+c,y,9);rect(g,c*4+1+(k&1),(k>>1)&15,1,3,'#8d5c2e');if(k%7===0){rect(g,c*4+1,(k>>2)&15,2,2,'#7a4a24');}}
+}
+function hwWindow(g,lower){
+  const FR='#f1e4c8',FRS='#b59e78';
+  if(!lower){rect(g,1,2,14,14,FR);rect(g,3,4,10,12,'#7fc4ee');rect(g,3,4,10,5,'#a8dcf6');rect(g,3,4,10,1,'#d8f2ff');rect(g,4,5,3,1,'#ffffff');rect(g,7,4,2,12,FR);rect(g,3,9,10,1,FR);rect(g,1,2,14,1,'#fff8e6');rect(g,1,2,1,14,FRS);rect(g,14,2,1,14,FRS);
+    rect(g,3,4,3,5,'#e8847a');rect(g,3,4,1,5,'#c85a55');rect(g,10,4,3,5,'#e8847a');rect(g,12,4,1,5,'#c85a55');}   // curtains
+  else{rect(g,1,0,14,5,FR);rect(g,3,0,10,2,'#7fc4ee');rect(g,7,0,2,2,FR);rect(g,3,0,3,2,'#e8847a');rect(g,10,0,3,2,'#e8847a');rect(g,0,5,16,3,FR);rect(g,0,5,16,1,'#fff8e6');rect(g,0,7,16,1,FRS);rect(g,0,8,16,2,'#00000030');   // sill
+    rect(g,5,3,3,0,'#fff');}
+}
+function hwShelf(g,x,seed){   // a plank shelf on the upper-wall tile, with books and jars
+  rect(g,0,12,16,3,'#6a4423');rect(g,0,12,16,1,'#8d5e37');rect(g,0,14,16,1,'#3a2412');rect(g,1,15,2,1,'#3a2412');rect(g,13,15,2,1,'#3a2412');
+  const cols=['#b0453a','#3f6fb0','#4a8a4a','#d6a52a','#7a4a9a','#c8c0a8'];let cx=1;const h=hwN(x,seed,3);
+  if(h%3===0){ell(g,5,9,3,3,'#c8e0e8');rect(g,3,6,5,1,'#8a6a4a');rect(g,4,9,3,2,'#e8b040');ell(g,12,9,2,2,'#b86a3a');rect(g,11,6,3,1,'#8a6a4a');return;}
+  for(let b=0;b<5;b++){const bh=6+((h>>b)&3),w=2+((h>>(b+2))&1);rect(g,cx,12-bh,w,bh,cols[(h+b)%6]);rect(g,cx,12-bh,1,bh,'#ffffff30');cx+=w;if(cx>14)break;}
+}
+function hwPlanks(g,kind,x,y){
+  if(kind==='ub'||kind==='lb'){hwPlank(g,x,y);
+    if(kind==='ub'){rect(g,0,0,16,2,'#7a4a24');rect(g,0,0,16,1,'#a8703a');}
+    else{rect(g,0,0,16,1,'#00000018');rect(g,0,13,16,3,'#6a4423');rect(g,0,13,16,1,'#8d5e37');rect(g,0,15,16,1,'#3a2412');}
+    const R=HOUSE_ROOM,dx=x-R.x0;
+    if(dx===2||dx===11){hwWindow(g,kind==='lb');}
+    else if(kind==='ub'&&(dx===5||dx===6||dx===9||dx===10))hwShelf(g,x,dx);
+    return;}
+  hwPlank(g,x,y);
+  if(kind==='bt'){rect(g,0,0,16,2,'#00000040');return;}
+  rect(g,kind==='l'?12:0,0,4,16,'#0000002e');rect(g,kind==='l'?15:0,0,1,16,'#3a2412');
+}
+function hwRug(g,rx,ry,w,h){   // woven rug: dark red border, cream field with diamond band, fringe left / right
+  const RD='#9a2f35',RD2='#7a2228',CR='#ecdcb4',GD='#d6a52a';rect(g,0,0,16,16,CR);
+  if(ry===0){rect(g,0,0,16,3,RD);rect(g,0,0,16,1,RD2);rect(g,0,3,16,1,GD);}
+  if(ry===h-1){rect(g,0,13,16,3,RD);rect(g,0,15,16,1,RD2);rect(g,0,12,16,1,GD);}
+  if(rx===0){rect(g,0,0,3,16,RD);rect(g,0,0,1,16,RD2);rect(g,3,0,1,16,GD);rect(g,0,0,16,0,RD);for(let i=0;i<16;i+=2)rect(g,0,i,1,1,'#f4ead0');}
+  if(rx===w-1){rect(g,13,0,3,16,RD);rect(g,15,0,1,16,RD2);rect(g,12,0,1,16,GD);for(let i=0;i<16;i+=2)rect(g,15,i,1,1,'#f4ead0');}
+  if(ry>0&&ry<h-1&&rx>0&&rx<w-1&&(rx+ry)%2===0){rect(g,7,4,2,2,RD);rect(g,6,6,4,2,RD);rect(g,7,8,2,2,RD);rect(g,7,6,2,2,GD);}
+  else if(ry>0&&ry<h-1)rect(g,0,7,16,2,'#e4d09c');
+}
+function hwFloor(base,x,y,kind){   // the room floor: soft shadow under the back wall and beside the side walls (+ a rug in option 4)
+  const R=HOUSE_ROOM;let rug=null;
+  if(HOUSEWALL===4&&x>=29&&x<=34&&y>=R.y0+4&&y<=R.y0+6)rug=[x-29,y-(R.y0+4),6,3];
+  const sh=y===R.y0?1:0,ed=x===R.x0?1:x===R.x1?2:0;
+  if(!sh&&!ed&&!rug)return base;
+  const key='f'+HOUSEWALL+'|'+(base===TSPR[T.F][0]?0:1)+'|'+sh+ed+'|'+(rug?rug.join():'');
+  let r=HW_CACHE.get(key);if(r)return r;
+  r=makeSprite(16,16,g=>{g.drawImage(base,0,0);
+    if(rug)hwRug(g,rug[0],rug[1],rug[2],rug[3]);
+    if(sh){for(let i=0;i<5;i++){g.fillStyle='rgba(30,16,8,'+(.34-i*.07)+')';g.fillRect(0,i,16,1);}}
+    if(ed===1){for(let i=0;i<3;i++){g.fillStyle='rgba(30,16,8,'+(.26-i*.08)+')';g.fillRect(i,0,1,16);}}
+    if(ed===2){for(let i=0;i<3;i++){g.fillStyle='rgba(30,16,8,'+(.26-i*.08)+')';g.fillRect(15-i,0,1,16);}}});
+  HW_CACHE.set(key,r);return r;
+}
+function houseTile(id,x,y,base){   // called from tileSprite for the house zone; returns a 16x16 sprite
+  const k=hwKind(x,y);
+  if(k===null){return (id===T.F)?hwFloor(base,x,y):base;}
+  const key=HOUSEWALL+'|'+k+'|'+(k==='out'?0:x+'|'+(y%12));
+  let r=HW_CACHE.get(key);if(r)return r;
+  r=makeSprite(16,16,g=>{
+    if(k==='out'){rect(g,0,0,16,16,HW_DARK);return;}
+    const xx=x,yy=y;
+    if(HOUSEWALL===1)hwTimber(g,k,xx,yy);else if(HOUSEWALL===2)hwLog(g,k,xx,yy);else if(HOUSEWALL===3)hwCottage(g,k,xx,yy);else hwPlanks(g,k,xx,yy);});
+  HW_CACHE.set(key,r);return r;
+}
+const HW_VOID=()=>{let r=HW_CACHE.get('void');if(!r){r=makeSprite(16,16,g=>rect(g,0,0,16,16,HW_DARK));HW_CACHE.set('void',r);}return r;};
+
 /* ---------- src/render/cycle-art.js ---------- */
 /* =====================================================================
    DAY / SUNSET / NIGHT art direction (M18).  Everything here is procedural + original.
@@ -1230,6 +1368,8 @@ buildCrypt();
 const solidTile=(tx,ty)=>tx<0||ty<0||tx>=MW||ty>=MH||SOLID.has(map[ty][tx]);
 function tileSprite(id,x,y,time){
   const a=TSPR[id];
+  if(HOUSEWALL&&y>=HOUSE_Y0&&y<HOUSE_Y0+HOUSE_H&&(id===T.B||id===T.BT||id===T.F))return houseTile(id,x,y,a[hash2(x,y)%a.length]);   // ?housewall=1..4 mockups
+  if(HOUSEWALL&&y<HOUSE_Y0&&y>=HOUSE_Y0-6&&P.y>=HOUSE_Y0*TS)return HW_VOID();   // the arena wall just above the house is not shown from inside it
   if((id===T.PW||id===T.PR)&&isVillagePond(x,y))return pondTile(x,y,time);
   if(id===T.W||id===T.U)return weCompose(a[(Math.floor(time*2.2)+(x>>1)+(y>>1)+(id===T.U?x:0))&3],x,y,id);
   if(id===T.PW)return a[((Math.floor(time*2.2)+(x>>1)+(y>>1))&3)+4*(hash2(x,y)&1)];
@@ -2033,7 +2173,7 @@ function mkEnemyObj(type,tx,ty){
 }
 /* a monster coming back (respawn, dusk / dawn swap) starts from a clean slate: full HP, home position, calm wandering AI, no leftover fight / status state */
 function resetEnemyState(e){
-  Object.assign(e,{hp:e.mhp||e.maxhp,maxhp:e.mhp||e.maxhp,x:e.hx,y:e.hy,chasing:false,engaged:false,dying:false,dyT:0,flash:0,st:'idle',cur:null,dash:null,frozen:0,fimm:0,chill:0,burn:0,stun:0,curse:0,pois:0,
+  Object.assign(e,{hp:e.mhp||e.maxhp,maxhp:e.mhp||e.maxhp,x:e.hx,y:e.hy,chasing:false,engaged:false,dying:false,gdie:false,dyT:0,flash:0,st:'idle',cur:null,dash:null,frozen:0,fimm:0,chill:0,burn:0,stun:0,curse:0,pois:0,
     alert:0,calm:0,mode:'look',mt:R(.4,2),lk:R(.3,1),stuck:0,path:null,hidden:false,fa:Math.random()*6.283,ta:0});
 }
 function addEnemy(type,tx,ty){
@@ -3140,7 +3280,7 @@ function syncNight(force){
     if(e.def.boss||zoneOfPx(e.hy)==='crypt')continue;
     if(e.night){
       if(DAY.night){if(!e.alive&&!e.engaged&&!e.nightUp){e.alive=true;e.nightUp=true;resetEnemyState(e);}}
-      else{e.nightUp=false;if(e.alive&&!e.engaged&&!e.dying){e.alive=false;}}
+      else{e.nightUp=false;if(e.alive&&!e.engaged&&!e.dying){const c=ecen(e);wfxBurst(c.x,c.y,'#b9a6ff',14,80,.9);wfxText(c.x,c.y-28,'fades at dawn','#d6c8ff',10);e.alive=false;}}   // dawn: night monsters dissolve in view, never just blink out
     }
     if(e.engaged||e.dying)continue;
     const want=e.baseLv+(DAY.night&&!e.night?2:0);
@@ -3443,7 +3583,8 @@ function enterHouse(){if(!canTravel())return false;startWarp(HOUSE_IN);return tr
 const HOUSE_FRONT={x:(HOUSE_DOOR.tx+.5)*TS,y:HOUSE_DOOR.ty*TS+28};
 function updateHouseDoor(){
   if(state!=='play'||B||WARP||DLG||RUSH.on||FISH.on||zoneOfPx(P.y)!=='ow')return;
-  if(Math.abs(P.x-HOUSE_FRONT.x)<16&&P.y<=HOUSE_FRONT.y&&P.y>HOUSE_FRONT.y-16&&P.moving&&P.dir==='u'&&enterHouse())P.moving=false;
+  // the hero can rest right against the door (he stops ~20px above HOUSE_FRONT.y): any push up while standing in the doorway enters, including sliding along the wall or a slightly diagonal stick
+  if(Math.abs(P.x-HOUSE_FRONT.x)<16&&P.y<=HOUSE_FRONT.y+2&&P.y>HOUSE_FRONT.y-30){const mv=moveInput();if(mv[2]>0&&mv[1]<-.3&&enterHouse())P.moving=false;}
 }
 function openHouseNpc(n){
   if(n.house==='shelf')openUIMode('house','play');
@@ -4230,7 +4371,7 @@ function drawWayGlow(n){
 function drawEnemyWorld(e){
   const sx=e.x-cam.x,sy=e.y-cam.y,spr=SP[e.dummy?'dummy':e.def.spr];
   const fighting=!!B&&e.engaged;
-  if(fighting&&e.dying&&Math.floor(e.dyT*18)%2)return;
+  if((fighting||e.gdie)&&e.dying&&Math.floor(e.dyT*18)%2)return;
   const flip=e.type==='goblin'?e.face>0:e.face<0;
   const wob=fighting&&e.st==='windup'?Math.sin(gtime*50)*1.5:0;
   let lx=0;if(fighting&&e.lunge>0)lx=-e.face*Math.sin(e.lunge/.25*Math.PI)*8;
@@ -7314,23 +7455,36 @@ const TGB=[];                                                                   
 const guardsOf=()=>NPCS.filter(n=>n.tguard);
 const tBurst=(x,y,c,n,sp,l)=>B?burst(x,y,c,n,sp,l):wfxBurst(x,y,c,n,sp,l),tText=(x,y,t,c,sz)=>B?floatText(x,y,t,c,sz):wfxText(x,y,t,c,sz);   // in or out of a fight
 function townSend(e,fx=true){   // push an enemy back to its home, calm
-  const c=ecen(e);if(fx)tBurst(c.x,c.y,'#bfe6ff',12,130,.5);
+  const c=ecen(e);tBurst(c.x,c.y,'#bfe6ff',12,130,.5);if(!B){wfxText(c.x,c.y-30,'SENT HOME','#bfe6ff',11);wfxBurst(e.hx,e.hy-12,'#bfe6ff',8,90,.4);}   // never a silent pop: puffs at both ends
   if(B&&B.ens.includes(e))B.guardOut=true;   // the guards (not the hero) removed this foe from the fight
   if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
   Object.assign(e,{engaged:false,frozen:0,fimm:0,chill:0,hp:e.maxhp,st:'idle',cur:null,dash:null,burn:0,mode:'look',mt:2,chasing:false,calm:5,x:e.hx,y:e.hy});
 }
-function townSlay(e){   // struck down by a guard: gone (no loot / xp for the hero)
-  const c=ecen(e);tBurst(c.x,c.y,'#fff6d8',16,150,.6);tBurst(c.x,c.y,'#9ad0ff',10,110,.5);
-  if(B&&B.ens.includes(e))B.guardOut=true;
-  if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
-  Object.assign(e,{engaged:false,alive:false,dying:false,respawn:55,frozen:0,st:'idle',cur:null,dash:null});
+/* A guard's bolt is a real hit, not a delete: it takes GUARD_DMG of the foe's max HP, so a fight with the guards is a few visible strikes
+   (damage numbers, flash) ending in the normal death animation. Nothing is paid out to the hero for a guard kill. */
+const GUARD_DMG=.4;
+function guardSlay(e){
+  const c=ecen(e);tBurst(c.x,c.y,'#fff6d8',16,150,.6);tBurst(c.x,c.y,'#9ad0ff',10,110,.5);sfx('boom');
+  e.hp=0;e.dying=true;e.dyT=0;e.gdie=true;e.st='idle';e.cur=null;e.dash=null;e.guard=0;e.bshield=0;e.chasing=false;
+  if(B&&B.ens.includes(e)){
+    B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);
+    toast('The Town Guard finishes it!',2.2,'#9ad0ff');
+    if(B.ens.every(o=>o.dying))B.cleared=true;   // the normal end-of-fight runs once the death animation is done (no XP / loot for the hero)
+  }
 }
 function guardStrike(e,gd){
-  const gs=guardsOf();if(!gs.length)return;const c=ecen(e);
+  const gs=guardsOf();if(!gs.length||e.dying)return;const c=ecen(e);
   let g=gd||gs[0],bd=1e9;if(!gd)for(const q of gs){const d=Math.hypot(q.x-c.x,q.y-c.y);if(d<bd){bd=d;g=q;}}
   TGB.push({x0:g.x,y0:g.y-26,x1:c.x,y1:c.y,t:0,dur:.38});sfx('cshot');
   if(e.def.boss){e.hp=Math.max(1,e.hp-e.maxhp*.08);e.gHits=(e.gHits||0)+1;tText(c.x,c.y-34,'GUARD!','#bfe6ff',11);if(e.gHits>=3){tText(c.x,c.y-34,'DRIVEN OFF','#bfe6ff',11);townSend(e);}}
-  else{tText(c.x,c.y-30,'GUARD!','#bfe6ff',11);townSlay(e);}
+  else{const d=Math.max(1,Math.round(e.maxhp*GUARD_DMG));e.hp-=d;e.flash=.15;tText(c.x,c.y-30,'GUARD '+d,'#bfe6ff',11);if(e.hp<=0)guardSlay(e);}
+}
+/* the death animation of a foe the guards finished outside a fight (inside a fight the battle bookkeeping runs it) */
+function updateGuardDeaths(dt){
+  for(const e of enemies){if(!e.gdie)continue;
+    if(!e.alive){e.gdie=false;continue;}   // already settled by the fight's own bookkeeping
+    if(B&&B.ens.includes(e))continue;
+    e.dyT+=dt;if(e.dyT>1){e.gdie=false;settleDying(e);}}
 }
 function townEnd(){
   if(!B)return;resetFighters(false);P.grace=3.5;toast('The Town Guard drove them off!',2.6,'#9ad0ff');sfx('select');B=null;
@@ -7338,10 +7492,12 @@ function townEnd(){
 /* Guards defend their post on their own: any hostile within GUARD_R tiles of the post (or of the guard) is struck, whether or not
    the hero is fighting or even in town. They step out toward it (never beyond GUARD_LEASH tiles from the post) and walk back after. */
 const GUARD_R=5*TS,GUARD_LEASH=1.6*TS,GUARD_CD=.85;
-function guardTarget(g){
-  let t=null,bd=1e9;
+function guardTarget(g){   // only real threats: a foe fighting the hero near the gate, or any monster inside the walls. Idle / wandering monsters are left alone.
+  let t=null,bd=1e9;const heroNear=playerInTown()||Math.hypot(P.x-g.x,P.y-g.y)<=GUARD_R+2*TS;
   for(const e of enemies){
     if(!e.alive||e.dying||e.tut||e.rush)continue;
+    const inWalls=inTownPx(e.x,e.y-8),fightsHero=!!B&&B.phase==='fight'&&B.ens.includes(e)&&!e.lab;
+    if(!inWalls&&!(fightsHero&&heroNear))continue;
     const d=Math.min(Math.hypot(e.x-g.hx,e.y-g.hy),Math.hypot(e.x-g.x,e.y-g.y));
     if(d<=GUARD_R&&d<bd){bd=d;t=e;}
   }
@@ -7363,7 +7519,7 @@ function updateGuards(dt){
 function updateTown(dt){
   for(let i=TGB.length-1;i>=0;i--){TGB[i].t+=dt;if(TGB[i].t>=TGB[i].dur)TGB.splice(i,1);}
   if(!townOn())return;
-  updateGuards(dt);
+  updateGuards(dt);updateGuardDeaths(dt);
   for(const e of enemies){
     if(e.calm>0)e.calm-=dt;
     if(!e.alive||e.dying||!inTownPx(e.x,e.y-8))continue;
@@ -8165,7 +8321,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
