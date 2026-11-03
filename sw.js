@@ -1,5 +1,5 @@
 /* Arcane Knight service worker: cache-first so the game runs fully offline after the first load. Bump VERSION on each release. */
-const VERSION = 'arcane-knight-v28';
+const VERSION = 'arcane-knight-v29';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './icons/icon-72.png', './icons/icon-96.png', './icons/icon-128.png', './icons/icon-144.png', './icons/icon-152.png',
