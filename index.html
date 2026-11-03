@@ -2435,7 +2435,7 @@ const TROPHY_BOSS={dragon:'fang',lich:'crown',rimegar:'horn',mossback:'eye',colo
 // house: the door sign stands at the 4th village house; the room is the HOUSE_Y0 block of the map
 const HOUSE_DOOR={tx:21,ty:44};
 const HOUSE_ROOM={x0:24,x1:39,y0:HOUSE_Y0+3,y1:HOUSE_Y0+11};
-const HOUSEVOID=(()=>{const v=+(new URLSearchParams(location.search).get('housevoid')||0);return v>=1&&v<=4?v|0:0;})();   // ?housevoid=1..4 mockups for what lies beyond the house walls (0 = black)
+const HOUSEVOID=(()=>{const q=new URLSearchParams(location.search).get('housevoid');if(q===null||q==='')return 4;const v=+q;return v>=1&&v<=4?v|0:0;})();   // what lies beyond the house walls: default 4 = bigger house (kitchen room) + zoom + vignette; ?housevoid=1..3 alternatives, =0 the old black void
 const HOUSE_KIT={x0:15,x1:22};   // option 4 only: a second room (kitchen / storage) west of the main room
 const HOUSE_PROPS={};   // option 4: solid furniture tiles in the second room: 'x,y' -> [type, rx, ry]
 const HOUSE_SLOTS=[[26,HOUSE_Y0+4],[29,HOUSE_Y0+4],[32,HOUSE_Y0+4],[35,HOUSE_Y0+4],[37,HOUSE_Y0+7],[26,HOUSE_Y0+7],[28,HOUSE_Y0+10],[35,HOUSE_Y0+10]];
@@ -4604,7 +4604,7 @@ const liveEns=()=>B.ens.filter(e=>!e.dying);
 function initCombatEnemy(e,delay){
   const def=e.def;
   Object.assign(e,{hp:e.mhp,maxhp:e.mhp,chill:0,st:'idle',t:0,cur:null,moveCd:.8,atkCd:1.7+Math.random()*1.0,flash:0,guard:0,burn:0,burnT:0,hop:0,dash:null,charge:0,p2:false,dragonOpen:0,engaged:true,
-    strafe:Math.random()<.5?1:-1,strafeT:1.2,lunge:0,draw:0,dying:false,dyT:0,hidden:false,chasing:false,alert:0,slideT:0,joinT:delay,path:null,pathT:0,frozen:0,fimm:0,lastDealt:0,stun:0,curse:0,pois:0});
+    strafe:Math.random()<.5?1:-1,strafeT:1.2,lunge:0,draw:0,dying:false,dyT:0,hidden:false,chasing:false,alert:0,slideT:0,joinT:delay,path:null,pathT:0,frozen:0,fimm:0,lastDealt:0,stun:0,curse:0,pois:0,slot:null,sIdx:-1});
   e.face=P.x<e.x?1:-1;e.fa=angTo(ecen(e),pcen());eliteInit(e);
 }
 // enemies near an ongoing fight notice the noise and pile in, one after another
@@ -4881,6 +4881,68 @@ function flankTarget(e,p,rad){
   const base=Math.atan2(cy-p.y,cx-p.x),i=m.indexOf(e),th=base+(i-(m.length-1)/2)*Math.min(1.25,2.4/m.length);
   return {x:p.x+Math.cos(th)*rad,y:p.y+Math.sin(th)*rad};
 }
+/* ---- group tactics: with 3+ regular enemies engaged they stop stacking up. Melee units take slots at different angles around the hero (front first, then
+   sides / behind, so some circle round to flank); ranged / casters hold their preferred distance on the pack's side, strafing and kiting, behind the melee
+   line; hard separation keeps every body apart; attacks are staggered. Bosses keep their own mechanics (they are not slotted, others just give them room). ---- */
+const FORM_MIN=3,FORM_GAP=40;                   // slot spacing (px between body centres) the formation aims for
+const isRangedT=t=>(BAND[t]||[0])[0]>=60;
+const FORM_OFF={1:[0],2:[-.55,.55],3:[-.6,.6,1.9],4:[-.55,.55,-1.7,1.7],5:[0,-.9,.9,-1.9,1.9],6:[-.5,.5,-1.5,1.5,-2.5,2.5]};
+const formGroup=()=>B.ens.filter(o=>!o.dying&&!o.dummy&&o.joinT<=0&&!o.def.boss);
+const slotFree=(x,y)=>!solidTile(Math.floor(x/TS),Math.floor((y+4)/TS))&&!wallT(x,y+7);
+// the slot point for an angle: pulled in (or rotated aside) when a wall / tree blocks it, so slots respect the terrain
+function slotPoint(p,ang,rad,needLos){
+  for(const da of [0,.5,-.5,1,-1,1.5,-1.5]){
+    const a=ang+da,pt={x:p.x+Math.cos(a)*rad,y:p.y+Math.sin(a)*rad},q=clampRay(p,7,pt,7);
+    if(Math.hypot(q.x-p.x,q.y-p.y)>=rad*.85&&slotFree(q.x,q.y)&&(!needLos||losW(p,7,q,7)))return {x:q.x,y:q.y,ang:a};
+  }
+  const q=clampRay(p,7,{x:p.x+Math.cos(ang)*rad*.6,y:p.y+Math.sin(ang)*rad*.6},7);return {x:q.x,y:q.y,ang};
+}
+function updateFormation(dt){
+  const F=B.form||(B.form={t:0,base:null,n:0,side:Math.random()<.5?1:-1,clock:0});
+  F.clock+=dt;F.t-=dt;
+  const g=formGroup();F.n=g.length;
+  if(g.length<FORM_MIN){if(F.base!==null){F.base=null;for(const o of B.ens)o.slot=null;}return;}
+  if(F.t>0)return;F.t=.25;
+  const p=aimPos();
+  // the side the pack came from: mean direction from the hero to the group (kept steady unless the pack really swaps sides)
+  let sx=0,sy=0;for(const o of g){const c=ecen(o),d=Math.hypot(c.x-p.x,c.y-p.y)||1;sx+=(c.x-p.x)/d;sy+=(c.y-p.y)/d;}
+  const mag=Math.hypot(sx,sy)/g.length,ca=Math.atan2(sy,sx);
+  if(F.base===null||(mag>.4&&Math.abs(angDiff(ca,F.base))>1.4))F.base=ca;
+  const base=F.base;
+  const mel=g.filter(o=>!isRangedT(o.type)),rng=g.filter(o=>isRangedT(o.type));
+  // ---- melee: slots at spread angles; front slots go to the nearest bodies ----
+  let rM=52;
+  if(mel.length){
+    const n=Math.min(6,mel.length),offs=(FORM_OFF[n]||FORM_OFF[6]).map((o,i)=>(n===3&&i===2?o*F.side:o));
+    const so=offs.slice().sort((a,b)=>a-b);let gap=2*Math.PI-(so[so.length-1]-so[0]);for(let i=1;i<so.length;i++)gap=Math.min(gap,so[i]-so[i-1]);
+    if(so.length>1)rM=clamp(FORM_GAP/(2*Math.sin(Math.min(gap,3)/2)),52,92);
+    const order=offs.map((o,i)=>i).sort((a,b)=>Math.abs(offs[a])-Math.abs(offs[b])),taken=new Set();
+    mel.forEach(o=>{o.slot=null;});
+    const pool=mel.slice();
+    for(const si of order){
+      const ang=base+offs[si],rad=rM+(mel.length>6?40:0),sp=slotPoint(p,ang,rad,false);
+      let best=null,bc=1e9;for(const o of pool){const c=ecen(o),cost=Math.hypot(c.x-sp.x,c.y-sp.y)-(o.sIdx===si?24:0);if(cost<bc){bc=cost;best=o;}}
+      if(!best)break;pool.splice(pool.indexOf(best),1);best.slot={x:sp.x,y:sp.y,ranged:false,rad,ang:sp.ang};best.sIdx=si;
+    }
+    for(const o of pool){const k=pool.indexOf(o),sp=slotPoint(p,base+F.side*(2.2+k*.6),rM+40,false);o.slot={x:sp.x,y:sp.y,ranged:false,rad:rM+40,ang:sp.ang};}   // overflow: an outer ring
+  }
+  // ---- ranged: on the pack's side, behind the melee line, spread apart and drifting sideways (strafing) ----
+  rng.sort((a,b)=>angDiff(angTo(p,ecen(a)),base)-angDiff(angTo(p,ecen(b)),base));
+  rng.forEach((o,j)=>{
+    const band=BAND[o.type],rad=clamp(Math.max((band[0]+band[1])/2,(mel.length?rM:0)+58),band[0]+10,band[1]-8);
+    const drift=Math.sin(F.clock*.55+(o.id||0)*1.7+j*2.1)*.32,ang=base+(j-(rng.length-1)/2)*.8+drift,sp=slotPoint(p,ang,rad,true);
+    o.slot={x:sp.x,y:sp.y,ranged:true,rad,ang:sp.ang};
+  });
+}
+// can this enemy start an attack now? grouped fights allow one melee + one ranged telegraph at a time, spaced out, and only from a sensible position
+function formAttackOk(e,d,winding){
+  const F=B.form;if(!F||F.n<FORM_MIN||e.def.boss)return true;
+  if(e.atkCd<-3.5)return true;
+  const rg=isRangedT(e.type);
+  if(B.ens.some(o=>o!==e&&o.st==='windup'&&!o.dying&&isRangedT(o.type)===rg&&!o.def.boss))return false;
+  if(!e.slot)return true;
+  const band=BAND[e.type];return d<=band[1]+(rg?60:46);
+}
 function startAttack(e,a){e.st='windup';e.cur=a;e.t=a.windup;if(a.zones&&a.zones.length)warnZones(a.zones,a.windup);if(a.start)a.start(e);}
 function updateEnemyCombat(e,dt){updateEnemyCombat0(e,dt);clampTerr(e);}
 function updateEnemyCombat0(e,dt){
@@ -4924,13 +4986,29 @@ function updateEnemyCombat0(e,dt){
       if(wp){const wl=Math.hypot(wp.x-e.x,wp.y-e.y)||1;vx=(wp.x-e.x)/wl;vy=(wp.y-e.y)/wl;spd*=1.05;}
       else{if(e.strafeT>.7)e.strafeT=.7;vx=ux*.55-uy*e.strafe*.85;vy=uy*.55+ux*e.strafe*.85;}
     }
+    else if(e.slot&&B.form&&B.form.n>=FORM_MIN&&!e.def.boss){   // group tactics: head for the assigned slot (orbiting round the hero, never through them)
+      const S0=e.slot,sdx=S0.x-c.x,sdy=S0.y-c.y,sd=Math.hypot(sdx,sdy);
+      if(S0.ranged&&d<band[0]){vx=-ux*.9-uy*e.strafe*.5;vy=-uy*.9+ux*e.strafe*.5;spd*=1.05;}   // hero closing in: kite back, a little sideways
+      else if(sd>10){
+        const ae=Math.atan2(c.y-p.y,c.x-p.x),as=Math.atan2(S0.y-p.y,S0.x-p.x),da=angDiff(as,ae);
+        if(Math.abs(da)>.4&&d<S0.rad+90){   // wrong side of the hero: circle round at the slot radius
+          const sg=da>0?1:-1,rr=clamp((S0.rad-d)/30,-1,1);vx=-Math.sin(ae)*sg*.95+Math.cos(ae)*rr*.7;vy=Math.cos(ae)*sg*.95+Math.sin(ae)*rr*.7;
+        } else {vx=sdx/sd;vy=sdy/sd;}
+        if(sd<26)spd*=.55;
+      }
+      else{vx=0;vy=0;}
+    }
     else if(d>band[1]){
       const ft=d>band[1]+26?flankTarget(e,p,band[1]+6):null;
       if(ft){const fx=ft.x-c.x,fy=ft.y-c.y,fl=Math.hypot(fx,fy)||1;vx=fx/fl*.8+ux*.35;vy=fy/fl*.8+uy*.35;}else{vx=ux;vy=uy;}}
     else if(d<band[0]){vx=-ux*.8-uy*e.strafe*.5;vy=-uy*.8+ux*e.strafe*.5;spd*=.9;}
     else{vx=-uy*e.strafe;vy=ux*e.strafe;spd*=(e.reposT>0?.95:.45);}   // (ranged foes sidestep briskly to a new firing spot after a shot)
-    // keep a little personal space from the other fighters
-    for(const o of B.ens){if(o===e||o.dying)continue;const ox=e.x-o.x,oy=e.y-o.y,od=Math.hypot(ox,oy);if(od<44&&od>.1){vx+=ox/od*1.5;vy+=oy/od*1.5;}}
+    // personal space: a soft push away from close neighbours; in a group fight a hard push-out too, so bodies never stack
+    {const grp=B.form&&B.form.n>=FORM_MIN&&!e.def.boss;let px=0,py=0;
+      for(const o of B.ens){if(o===e||o.dying||o.dummy)continue;const ox=e.x-o.x,oy=e.y-o.y,od=Math.hypot(ox,oy)||.1,minD=eRad(e)+eRad(o)+(grp?12:6),rg=minD+(grp?16:4);
+        if(od<rg){const k=(1-od/rg)*(grp?3:1.5)+(od<minD?(grp?1.2:0):0),ux2=od>.2?ox/od:Math.cos(e.bob*3),uy2=od>.2?oy/od:Math.sin(e.bob*3);vx+=ux2*k;vy+=uy2*k;
+          if(grp&&od<minD){const push=Math.min((minD-od)*(o.def.boss?1:.5),110*dt);px+=ux2*push;py+=uy2*push;}}}
+      if(px||py){moveBox(e,px,0,hw,8);moveBox(e,0,py,hw,8);}}
     const vl=Math.hypot(vx,vy);if(vl>1){vx/=vl;vy/=vl;}
     if(e.st==='windup')spd*=.35;if(e.st==='recover')spd*=.5;
     if(e.type==='slime')spd*=Math.max(0,Math.sin(e.bob*.8))*1.8;
@@ -4943,7 +5021,8 @@ function updateEnemyCombat0(e,dt){
       if(e.retreat>0)return;
       const far=((e.type!=='goblin'&&!e.def.big)&&d>320)||!los;
       const winding=B.ens.filter(o=>o.st==='windup'&&!o.dying).length;
-      if(!far&&winding<2&&B.atkGap<=0){B.owner=e;ZOFF=eOff(e);startAttack(e,ATK[e.type](e));B.atkGap=.5+(liveEns().length>2?.25:0);}   // staggered, capped attacks keep telegraphs fair
+      const grpF=B.form&&B.form.n>=FORM_MIN&&!e.def.boss;
+      if(!far&&winding<2&&B.atkGap<=0&&(!grpF||formAttackOk(e,d,winding))){B.owner=e;ZOFF=eOff(e);startAttack(e,ATK[e.type](e));B.atkGap=grpF?clamp(.6+.2*(B.form.n-3),.6,1.2):.5+(liveEns().length>2?.25:0);}   // staggered, capped attacks keep telegraphs fair
     }
   } else if(e.st==='windup'){
     e.t-=dt*cs;
@@ -5340,6 +5419,7 @@ function updateBattle(dt){
       B.dim=B.cleared?Math.max(0,B.dim-dt*1.6):1;
       updatePlayerCombat(dt);if(!B)return;
       updateExtras(dt);if(!B)return;
+      updateFormation(dt);
       for(const e of B.ens.slice()){if(B.phase!=='fight')break;updateEnemyCombat(e,dt);}
       if(B.phase==='fight')updateShots(dt);
       if(B&&B.phase==='fight'){B.proxT=(B.proxT||0)-dt;if(B.proxT<=0){B.proxT=.3;const k2=recruit(.3,{prox:true});if(k2){B.total+=k2;toast('Nearby enemies joined the fight!',1.4,'#ffb0a0');}}}
@@ -8442,7 +8522,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
