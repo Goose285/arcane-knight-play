@@ -114,6 +114,8 @@ const SFXT={
   encounter:()=>[0,.09,.18,.27].forEach((d,i)=>tone(300+i*160,300+i*160,.08,'square',.06,d)),
   win:()=>[0,.12,.24,.4].forEach((d,i)=>tone([523,659,784,1046][i],[523,659,784,1046][i],.18,'square',.06,d)),
   level:()=>[0,.1,.2,.3,.4].forEach((d,i)=>tone([392,523,659,784,1046][i],[392,523,659,784,1046][i],.16,'triangle',.08,d)),
+  catch:()=>{noise(.07,.05);tone(520,820,.1,'sine',.08);tone(820,1100,.14,'sine',.07,.08);tone(1400,1700,.08,'triangle',.04,.16)},
+  catchrare:()=>{noise(.16,.07);[0,.08,.16,.26,.38].forEach((d,i)=>tone([523,659,784,1046,1319][i],[523,659,784,1046,1319][i]*1.02,.2,'triangle',.08,d));[.3,.4,.5].forEach((d,i)=>tone(2200+i*300,2600+i*300,.1,'sine',.04,d))},
   coin:()=>{tone(1200,1600,.07,'square',.04);tone(1600,1900,.1,'square',.04,.06)},
   talk:()=>tone(520,560,.03,'square',.02),
   lose:()=>[0,.18,.36,.6].forEach((d,i)=>tone([400,330,260,160][i],[380,310,240,120][i],.25,'sawtooth',.06,d)),
@@ -851,6 +853,22 @@ function treeSpriteBuild(id,x,y){
   TREE_CACHE.set(key,c);return c;
 }
 
+/* ---- MOCKUP ONLY (off by default): ?bigtrees=2 draws trees at ~2x so a screenshot can show how bigger trees would read next to the characters.
+   Collision, spawns and everything else are unchanged; bushes / stumps / reeds stay character-sized. Never enabled without the URL parameter. ---- */
+const BIGTREE=Math.min(2.4,Math.max(0,+(new URLSearchParams(location.search).get('bigtrees')||0)||0));
+const BIGTREE_IDS=new Set([T.T,T.PN,T.PM,T.AC]);
+const BIGT_CACHE=new Map();
+function treeLayers(id,x,y){   // {bg: the ground tile, fg: the tree alone on a transparent tile}
+  const ti=y*MW+x,key=ti+'|'+id;let r=BIGT_CACHE.get(key);if(r)return r;
+  const m=treeHash(x,y),zone=zoneOfTy(y),rr=(m&1023)/1024,s3=(m>>>10)&15,sz=s3<4?0:s3<12?1:2,tn=((m>>>14)&3)%3,flip=(m>>>16)&1,bgv=(m>>>17)&1;
+  let kind=treeKind(id,x,y,rr,zone);if(kind==='mdead')kind='dead';
+  const dark=zone==='ow'&&regions.forest(x,y);
+  const floor=zone==='snow'?TSPR[T.SN]:zone==='swamp'?TSPR[T.MD]:zone==='desert'?TSPR[T.SD]:(dark?TSPR[T.K]:TSPR[T.G]);
+  const art=TREE_ART[kind]||TREE_ART.oak,o={sz,tn,dark,s:m&255,r:mulberry32(m||1)};
+  const fg=makeSprite(16,16,g=>{if(flip){const t=makeSprite(16,16,gg=>art(gg,o));g.save();g.translate(16,0);g.scale(-1,1);g.drawImage(t,0,0);g.restore();}else art(g,o);});
+  r={bg:floor[bgv?2:0],fg};BIGT_CACHE.set(key,r);return r;
+}
+
 /* ---------- src/render/cycle-art.js ---------- */
 /* =====================================================================
    DAY / SUNSET / NIGHT art direction (M18).  Everything here is procedural + original.
@@ -1209,6 +1227,7 @@ buildCrypt();
 const solidTile=(tx,ty)=>tx<0||ty<0||tx>=MW||ty>=MH||SOLID.has(map[ty][tx]);
 function tileSprite(id,x,y,time){
   const a=TSPR[id];
+  if((id===T.PW||id===T.PR)&&isVillagePond(x,y))return pondTile(x,y,time);
   if(id===T.W||id===T.U)return a[(Math.floor(time*2.2)+(x>>1)+(y>>1)+(id===T.U?x:0))&3];
   if(id===T.PW)return a[((Math.floor(time*2.2)+(x>>1)+(y>>1))&3)+4*(hash2(x,y)&1)];
   if(id===T.FR)return a[Math.floor(time*7)&3];
@@ -1353,6 +1372,42 @@ function buildVillageDecor(){
   VILLAGE_LANTERNS.forEach(([x,y])=>{const t=map[y][x];if((t===T.G||t===T.BU||t===T.ST||t===T.L)&&!near(x,y))map[y][x]=T.LN;});
 }
 buildVillageDecor();
+/* ---- the pond is drawn as ONE round basin over its 4x4 tiles: thin stone ring, circular water, grass in the corners (the 16 tiles stay solid) ---- */
+const POND_R_OUT=30.5,POND_R_IN=26.5;      // in 16px-tile pixels (the 4x4 block is 64x64): a ~4px ring, drawn at 2x = ~8px thick
+const POND_CACHE={};
+function pondBlock(f){
+  return makeSprite(64,64,g=>{
+    const P0=VILLAGE_POND;
+    for(let ty=0;ty<4;ty++)for(let tx=0;tx<4;tx++){const gs=TSPR[T.G],a=gs[hash2(P0.x0+tx,P0.y0+ty)%gs.length];g.drawImage(a,tx*16,ty*16);}
+    const wf=TSPR[T.PW];const wv=[];for(let ty=0;ty<4;ty++)for(let tx=0;tx<4;tx++)wv.push(wf[(f&3)+4*(hash2(P0.x0+tx,P0.y0+ty)&1)]);
+    const wc=makeSprite(64,64,w=>{for(let i=0;i<16;i++)w.drawImage(wv[i],(i%4)*16,Math.floor(i/4)*16);});
+    const src=wc.getContext('2d').getImageData(0,0,64,64),dst=g.getImageData(0,0,64,64);
+    const put=(x,y,hex)=>{const i=(y*64+x)*4,n=parseInt(hex.slice(1),16);dst.data[i]=n>>16;dst.data[i+1]=(n>>8)&255;dst.data[i+2]=n&255;dst.data[i+3]=255;};
+    for(let y=0;y<64;y++)for(let x=0;x<64;x++){
+      const dx=x+.5-32,dy=y+.5-32,d=Math.hypot(dx,dy);
+      if(d>POND_R_OUT+1.2){continue;}
+      if(d>POND_R_OUT){put(x,y,'#3a3d4c');continue;}                       // thin dark outline / drop edge
+      if(d>POND_R_IN){                                                       // the stone ring
+        const ang=Math.atan2(dy,dx),seg=Math.floor((ang+Math.PI)/(Math.PI*2)*28),edge=Math.abs(((ang+Math.PI)/(Math.PI*2)*28)%1);
+        let c=(seg+hash2(seg,7))%3===0?'#a4a7b6':(seg%2?'#8e91a0':'#9a9dac');
+        if(edge<.07||edge>.93)c='#5a5e70';                                   // mortar between the stones
+        if(d>POND_R_OUT-1.1)c='#6a6e80';else if(d<POND_R_IN+1.1)c=dy<0?'#c4c7d4':'#7a7d8e';   // lit inner lip on the far side, shaded on the near side
+        put(x,y,c);continue;}
+      const i=(y*64+x)*4;dst.data[i]=src.data[i];dst.data[i+1]=src.data[i+1];dst.data[i+2]=src.data[i+2];dst.data[i+3]=255;
+      if(d>POND_R_IN-2.2){dst.data[i]*=.72;dst.data[i+1]*=.8;dst.data[i+2]*=.9;}   // soft darker water at the rim
+    }
+    g.putImageData(dst,0,0);
+    // lilies + lotus on the water (a pair of pads, one bloom)
+    [[22,24,3],[39,38,3],[34,21,2]].forEach(([px,py,r],k)=>{ell(g,px,py,r+1,r,'#2c8a3c');ell(g,px,py,r,r-1,'#4cb04c');rect(g,px,py,r+1,1,'#2f72c8');if(k===0){rect(g,px-1,py-2,3,2,'#ffb0d0');rect(g,px,py-2,1,1,'#ffe98a');}});
+  });
+}
+function pondTile(x,y,time){
+  const P0=VILLAGE_POND,f=Math.floor(time*2.2)&3,tx=x-P0.x0,ty=y-P0.y0,key=f+'_'+tx+'_'+ty;
+  let s=POND_CACHE[key];
+  if(!s){const b=POND_CACHE['b'+f]||(POND_CACHE['b'+f]=pondBlock(f));s=POND_CACHE[key]=makeSprite(16,16,g=>g.drawImage(b,tx*16,ty*16,16,16,0,0,16,16));}
+  return s;
+}
+const isVillagePond=(x,y)=>x>=VILLAGE_POND.x0&&x<=VILLAGE_POND.x1&&y>=VILLAGE_POND.y0&&y<=VILLAGE_POND.y1;
 
 /* ---------- src/map/places.js ---------- */
 /* =====================================================================
@@ -1827,7 +1882,7 @@ const QUESTS=[
    done:['The Hollow King is no more! The valley is saved. Here: the finest gifts I have.'],reward:{gold:600,xp:700,cards:['timestop','curse'],gear:{rar:'legendary'}}},
   {id:'fish1',giver:'Fisher Tobin',name:'A Line in the Water',obj:{k:'fish',n:3},
    offer:['The fish have gotten shy of me, and my old knees are tired of the bank.','Catch three fish - any kind - from the river here. If you have no rod, I will lend you mine. Tap the rippling water!'],
-   prog:['Tap the rippling water with a rod. When the bobber dips, tap again, then tap when the marker is in the green.'],
+   prog:['Tap the rippling water with a rod, then relax: a fish bites every few seconds. Tap when a RARE BITE pops up!'],
    done:['Three fine fish! You have the patience for it. Take this for your trouble.'],reward:{gold:70,xp:80}},
   {id:'fish2',giver:'Fisher Tobin',req:'fish1',name:'The Quiet Waters',obj:{k:'fish',n:6},
    offer:['You took to it like a duck to water. Now a real test: six more fish, from anywhere - the meadow river, the Whisperwood pond, even the bog if you dare.','Higher fishing levels open better spots. I will make it worth your while.'],
@@ -1865,10 +1920,10 @@ const CHESTS=['snow','swamp','desert'].map(z=>({id:'c_'+z,zone:z,tx:30,ty:ZONE_Y
    A pet follows the hero and, in a fight, makes a small attack of its own every few seconds. Bond grows with kills.
    ===================================================================== */
 const PETS={
-  cinder:{id:'cinder',name:'Cinderpup', price:90, col:'#ff9a3d',desc:'Spits a small ember at your target',        atk:'shot',pk:'ember', cd:2.6,dmg:7, per:1.1},
-  wisp:  {id:'wisp',  name:'Rime Wisp', price:160,col:'#8fd8ff',desc:'Frost shards that chill what they hit',      atk:'shot',pk:'pfrost',cd:3.4,dmg:5, per:.8,chill:2.2},
-  moth:  {id:'moth',  name:'Gloam Moth',price:220,col:'#c58bff',desc:'Mends your wounds every few seconds',        atk:'heal',pk:'spark', cd:6.5,dmg:3, per:.6},
-  pebblin:{id:'pebblin',name:'Pebblin',  price:300,col:'#b8b0a0',desc:'Hurls heavy pebbles - slow but strong',       atk:'shot',pk:'pebble',cd:4.2,dmg:15,per:1.8},
+  cinder:{id:'cinder',name:'Cinderpup', price:90, col:'#ff9a3d',desc:'Spits embers and bites foes that come near',        atk:'shot',pk:'ember', cd:2.6,dmg:7, per:1.1, bm:'melee', bcd:1.7,bd:.55,br:150,bv:'bite'},
+  wisp:  {id:'wisp',  name:'Rime Wisp', price:160,col:'#8fd8ff',desc:'Frost shards that chill - flicks little motes on its own',      atk:'shot',pk:'pfrost',cd:3.4,dmg:5, per:.8,chill:2.2, bm:'ranged',bcd:2.1,bd:.5,br:260,bv:'mote'},
+  moth:  {id:'moth',  name:'Gloam Moth',price:220,col:'#c58bff',desc:'Mends your wounds, zaps foes with tiny sparks',        atk:'heal',pk:'spark', cd:6.5,dmg:3, per:.6, bm:'ranged',bcd:2.6,bd:.7,br:230,bv:'spark'},
+  pebblin:{id:'pebblin',name:'Pebblin',  price:300,col:'#b8b0a0',desc:'Hurls heavy pebbles, stomps nearby foes',       atk:'shot',pk:'pebble',cd:4.2,dmg:15,per:1.8, bm:'melee', bcd:3.2,bd:.6,br:130,bv:'stomp'},
 };
 const PET_IDS=Object.keys(PETS);
 const PET_CFG={bondPerLv:8,maxLv:5,lvMul:.3,follow:16,attackRange:520};
@@ -2380,26 +2435,27 @@ const LIGHT_BY={};LIGHTS.forEach(l=>{LIGHT_BY[l.id]=l;});
 const FISH_MAX_LV=10;
 const fishNeed=l=>30+25*(l-1);                     // xp to go from level l to l+1
 const FISHES=[
-  {id:'minnow',n:'Silverscale Minnow',tier:0,lv:1,w:10,price:6,  heal:.06,xp:6, dif:.8, col:'#cfe3ff'},
-  {id:'carp',  n:'Mudfin Carp',       tier:0,lv:1,w:8, price:11, heal:.10,xp:9, dif:1.0,col:'#b08a5a'},
-  {id:'trout', n:'Riverbell Trout',   tier:0,lv:2,w:4, price:22, heal:.14,xp:14,dif:1.15,col:'#e8a8c8'},
-  {id:'pike',  n:'Greenwood Pike',    tier:1,lv:3,w:8, price:34, heal:.20,xp:20,dif:1.3, col:'#7ac060'},
-  {id:'bass',  n:'Moonpetal Bass',    tier:1,lv:4,w:4, price:52, heal:.26,xp:28,dif:1.45,col:'#c8b8ff'},
-  {id:'eel',   n:'Bog Lurker Eel',    tier:2,lv:5,w:8, price:70, heal:.30,xp:36,dif:1.6, col:'#8aa860'},
-  {id:'gill',  n:'Glowgill',          tier:2,lv:6,w:4, price:105,heal:.36,xp:48,dif:1.75,col:'#7dffd0'},
-  {id:'perch', n:'Sunscale Perch',    tier:3,lv:7,w:8, price:130,heal:.42,xp:60,dif:1.9, col:'#ffd23f'},
-  {id:'koi',   n:'Mirage Koi',        tier:3,lv:8,w:3, price:210,heal:.55,xp:90,dif:2.1, col:'#ff8a5a'},
+  {id:'minnow',n:'Silverscale Minnow',tier:0,lv:1,w:10,price:6,  heal:.06,xp:6, dif:.8, rar:0,col:'#cfe3ff'},
+  {id:'carp',  n:'Mudfin Carp',       tier:0,lv:1,w:8, price:11, heal:.10,xp:9, dif:1.0,rar:0,col:'#b08a5a'},
+  {id:'trout', n:'Riverbell Trout',   tier:0,lv:2,w:4, price:22, heal:.14,xp:14,dif:1.15,rar:1,col:'#e8a8c8'},
+  {id:'pike',  n:'Greenwood Pike',    tier:1,lv:3,w:8, price:34, heal:.20,xp:20,dif:1.3, rar:1,col:'#7ac060'},
+  {id:'bass',  n:'Moonpetal Bass',    tier:1,lv:4,w:4, price:52, heal:.26,xp:28,dif:1.45,rar:2,col:'#c8b8ff'},
+  {id:'eel',   n:'Bog Lurker Eel',    tier:2,lv:5,w:8, price:70, heal:.30,xp:36,dif:1.6, rar:2,col:'#8aa860'},
+  {id:'gill',  n:'Glowgill',          tier:2,lv:6,w:4, price:105,heal:.36,xp:48,dif:1.75,rar:3,col:'#7dffd0'},
+  {id:'perch', n:'Sunscale Perch',    tier:3,lv:7,w:8, price:130,heal:.42,xp:60,dif:1.9, rar:3,col:'#ffd23f'},
+  {id:'koi',   n:'Mirage Koi',        tier:3,lv:8,w:3, price:210,heal:.55,xp:90,dif:2.1, rar:4,col:'#ff8a5a'},
 ];
+const FISH_RARITY=[{n:'Common',col:'#cfd6e6'},{n:'Uncommon',col:'#7dff8a'},{n:'Rare',col:'#6ab8ff'},{n:'Epic',col:'#c58aff'},{n:'Legendary',col:'#ffb43a'}];
 const FISH_JUNK=[
   {id:'boot', n:'Old Boot',  price:1, col:'#7a5a3a',junk:true,heal:0,xp:0},
   {id:'pearl',n:'Moon Pearl',price:75,col:'#f4f0ff',junk:true,heal:0,xp:0},
 ];
 const FISH_BY={};FISHES.concat(FISH_JUNK).forEach(f=>{FISH_BY[f.id]=f;});
-/* rods: zone = width of the green sweet spot in the reel bar, bite = seconds you have to answer a bite, waitMul = shorter waits, luck = better odds for rare fish */
+/* rods: bite = seconds you have to answer a Rare bite, waitMul = shorter gaps between catches, luck = better odds for rare fish (and rarer bites sooner) */
 const RODS=[
-  {id:'wood',n:'WOODEN ROD',    price:25, zone:.22,bite:1.0,waitMul:1,  luck:0,  col:'#c08a52',desc:'A plain pole - fine for the river.'},
-  {id:'bog', n:'BOGWOOD ROD',   price:150,zone:.30,bite:1.2,waitMul:.8, luck:.15,col:'#9ad03a',desc:'Springy: wider sweet spot, faster bites.'},
-  {id:'star',n:'STARLIGHT ROD', price:480,zone:.38,bite:1.4,waitMul:.6, luck:.35,col:'#9fd8ff',desc:'Silver-strung: huge sweet spot, rare fish bite.'},
+  {id:'wood',n:'WOODEN ROD',    price:25, bite:4,waitMul:1,  luck:0,  col:'#c08a52',desc:'A plain pole - fine for the river.'},
+  {id:'bog', n:'BOGWOOD ROD',   price:150,bite:4.4,waitMul:.88, luck:.15,col:'#9ad03a',desc:'Springy: fish bite a little sooner, better odds at rare ones.'},
+  {id:'star',n:'STARLIGHT ROD', price:480,bite:4.8,waitMul:.76, luck:.35,col:'#9fd8ff',desc:'Silver-strung: quickest bites, rare fish love it, longer rare-bite window.'},
 ];
 MATS.fscale={n:'Silver Scale',col:'#cfe6ff'};
 RECIPES.push({id:'r_angler',name:"Angler's Band",slot:'ring',rar:'rare',mats:{fscale:5,shard:2},gold:110});
@@ -2461,8 +2517,10 @@ const activeLight=()=>LGT.eq&&LGT.on?LIGHT_BY[LGT.eq]:null;
 
 /* ---------- src/player/fishing.js ---------- */
 /* =====================================================================
-   FISHING: tap a rippling spot (or press E next to it) with a rod -> cast, wait for a bite, tap on the bite, then tap when the
-   moving marker is inside the green zone. XP -> fishing levels (unlock better spots + fish). State saved as {rod,xp,caught,fish}.
+   FISHING (idle, relaxed): tap a rippling spot (or press E next to it) with a rod -> you cast ONCE and fish are caught by themselves every
+   ~8-15s while you do nothing; now and then a RARE BITE pops up - tap within ~4s to land the big one. REEL IN (or walk away / Esc) stops.
+   Every catch buzzes (haptics), flashes the screen, splashes and plays a catch sound (bigger for rare).
+   XP -> fishing levels (unlock better spots + fish). State saved as {rod,xp,caught,fish}.
    ===================================================================== */
 const FSH={rod:-1,xp:0,caught:0,fish:{}};
 function resetFish(){FSH.rod=-1;FSH.xp=0;FSH.caught=0;FSH.fish={};}
@@ -2481,26 +2539,65 @@ const FISH_REACH=66;
 const spotDist=s=>{const c=spotCenter(s);return Math.hypot(c.x-P.x,c.y-(P.y-10));};
 function fishSpotNear(){let b=null,bd=FISH_REACH;for(const s of FISH_SPOTS){if(zoneOfPx(spotCenter(s).y)!==zoneOfPx(P.y))continue;const d=spotDist(s);if(d<bd){bd=d;b=s;}}return b;}
 /* ---- the cast ---- */
-const FISH={on:false,spot:null,ph:'',t:0,wait:0,pick:null,res:null,tap:false,mk:0,zc:.5,zw:.2,spd:1,stopR:null,combo:0};
-function endFishing(msg,col){FISH.on=false;FISH.ph='';FISH.spot=null;FISH.res=null;FISH.tap=false;FISH.stopR=null;if(msg)toast(msg,2.2,col||'#cfe3ff');}
+const FISH_CFG={catch:[8,15],rare:[35,60],afterRare:[4,8],cast:.7};
+const FISH={on:false,spot:null,ph:'',t:0,next:0,rare:0,win:4,pick:null,stopR:null,tap:false,fx:[],flash:null,log:[],session:0};
+function endFishing(msg,col){FISH.on=false;FISH.ph='';FISH.spot=null;FISH.tap=false;FISH.stopR=null;FISH.pick=null;FISH.fx.length=0;FISH.flash=null;if(msg)toast(msg,2.2,col||'#cfe3ff');}
 function startFishing(spot){
   if(!spot||B||DLG)return false;
   if(FSH.rod<0){toast("You need a fishing rod - Brum sells one at the forge!",3.2,'#ffd98a');sfx('clang');return false;}
   if(fishLv()<spot.lv){toast('Fishing Lv '+spot.lv+' needed for '+spot.name+'  (you are Lv '+fishLv()+')',3.2,'#ffd98a');sfx('clang');return false;}
   const c=spotCenter(spot);P.dir=Math.abs(c.x-P.x)>Math.abs(c.y-(P.y-10))?(c.x<P.x?'l':'r'):(c.y<P.y-10?'u':'d');P.aim=Math.atan2(c.y-(P.y-10),c.x-P.x);P.moving=false;P.anim=0;
-  FISH.on=true;FISH.spot=spot;FISH.ph='cast';FISH.t=0;FISH.res=null;FISH.tap=false;WCH.on=false;WCH.t=0;sfx('select');return true;
+  FISH.on=true;FISH.spot=spot;FISH.ph='cast';FISH.t=0;FISH.tap=false;FISH.fx.length=0;FISH.flash=null;FISH.log=[];FISH.session=0;WCH.on=false;WCH.t=0;sfx('whoosh');return true;
 }
-function fishPick(spot){
-  const rod=RODS[FSH.rod],lv=fishLv();
-  if(Math.random()<.015+rod.luck*.02)return FISH_BY.pearl;
-  if(Math.random()<.08)return FISH_BY.boot;
-  const pool=FISHES.filter(f=>f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);
+const fishPool=spot=>{const lv=fishLv();return FISHES.filter(f=>f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);};
+const fishIsRareBite=f=>f.w<=4||f.rar>=4;   // the shy / precious fish only come on a Rare bite
+function fishWeighted(pool,spot,rod){
+  if(!pool.length)return FISHES[0];
   const ws=pool.map(f=>f.w*(f.w<=4?1+rod.luck*2:1)*(f.tier===spot.tier?1.6:1));let t=ws.reduce((a,b)=>a+b,0),r=Math.random()*t;
   for(let i=0;i<pool.length;i++){r-=ws[i];if(r<=0)return pool[i];}
-  return pool[0]||FISHES[0];
+  return pool[0];
 }
-function fishAward(f){
+function fishPick(spot){   // the plain mixed pick (kept for tests / tools)
+  const rod=RODS[FSH.rod]||RODS[0];
+  if(Math.random()<.015+rod.luck*.02)return FISH_BY.pearl;
+  if(Math.random()<.08)return FISH_BY.boot;
+  return fishWeighted(fishPool(spot),spot,rod);
+}
+function fishPickAuto(spot){   // an ordinary catch: the everyday fish of this water (a little junk now and then)
+  const rod=RODS[FSH.rod]||RODS[0],pool=fishPool(spot);
+  if(Math.random()<.012+rod.luck*.02)return FISH_BY.pearl;
+  if(Math.random()<.06)return FISH_BY.boot;
+  let p=pool.filter(f=>!fishIsRareBite(f));if(!p.length)p=pool.slice().sort((a,b)=>a.price-b.price).slice(0,Math.max(1,Math.ceil(pool.length/2)));
+  return fishWeighted(p,spot,rod);
+}
+function fishPickRare(spot){   // what a Rare bite lands: the best fish this water holds at your level
+  const rod=RODS[FSH.rod]||RODS[0],pool=fishPool(spot);
+  let p=pool.filter(fishIsRareBite);if(!p.length)p=pool.slice().sort((a,b)=>b.price-a.price).slice(0,Math.max(1,Math.ceil(pool.length/2)));
+  return fishWeighted(p,spot,rod);
+}
+/* ---- catch feedback: haptics (Capacitor native / Android web vibrate), screen flash, splash particles, sound ---- */
+let FISH_HAP;
+function fishHaptics(){if(FISH_HAP!==undefined)return FISH_HAP;FISH_HAP=null;try{const C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.registerPlugin)FISH_HAP=C.registerPlugin('Haptics');}catch(e){}return FISH_HAP;}
+function hapticCatch(rar){
+  try{const H=fishHaptics();
+    if(H){if(rar>=2){H.notification({type:'SUCCESS'});setTimeout(()=>{try{H.impact({style:'HEAVY'});}catch(e){}},170);if(rar>=4)setTimeout(()=>{try{H.impact({style:'HEAVY'});}catch(e){}},340);}
+      else H.impact({style:rar>=1?'MEDIUM':'LIGHT'});return;}
+    if(navigator.vibrate)navigator.vibrate(rar>=4?[60,50,60,50,160]:rar>=2?[50,40,100]:rar>=1?[36]:[22]);   // iOS Safari has no vibrate: the flash / splash / sound still play
+  }catch(e){}
+}
+function fishFeedback(f,rare){
+  let rar=f.junk?(f.id==='pearl'?2:0):(f.rar|0);const col=f.junk?f.col:FISH_RARITY[rar].col;if(rare)rar=Math.max(rar,2);const big=rar>=2,F=FISH,spot=F.spot;   // a Rare bite always gets the big fanfare
+  hapticCatch(rar);
+  sfx(big?'catchrare':'catch');
+  F.flash={t:0,dur:big?.6:.32,col:big?'255,214,90':'200,235,255',a:big?.34:.18};
+  if(spot){const c=spotCenter(spot),n=big?26:12;
+    for(let i=0;i<n;i++){const a=-Math.PI/2+(Math.random()-.5)*2.2,sp=R(50,big?190:130);F.fx.push({x:c.x,y:c.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,life:R(.45,.8),col:i%3===0?'#ffffff':(big&&i%2?col:'#bfe6ff'),sz:big?3:2});}
+    F.fx.push({ring:true,x:c.x,y:c.y,t:0,life:.7,col});
+    F.fx.push({txt:(f.junk?'':'')+f.n+(big&&!f.junk?'!':''),x:c.x,y:c.y-18,t:0,life:1.7,col});}
+}
+function fishAward(f,rare){
   FSH.fish[f.id]=Math.min(99,(FSH.fish[f.id]|0)+1);
+  if(FISH.on){FISH.session++;FISH.log.unshift({n:f.n,col:f.junk?f.col:FISH_RARITY[f.rar|0].col,rare:!!rare});if(FISH.log.length>3)FISH.log.pop();fishFeedback(f,rare);}
   if(f.junk){toast('You hooked '+(f.id==='pearl'?'a '+f.n+'!':'an '+f.n+'...'),2.2,f.col);return;}
   FSH.caught++;ACH.s.fish=(ACH.s.fish|0)+1;
   addFishXp(f.xp);
@@ -2509,39 +2606,32 @@ function fishAward(f){
   if(!B)saveGame('fish');
 }
 function updateFishing(dt){
-  const rod=RODS[FSH.rod]||RODS[0],spot=FISH.spot,F=FISH;
+  const rod=RODS[FSH.rod]||RODS[0],spot=FISH.spot,F=FISH,C=FISH_CFG;
   const act=F.tap||hit('Space','KeyE','Enter','KeyJ');F.tap=false;
   if(!spot||B||state!=='play'){endFishing();return;}
-  if(hit('Escape')){endFishing('You stop fishing.');return;}
+  if(hit('Escape')){endFishing('You reel in.');return;}
   const mv=moveInput();if(mv[2]>.3){endFishing('You stop fishing.');return;}
   P.moving=false;P.anim=0;F.t+=dt;
+  for(const q of F.fx){q.t+=dt;if(!q.ring&&!q.txt){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=420*dt;}}F.fx=F.fx.filter(q=>q.t<q.life);
+  if(F.flash){F.flash.t+=dt;if(F.flash.t>=F.flash.dur)F.flash=null;}
+  const gap=()=>R(C.catch[0],C.catch[1])*rod.waitMul,rareGap=()=>R(C.rare[0],C.rare[1])/(1+rod.luck);
   switch(F.ph){
-    case 'cast':if(F.t>.55){F.ph='wait';F.t=0;F.wait=R(1.5,3.8)*rod.waitMul;sfx('talk');}break;
-    case 'wait':
-      if(act){endFishing('Reeled in too early - the fish got spooked.');return;}
-      if(F.t>=F.wait){F.ph='bite';F.t=0;F.pick=fishPick(spot);sfx('warn');}
+    case 'cast':if(F.t>=C.cast){F.ph='on';F.t=0;F.next=gap();F.rare=rareGap();sfx('talk');}break;
+    case 'on':
+      F.next-=dt;F.rare-=dt;
+      if(F.next<=0){fishAward(fishPickAuto(spot),false);F.next=gap();}
+      if(F.rare<=0){F.ph='rare';F.t=0;F.win=rod.bite;F.pick=fishPickRare(spot);sfx('warn');try{navigator.vibrate&&navigator.vibrate([18,50,18]);}catch(e){}}
       break;
-    case 'bite':
-      if(act){F.ph='reel';F.t=0;const dif=F.pick.junk?.6:F.pick.dif;F.spd=.85+.35*dif;F.zw=clamp(rod.zone*(1.25-.25*dif),.1,.5);F.zc=R(.3,.7);F.mk=0;sfx('select');}
-      else if(F.t>rod.bite){F.ph='result';F.t=0;F.res={ok:false,msg:'It got away...'};sfx('clang');}
-      break;
-    case 'reel':{
-      F.mk=Math.abs(((F.t*F.spd)%2)-1);
-      const inZ=Math.abs(F.mk-F.zc)<=F.zw/2;
-      if(act){if(inZ){F.ph='result';F.t=0;F.res={ok:true,fish:F.pick};fishAward(F.pick);sfx(F.pick.junk?'select':'coin');}
-        else{F.ph='result';F.t=0;F.res={ok:false,msg:'The line went slack...'};sfx('clang');}}
-      else if(F.t>6){F.ph='result';F.t=0;F.res={ok:false,msg:'The fish slipped away...'};}
-      break;}
-    case 'result':
-      if(act&&F.t>.45){if(!startFishing(spot))endFishing();}
-      else if(F.t>7)endFishing();
+    case 'rare':
+      if(act&&F.t>.12){const f=F.pick;F.ph='on';F.t=0;F.rare=rareGap();F.next=Math.max(F.next,R(C.afterRare[0],C.afterRare[1]));fishAward(f,true);}
+      else if(F.t>=F.win){F.ph='on';F.t=0;F.rare=rareGap();F.next=Math.max(F.next,R(C.afterRare[0],C.afterRare[1]));toast('It got away...',1.8,'#ffb0a0');sfx('clang');}
       break;
   }
 }
-/* tap while fishing (touch/mouse): the STOP button ends it, anything else is the "reel/hook" action */
+/* tap while fishing (touch/mouse): REEL IN ends it, anything else answers a Rare bite */
 function fishTap(p){
   if(!FISH.on||state!=='play'||B||DLG)return false;
-  if(FISH.stopR&&inRect(p,FISH.stopR)){endFishing('You stop fishing.');return true;}
+  if(FISH.stopR&&inRect(p,FISH.stopR)){endFishing('You reel in.');return true;}
   FISH.tap=true;return true;
 }
 /* ---- drawing ---- */
@@ -2565,44 +2655,45 @@ function drawFishingWorld(){
   const F=FISH;if(!F.on||!F.spot)return;
   const c=spotCenter(F.spot),dirx=c.x>=P.x?1:-1,hand={x:P.x-cam.x+dirx*8,y:P.y-cam.y-14},tip={x:hand.x+dirx*15,y:hand.y-20};
   let bx=c.x-cam.x,by=c.y-cam.y;
-  if(F.ph==='cast'){const k=Math.min(1,F.t/.5);bx=lerp(tip.x,bx,k);by=lerp(tip.y,by,k)-Math.sin(k*Math.PI)*34;}
-  else by+=F.ph==='bite'?Math.abs(Math.sin(gtime*30))*5:Math.sin(gtime*3)*1.2;
+  if(F.ph==='cast'){const k=Math.min(1,F.t/FISH_CFG.cast);bx=lerp(tip.x,bx,k);by=lerp(tip.y,by,k)-Math.sin(k*Math.PI)*34;}
+  else by+=F.ph==='rare'?Math.abs(Math.sin(gtime*18))*5:Math.sin(gtime*1.8)*1.2;
   ctx.save();
   ctx.strokeStyle='#6a4420';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(hand.x-dirx*3,hand.y+3);ctx.lineTo(tip.x,tip.y);ctx.stroke();
   ctx.strokeStyle='#d8a060';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hand.x-dirx*3,hand.y+3);ctx.lineTo(tip.x,tip.y);ctx.stroke();
   ctx.strokeStyle='rgba(235,240,255,.85)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(tip.x,tip.y);ctx.quadraticCurveTo((tip.x+bx)/2,Math.max(tip.y,by)+10,bx,by);ctx.stroke();
-  if(F.ph==='bite'||F.ph==='reel'){for(let i=0;i<2;i++){const k=(gtime*2+i*.5)%1;ctx.globalAlpha=1-k;ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(bx,by+3,4+k*14,(4+k*14)*.45,0,0,6.283);ctx.stroke();}ctx.globalAlpha=1;}
+  if(F.ph==='rare'){for(let i=0;i<2;i++){const k=(gtime*2+i*.5)%1;ctx.globalAlpha=1-k;ctx.strokeStyle='#ffd23f';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(bx,by+3,4+k*16,(4+k*16)*.45,0,0,6.283);ctx.stroke();}ctx.globalAlpha=1;}
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by,4,0,6.283);ctx.fill();ctx.fillStyle='#e2403a';ctx.beginPath();ctx.arc(bx,by-1.5,4,Math.PI,0);ctx.fill();ctx.fillStyle='#14182c';ctx.fillRect(bx-4,by-1,8,1);
+  // catch splash: droplets, expanding ring, floating name
+  for(const q of F.fx){const k=q.t/q.life;
+    if(q.ring){ctx.globalAlpha=1-k;ctx.strokeStyle=q.col;ctx.lineWidth=3;const r=6+k*34;ctx.beginPath();ctx.ellipse(q.x-cam.x,q.y-cam.y+4,r,r*.45,0,0,6.283);ctx.stroke();ctx.globalAlpha=1;}
+    else if(q.txt){txt(q.txt,q.x-cam.x,q.y-cam.y-k*22,{size:12,align:'center',col:q.col,lw:4,alpha:k<.75?1:1-(k-.75)/.25});}
+    else{ctx.globalAlpha=1-k*k;ctx.fillStyle=q.col;ctx.fillRect(Math.round(q.x-cam.x),Math.round(q.y-cam.y),q.sz,q.sz);ctx.globalAlpha=1;}}
   ctx.restore();
-  if(F.ph==='bite')txt('!',bx,by-16,{size:30,align:'center',col:'#ff4040',lw:5});
+  if(F.ph==='rare')txt('!',bx,by-16,{size:30,align:'center',col:'#ffd23f',lw:5});
 }
 function drawFishingHud(){
   const F=FISH;if(!F.on||state!=='play'||B||DLG)return;
-  const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=Math.round(Math.max(ST+120,VH*.17)),spot=F.spot;
-  const rod=RODS[FSH.rod]||RODS[0];
-  const h=F.ph==='reel'?84:F.ph==='result'?80:56;
-  panel(x,y,w,h,{border:'#7dd0ff'});
-  txt(spot.name+'   Fishing Lv '+fishLv(),x+w/2,y+17,{size:10,align:'center',col:'#9ad0ff',lw:2});
-  const act=TOUCH?'TAP':'SPACE';
-  if(F.ph==='cast')txt('Casting...',x+w/2,y+40,{size:14,align:'center',col:'#fff'});
-  else if(F.ph==='wait'){txt('Waiting for a bite'+'.'.repeat(1+Math.floor(gtime*2)%3),x+w/2,y+38,{size:13,align:'center',col:'#cfe3ff'});txt(act+' = reel in early',x+w/2,y+52,{size:8,align:'center',col:'#8a96b8',bold:false,lw:2});}
-  else if(F.ph==='bite'){const fl=Math.floor(gtime*8)%2;txt('BITE!  '+act+' NOW!',x+w/2,y+40,{size:16,align:'center',col:fl?'#ff6b6b':'#ffe14d',lw:4});
-    bar(x+14,y+47,w-28,4,1-F.t/rod.bite,'#ff9a3d');}
-  else if(F.ph==='reel'){
-    txt(act+' when the marker is in the green!',x+w/2,y+36,{size:10,align:'center',col:'#fff'});
-    const bx=x+16,bw=w-32,by=y+46,bh=18;
-    ctx.fillStyle='#0a0a18';ctx.fillRect(bx-2,by-2,bw+4,bh+4);ctx.fillStyle='#24304e';ctx.fillRect(bx,by,bw,bh);
-    ctx.fillStyle='#3fd070';ctx.fillRect(bx+Math.round((F.zc-F.zw/2)*bw),by,Math.round(F.zw*bw),bh);ctx.fillStyle='rgba(255,255,255,.28)';ctx.fillRect(bx+Math.round((F.zc-F.zw/2)*bw),by,Math.round(F.zw*bw),4);
-    const mx=bx+Math.round(F.mk*bw);ctx.fillStyle='#fff';ctx.fillRect(mx-2,by-5,4,bh+10);ctx.fillStyle='#e2403a';ctx.fillRect(mx-1,by-5,2,bh+10);
-  } else if(F.ph==='result'){
-    const r=F.res||{};
-    if(r.ok){const f=r.fish;draw(f.junk?SP.fishIcon:SP.fishIcon,x+12,y+26,2);txt((f.junk?'':'CAUGHT: ')+f.n+'!',x+52,y+42,{size:12,col:f.col,lw:3});
-      txt(f.price+' G'+(f.junk?'':'   +'+f.xp+' fishing XP'),x+52,y+58,{size:10,col:'#ffd23f',lw:3});}
-    else txt(r.msg||'',x+w/2,y+44,{size:13,align:'center',col:'#ffb0a0',lw:3});
-    if(F.t>.45)txt(act+' = cast again',x+w/2,y+74,{size:9,align:'center',col:'#7df9ff',lw:2});
+  if(F.flash){const f=F.flash,k=f.t/f.dur,a=f.a*(1-k)*(1-k);   // catch pulse: a soft full-screen flash with a bright edge
+    ctx.fillStyle=`rgba(${f.col},${a})`;ctx.fillRect(0,0,VW,VH);
+    const g=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.25,VW/2,VH/2,Math.max(VW,VH)*.65);g.addColorStop(0,`rgba(${f.col},0)`);g.addColorStop(1,`rgba(${f.col},${a*2.2})`);ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);}
+  const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=VW>=700?ST+6:Math.round(Math.max(ST+120,VH*.17)),spot=F.spot;   // wide (landscape) screens: up in the top middle so the water + angler stay visible
+  const rod=RODS[FSH.rod]||RODS[0],act=TOUCH?'TAP':'SPACE';
+  const h=F.ph==='rare'?78:84;
+  panel(x,y,w,h,{border:F.ph==='rare'?'#ffd23f':'#7dd0ff'});
+  txt(spot.name+'   Fishing Lv '+fishLv(),x+w/2,y+16,{size:10,align:'center',col:'#9ad0ff',lw:2});
+  if(F.ph==='cast')txt('Casting...',x+w/2,y+44,{size:14,align:'center',col:'#fff'});
+  else if(F.ph==='rare'){
+    const fl=Math.floor(gtime*6)%2,fr=1-F.t/F.win;
+    txt('RARE BITE!  '+act+' NOW!',x+w/2,y+42,{size:15,align:'center',col:fl?'#ffd23f':'#fff',lw:4});
+    bar(x+14,y+54,w-28,6,fr,'#ffb43a');txt(Math.ceil(F.win-F.t)+'s',x+w/2,y+72,{size:9,align:'center',col:'#ffe9a0',lw:2});
+  } else {
+    txt('Relaxing by the water'+'.'.repeat(1+Math.floor(gtime*1.5)%3),x+w/2,y+34,{size:11,align:'center',col:'#cfe3ff',lw:3});
+    if(F.log.length){F.log.forEach((e,i)=>txt((e.rare?'* ':'')+e.n,x+10,y+49+i*11,{size:8,col:e.col,lw:2,alpha:1-i*.25}));}
+    else txt('A fish bites every few seconds',x+10,y+49,{size:8,col:'#8a96b8',bold:false,lw:2});
+    txt('caught '+F.session,x+w-8,y+49,{size:8,align:'right',col:'#9dffb0',lw:2});
   }
-  // STOP button
-  F.stopR={x:x+w-80,y:y+h+6,w:80,h:26};panel(F.stopR.x,F.stopR.y,80,26,{fill:'#3a1c1c'});txt(TOUCH?'STOP':'ESC: stop',F.stopR.x+40,F.stopR.y+18,{size:10,align:'center',lw:2});
+  // REEL IN button
+  F.stopR={x:x+w-96,y:y+h+6,w:96,h:26};panel(F.stopR.x,F.stopR.y,96,26,{fill:'#3a1c1c'});txt(TOUCH?'REEL IN':'ESC: reel in',F.stopR.x+48,F.stopR.y+18,{size:10,align:'center',lw:2});
 }
 
 /* ---------- src/player/church.js ---------- */
@@ -2899,7 +2990,7 @@ function drawMapMarks(){
 /* =====================================================================
    PETS (follow + small attacks), TROPHIES and the PLAYER HOUSE
    ===================================================================== */
-const PET={owned:{},active:null,bond:{},x:0,y:0,trail:[],cd:2,t:0,face:1};
+const PET={owned:{},active:null,bond:{},x:0,y:0,trail:[],cd:2,t:0,face:1,bcd:1.5,an:null};   // bcd/an = the autonomous basic attack (cooldown / running animation)
 const HOUSE={trophies:{},slots:HOUSE_SLOTS.map(()=>null),elites:0,rested:0};
 function resetPets(){PET.owned={};PET.active=null;PET.bond={};PET.trail=[];PET.cd=2;HOUSE.trophies={};HOUSE.slots=HOUSE_SLOTS.map(()=>null);HOUSE.elites=0;HOUSE.rested=0;}
 function packPets(){return {owned:PET.owned,active:PET.active,bond:PET.bond,house:{t:HOUSE.trophies,s:HOUSE.slots,e:HOUSE.elites}};}
@@ -2932,6 +3023,7 @@ function updatePet(dt){
   else{let nx=tp.x+(P.dir==='l'?22:P.dir==='r'?-22:0),ny=tp.y+(P.dir==='u'?16:P.dir==='d'?-4:-2);const k=Math.min(1,dt*7);
     if(B&&B.phase==='fight'&&B.target&&!B.target.dying){const c=ecen(B.target),a=Math.atan2(c.y-P.y,c.x-P.x);nx=P.x+Math.cos(a)*34+Math.cos(a+1.57)*18;ny=P.y+Math.sin(a)*24+Math.sin(a+1.57)*14;}   
     PET.face=nx<PET.x-.5?-1:nx>PET.x+.5?1:PET.face;PET.x=lerp(PET.x,nx,k);PET.y=lerp(PET.y,ny,k);}
+  petBasic(dt,id,d);
   if(!B){petWorldAssist(dt,id,d);return;}
   if(B.phase!=='fight'||B.cleared)return;
   PET.cd-=dt;if(PET.cd>0)return;
@@ -2951,6 +3043,42 @@ function updatePet(dt){
   const c=ecen(tg),a=Math.atan2(c.y-(PET.y-12),c.x-PET.x);
   B.shots.push({x:PET.x,y:PET.y-12,vx:Math.cos(a)*330,vy:Math.sin(a)*330,r:7,dmg:petDmg(id),own:'p',kind:'pet',pk:d.pk,pid:id,life:1.6,a});
   sfx('shoot');PET.cd=d.cd*R(.9,1.1)*.8/(1+.04*(petLevel(id)-1));
+}
+/* ---- autonomous basic attack: every pet attacks nearby foes by itself on its own cooldown (no input) - melee lunge or a small ranged mote, by pet type ---- */
+function petFoe(from,range,needLos){
+  let best=null,bd=1e9;
+  const list=B?(B.phase==='fight'&&!B.cleared?B.ens:[]):enemies;
+  for(const e of list){
+    if(!e.alive&&!B)continue;if(e.dying||(e.joinT>0))continue;
+    const c=ecen(e),dd=Math.hypot(c.x-from.x,c.y-from.y);if(dd>range||dd>=bd)continue;
+    if(!B&&(e.engaged||!sensed(e)))continue;               // out in the world a pet only joins in against foes that have already noticed you (it never wakes a sleeping one)
+    if(needLos&&!losClear({x:from.x,y:from.y},c))continue;
+    bd=dd;best=e;}
+  return best;
+}
+function petBasic(dt,id,d){
+  const an=PET.an;
+  if(an){an.t+=dt;const k=an.t/an.dur;
+    if(an.melee&&!an.hit&&k>=.5){an.hit=true;const e=an.tg;
+      if(e&&(B?!e.dying:(e.alive&&!e.engaged&&!e.dying))){
+        if(!B)startEncounter(e,true);
+        if(B&&B.ens.includes(e)){damageEnemy(e,an.dmg,'pet');petOnHit({pid:id},e);}
+        const c=ecen(e);burst(c.x,c.y-6,d.col,10,110,.4);sfx('hit');}}
+    if(an.t>=an.dur)PET.an=null;
+    return;}
+  if(state!=='play'||DLG||P.hp<=0||!d.bm)return;
+  if(B&&(B.phase!=='fight'||B.cleared))return;
+  if(!B&&(P.grace>0||WARP||RUSH.on||playerInTown()))return;   // spawn / teleport grace: the pet stays calm
+  PET.bcd-=dt;if(PET.bcd>0)return;
+  const o={x:PET.x,y:PET.y-12},e=petFoe(o,d.br,d.bm==='ranged');
+  if(!e){PET.bcd=.4;return;}
+  const c=ecen(e),a=Math.atan2(c.y-o.y,c.x-o.x),dmg=Math.max(1,Math.round(petDmg(id)*d.bd));
+  PET.bcd=d.bcd*R(.9,1.15)/(1+.04*(petLevel(id)-1));PET.face=c.x<PET.x?-1:1;
+  if(d.bm==='melee'){PET.an={t:0,dur:.42,melee:true,hit:false,tg:e,dmg,dx:Math.cos(a),dy:Math.sin(a),dist:Math.max(0,Math.hypot(c.x-o.x,c.y-o.y)-18),v:d.bv};sfx('slash');}
+  else{
+    const sh={x:o.x,y:o.y,vx:Math.cos(a)*300,vy:Math.sin(a)*300,r:4,dmg,own:'p',kind:'pet',pk:d.pk,pid:id,life:1.1,a};
+    if(B)B.shots.push(sh);else WS.push(sh);
+    PET.an={t:0,dur:.3,melee:false,dx:Math.cos(a),dy:Math.sin(a),v:d.bv};sfx('shoot');}
 }
 // overworld: while you shoot, your pet joins in on the same enemy (they never start a fight on their own); healers mend you when hurt
 function petWorldAssist(dt,id,d){
@@ -2972,9 +3100,19 @@ function petWorldAssist(dt,id,d){
 function drawPetWorld(){
   const id=PET.active;if(!id)return;const d=PETS[id],spr=SP.pets[id];
   const fly=id==='wisp'||id==='moth',bob=Math.round(Math.sin(PET.t*(fly?5:9))*(fly?3:1.2)),lift=fly?10:0;
-  drawEntShadow(PET.x,PET.y,fly?6:8);
-  const x=Math.round(PET.x-cam.x-12),y=Math.round(PET.y-cam.y-23-lift+bob);
-  draw(spr,x,y,1.5,PET.face<0);
+  const an=PET.an,k=an?clamp(an.t/an.dur,0,1):0,sn=an?Math.sin(k*Math.PI):0;
+  let ox=0,oy=0,sx=1.5,sy=1.5;
+  if(an){
+    if(an.melee){const f=Math.sin(Math.min(1,k/.5)*Math.PI/2)*(k<.5?1:1-(k-.5)/.5);ox=an.dx*an.dist*f;oy=an.dy*an.dist*f*.8;sx=1.5*(1+.2*sn);sy=1.5*(1-.15*sn);}
+    else{const rc=k<.35?Math.sin(k/.35*Math.PI):0;ox=-an.dx*4*rc;oy=-an.dy*3*rc;sx=1.5*(1+.18*rc);sy=1.5*(1-.12*rc);}
+  }
+  drawEntShadow(PET.x+ox,PET.y,fly?6:8);
+  const w=spr.width*sx,h=spr.height*sy,x=Math.round(PET.x+ox-cam.x-w/2),y=Math.round(PET.y+oy-cam.y-h+1-lift+bob);
+  if(an&&an.melee&&k>=.45&&k<.95){   // slash arcs at the target
+    const e=an.tg,c=e&&ecen(e);if(c){ctx.save();ctx.globalAlpha=1-(k-.45)/.5;ctx.strokeStyle=d.col;ctx.lineWidth=3;
+      const ang=Math.atan2(an.dy,an.dx);for(let i=-1;i<=1;i++){ctx.beginPath();ctx.arc(c.x-cam.x,c.y-6-cam.y,12+i*5,ang-.7+i*.08,ang+.7+i*.08);ctx.stroke();}ctx.restore();}}
+  if(an&&!an.melee&&k<.4){ctx.save();ctx.globalAlpha=1-k/.4;ctx.fillStyle=d.col;ctx.beginPath();ctx.arc(PET.x-cam.x+an.dx*12,PET.y-12-cam.y+an.dy*10,5-k*8,0,6.283);ctx.fill();ctx.restore();}
+  if(PET.face<0){ctx.save();ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(spr,0,0,w,h);ctx.restore();}else ctx.drawImage(spr,x,y,w,h);
 }
 /* ---------------- trophies ---------------- */
 function awardTrophy(id){if(!TROPHIES[id]||HOUSE.trophies[id])return false;HOUSE.trophies[id]=true;toast('TROPHY: '+TROPHIES[id].name+'  (display it in your house)',4.5,TROPHIES[id].col);sfx('level');return true;}
@@ -3697,10 +3835,12 @@ function drawEntShadow(x,y,w){ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ct
 function drawWorld(){
   const cx=Math.round(cam.x),cy=Math.round(cam.y);
   const x0=Math.floor(cx/TS),y0=Math.floor(cy/TS),x1=x0+Math.ceil(VW/TS)+1,y1=y0+Math.ceil(VH/TS)+1;
-  CY.sn=0;CY.bn=0;
+  CY.sn=0;CY.bn=0;const bigTrees=[];
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
     if(x<0||y<0||x>=MW||y>=MH)continue;
-    const id=map[y][x];ctx.drawImage(tileSprite(id,x,y,gtime),x*TS-cx,y*TS-cy,TS,TS);
+    const id=map[y][x];
+    if(BIGTREE&&BIGTREE_IDS.has(id)){const L=treeLayers(id,x,y);ctx.drawImage(L.bg,x*TS-cx,y*TS-cy,TS,TS);bigTrees.push({x,y,fg:L.fg});}
+    else ctx.drawImage(tileSprite(id,x,y,gtime),x*TS-cx,y*TS-cy,TS,TS);
     if(SHADOW_TILE[id]===1&&CY.sn<1796){CY.sh[CY.sn++]=x;CY.sh[CY.sn++]=y;if(id===T.T&&BLOSSOM[y*MW+x]===1&&CY.bn<196){CY.bl[CY.bn++]=x;CY.bl[CY.bn++]=y;}}
     if(id===T.Z)drawFlame(x*TS-cx+16,y*TS-cy+4);
   }
@@ -3710,6 +3850,7 @@ function drawWorld(){
   drawMapMarks();
   const ents=[];
   ents.push({y:(CHAPEL.cross.y)*TS+8,fn:drawChapelCross});
+  for(const t of bigTrees){const k=BIGTREE,w=TS*k;ents.push({y:t.y*TS+TS-3,fn:()=>{ctx.drawImage(t.fg,Math.round(t.x*TS+TS/2-w/2-cx),Math.round(t.y*TS+TS-w-cy+2),w,w);}});}   // mockup only
   for(const s of SPW)ents.push({y:s.y,fn:()=>drawSpawner(s)});
   for(const f of FISH_SPOTS)ents.push({y:f.ty*TS+TS-6,fn:()=>drawFishSpot(f)});
   ents.push({y:P.y,fn:drawPlayerWorld});
@@ -4513,6 +4654,7 @@ function updatePlayerCombat(dt){
     if(B.carry&&B.charging&&B.charge>=1){const a=fireAngle();P.aim=a;P.dir=dirOfAngle(a);B.shots.push({x:pc.x,y:pc.y,vx:Math.cos(a)*420,vy:Math.sin(a)*420,r:12,dmg:arcaneDmg()*5,own:'p',kind:'charged',life:1.1,a});B.shootAnim=.2;sfx('cshot');B.shootCd=.25;}   // released during the "!" intro: fire it now
     B.charge=0;B.charging=false;}
   B.carry=false;
+  if(hit('KeyX')&&B.phase==='fight'){discardCard(B.sel);}
   if(hit('KeyL'))if(B.hand.some(Boolean)){nextSel(1);sfx('select');}
   if(hit('KeyK'))castFacingNearest();          // K auto-faces the nearest enemy
   ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'].forEach((k,i)=>{if(hit(k))cardUse(i);});
@@ -5615,17 +5757,17 @@ function fishRow(f){
       ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+10,32,32);draw(SP.fishIcon,x0+6,y+10,2);ctx.globalAlpha=.55;ctx.fillStyle=f.col;ctx.fillRect(x0+6,y+10,32,32);ctx.globalAlpha=1;draw(SP.fishIcon,x0+6,y+10,2);
       txt(f.n+'  x'+n,x0+46,y+17,{size:10,col:f.col,lw:2});
       txt(f.junk?'Junk - sells for a little':'Heals '+Math.round(f.heal*100)+'% HP when cooked   Sells '+val+' G',x0+46,y+30,{size:7,col:'#b9b4d8',bold:false,lw:2});
-      txt(f.junk?'':'Fishing XP '+f.xp,x0+46,y+43,{size:7,col:'#7df9ff',bold:false,lw:2});
+      txt(f.junk?'':FISH_RARITY[f.rar].n+'  -  Fishing XP '+f.xp,x0+46,y+43,{size:7,col:f.junk?'#7df9ff':FISH_RARITY[f.rar].col,bold:false,lw:2});
       if(!f.junk)uiButton(x0+W-150,y+11,70,30,'COOK',P.hp<maxHp(),()=>{UI.sel=si;eat();},{tag:'eat:'+f.id,clip:true,size:9,sel:si,bg:'#7a4a1a',bd:'#ffb86b'});
       uiButton(x0+W-74,y+11,66,30,'SELL '+val,true,()=>{UI.sel=si;sell();},{tag:'sell:'+f.id,clip:true,size:9,sel:si});}};
 }
 UI_MODES.fish={title:()=>'FISHING',sub:()=>{const [a,b]=fishXpInto();return [`Lv ${fishLv()}${fishLv()>=FISH_MAX_LV?' (MAX)':'   XP '+a+'/'+b}   Rod: ${FSH.rod>=0?RODS[FSH.rod].n:'none (Brum sells them)'}   Gold ${P.gold}`,'#7df9ff'];},rows(){
   const r=[];
-  r.push({t:'head',s:'FISHING SPOTS  (tap rippling water with a rod)'});
+  r.push({t:'head',s:'FISHING SPOTS  (tap rippling water: cast once, fish bite on their own)'});
   FISH_SPOTS.forEach(s=>r.push({t:'head',s:'  '+(fishLv()>=s.lv?'+ ':'- ')+s.name+'  -  Lv '+s.lv+(fishLv()>=s.lv?'':'  (locked)')}));
   r.push({t:'head',s:'YOUR CATCH  (sell for gold, or cook & eat to heal)'});
   const have=FISHES.concat(FISH_JUNK).filter(f=>(FSH.fish[f.id]|0)>0);
-  if(!have.length)r.push({t:'head',s:'  Nothing yet - cast a line at a rippling spot!'});
+  if(!have.length)r.push({t:'head',s:'  Nothing yet - cast a line at a rippling spot and relax!'});
   else{have.forEach(f=>r.push(fishRow(f)));
     const all=()=>{const v=sellAllValue();if(!v){return;}Object.keys(FSH.fish).forEach(k=>sellFish(k,true));uiMsg('Sold everything for '+v+' G',false);};
     r.push({sel:true,h:44,act:all,tap:all,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
@@ -5990,6 +6132,7 @@ function swipeMove(id,p){
     t0.cur=p;t0.dy=t0.sy-p.y;t0.dx=p.x-t0.sx;
     if(!t0.swiped&&!t0.cyc&&t0.dy>=SWIPE_PX&&t0.dy>=Math.abs(t0.dx)*.8&&B&&B.phase==='fight'){
       t0.swiped=true;castFacingNearest(t0.i);try{navigator.vibrate&&navigator.vibrate(15);}catch(e){}}
+    else if(!t0.swiped&&!t0.cyc&&-t0.dy>=SWIPE_PX&&-t0.dy>=Math.abs(t0.dx)*.8&&B&&B.phase==='fight'){t0.swiped=true;discardCard(t0.i);}   // swipe DOWN = discard this card
     else if(!t0.swiped&&B&&B.phase==='fight'&&Math.abs(t0.dx)>=40&&Math.abs(t0.dx)>Math.abs(t0.dy)*1.1)t0.cyc=true;   // dragging along the fan = turn the wheel
     if(t0.cyc&&!t0.swiped&&B&&B.phase==='fight'){
       while(Math.abs(t0.dx-t0.cb)>=30){const d=t0.dx>t0.cb?1:-1;t0.cb+=d*30;cycleCard(d);}}
@@ -6076,6 +6219,12 @@ function drawSwipeHint(){
       ctx.beginPath();ctx.arc(near.x-cam.x,near.y-13-cam.y,eRad(near)+6+Math.sin(gtime*10)*2,0,6.283);ctx.stroke();ctx.restore();}
     const r=cardRects[ct.i];if(r){ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3;
       for(let i=0;i<2;i++){const ay=r.y-8-i*8-prog*4,cx=r.cx!=null?r.cx:r.x+r.w/2;ctx.beginPath();ctx.moveTo(cx-9,ay+6);ctx.lineTo(cx,ay-2);ctx.lineTo(cx+9,ay+6);ctx.stroke();}ctx.restore();}
+  }
+  if(ct&&B&&B.phase==='fight'&&!ct.swiped&&ct.dy<-10&&B.hand[ct.i]){   // swipe down: red down-arrows + DISCARD
+    const prog=clamp(-ct.dy/SWIPE_PX,0,1),r=cardRects[ct.i];
+    if(r){const cx=r.cx!=null?r.cx:r.x+r.w/2,cy=(r.cy!=null?r.cy:r.y+r.h/2)+r.h/2;ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#ff8a7a':'#fff';ctx.lineWidth=3;
+      for(let i=0;i<2;i++){const ay=cy+6+i*8+prog*4;ctx.beginPath();ctx.moveTo(cx-9,ay-6);ctx.lineTo(cx,ay+2);ctx.lineTo(cx+9,ay-6);ctx.stroke();}
+      ctx.restore();txt('DISCARD',cx,cy+34,{size:9,align:'center',col:prog>=1?'#ff8a7a':'#fff',lw:3});}
   }
   if(!t||!B||B.phase!=='fight'||t.swiped)return;
   const id=B.hand[B.sel],c=id&&CARDS.find(q=>q.id===id);if(!c)return;
@@ -6241,7 +6390,8 @@ function drawCombatHud(){
     if(!id){ctx.globalAlpha=.25;ctx.fillStyle='#1a1630';ctx.fillRect(X,y0,cw,ch);ctx.strokeStyle='#4a4470';ctx.lineWidth=1;ctx.strokeRect(X+.5,y0+.5,cw-1,ch-1);ctx.globalAlpha=1;continue;}
     ctx.save();ctx.translate(X,Y);ctx.scale(CS,CS);drawCardFace(id,cw0,ch0,sel,i);if(b.xsel===i)expMark(cw0,ch0);ctx.restore();
   }}
-  if(!TOUCH)txt('J Shot (hold = charge)   L Next card   K Cast card   WASD Move   P Pause',VW/2,VH-6-SB,{size:10,align:'center',col:'#cfd0ff',alpha:.8,bold:false,lw:2});
+  drawDiscards(HN);
+  if(!TOUCH)txt('J Shot (hold = charge)   L Next   K Cast   X Discard   WASD   P Pause',VW/2,VH-6-SB,{size:10,align:'center',col:'#cfd0ff',alpha:.8,bold:false,lw:2});
   // leash warning
   if(b.fleeT>.05&&b.phase==='fight'){const f=clamp(b.fleeT/2.2,0,1),cx=VW/2,cy=Math.round(VH*.6);txt('ESCAPING...',cx,cy,{size:14,align:'center',col:'#ffb0a0'});bar(cx-60,cy+6,120,6,f,'#ff8a70');}
   // banner
@@ -6271,6 +6421,18 @@ function drawCombatHud(){
       yy+=22+nl*34;}
     if(b.levels){txt('LEVEL UP!  Lv '+(P.lv-b.levels)+' -> '+P.lv,VW/2,yy+8,{size:16,align:'center',col:'#7dffa0'});txt('Max HP '+maxHp()+'  Shot +'+b.levels+'  HP restored',VW/2,yy+28,{size:11,align:'center',col:'#cfe'});}
     if(b.t>.7&&Math.floor(gtime*2)%2===0)txt(TOUCH?'Tap to continue':'Press SPACE',VW/2,y+h-12,{size:12,align:'center',col:'#fff'});
+  }
+}
+
+/* the discarded card drops away, spinning and fading, with a quick '-0.5s' by the deal timer */
+function drawDiscards(HN){
+  if(!B||!B.discards||!B.discards.length)return;
+  const now=performance.now();B.discards=B.discards.filter(d=>now-d.t0<520);
+  for(const d of B.discards){
+    const p=clamp((now-d.t0)/450,0,1),r=d.r;let CS=1.07,cw0=58,ch0=70;if(TOUCH){const F=fanGeom(HN);CS=F.CS;cw0=F.cw0;ch0=F.ch0;}
+    ctx.save();ctx.globalAlpha=1-p*p;ctx.translate(r.cx+d.dir*p*26,r.cy+p*p*80);ctx.rotate(r.rot+d.dir*p*.9);const sc=CS*(1-.35*p);ctx.scale(sc,sc);ctx.translate(-cw0/2,-ch0/2);
+    drawCardFace(d.id,cw0,ch0,false);ctx.fillStyle='rgba(255,90,70,'+(.45*p)+')';ctx.fillRect(0,0,cw0,ch0);ctx.restore();
+    txt('-'+DISCARD_SAVE+'s',r.cx,r.cy-r.h/2-6-p*14,{size:10,align:'center',col:'#9dffb0',lw:3,alpha:1-p});
   }
 }
 
@@ -6671,6 +6833,18 @@ function expDealTick(dt){
   if(free<0){B.xdeal=Math.min(B.xdeal,EXPCARD.deal);B.gauge=1;return;}      // full: the timer waits
   B.xdeal+=dt;B.gauge=clamp(B.xdeal/EXPCARD.deal,0,1);
   if(B.xdeal>=EXPCARD.deal){B.xdeal=0;B.hand[free]=drawFromDeck();if(!B.hand[B.sel])B.sel=free;B.gaugeFlash=.6;sfx('deal');}
+}
+/* ---- discard: swipe a card DOWN (or X on a keyboard) to throw it away; the empty slot starts refilling 0.5s sooner ---- */
+const DISCARD_SAVE=.5;
+function discardCard(i){
+  if(!B||B.phase!=='fight'||B.cleared)return false;const id=B.hand[i];if(!id)return false;
+  const r=cardRects[i]||{cx:VW/2,cy:VH-60,w:56,h:68,rot:0};
+  (B.discards||(B.discards=[])).push({id,r:{cx:r.cx!=null?r.cx:r.x+r.w/2,cy:r.cy!=null?r.cy:r.y+r.h/2,w:r.w,h:r.h,rot:r.rot||0},t0:performance.now(),dir:(i%2?1:-1)});
+  B.hand[i]=null;if(B.xsel===i)B.xsel=-1;
+  if(B.sel===i){for(let k=1;k<=B.hand.length;k++){const j=(i+k)%B.hand.length;if(B.hand[j]){B.sel=j;break;}}}
+  if(B.hand.indexOf(null)>=0)B.xdeal=Math.min(EXPCARD.deal,(B.xdeal||0)+DISCARD_SAVE);   // a slot is empty, so the deal timer is running: skip 0.5s of it
+  B.gauge=clamp(B.xdeal/EXPCARD.deal,0,1);sfx('whoosh');try{navigator.vibrate&&navigator.vibrate(10);}catch(e){}
+  return true;
 }
 /* ---- selecting / casting ---- */
 const expSelActive=()=>!!(B&&expAim()&&B.xsel>=0&&B.hand[B.xsel]&&B.phase==='fight');
@@ -7390,7 +7564,7 @@ function drawTitle(){
   });
   if(!TOUCH)txt('W/S or Arrows: choose   SPACE: select',320,230+(titleMenu.items.length-1)*TSTEP(),{size:10,align:'center',col:'#cfe0ff',lw:3});
   panel(100,396,440,44,{fill:'#120e24'});
-  if(TOUCH){txt('Left thumb: joystick     SHOT: shoot (hold = charge)',320,414,{size:11,align:'center',col:'#e8e0c8',out:false});txt('Avoid sight cones or shoot first     Tap spell cards to cast',320,430,{size:11,align:'center',col:'#e8e0c8',out:false});}
+  if(TOUCH){txt('Left thumb: joystick     SHOT: shoot (hold = charge)',320,414,{size:11,align:'center',col:'#e8e0c8',out:false});txt('Tap a card: cast     Swipe it down: discard',320,430,{size:11,align:'center',col:'#e8e0c8',out:false});}
   else{txt('WASD / Arrows: walk     J: arcane shot (hold = charge)',320,414,{size:11,align:'center',col:'#e8e0c8',out:false});txt('L: next card   K: cast card   E: talk   Avoid sight cones!',320,430,{size:11,align:'center',col:'#e8e0c8',out:false});}
   ctx.restore();
   titleMenu.gear={x:VW-SR-46,y:VH-SB-46,w:36,h:36};
@@ -7501,7 +7675,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
