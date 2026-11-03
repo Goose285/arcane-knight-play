@@ -6507,7 +6507,7 @@ document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('dblclick',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(state==='fishlab'){touches.set('mouse',{kind:'fl'});flDown(q);return;}if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
-addEventListener('mousemove',e=>{if(touches.has('mouse'))swipeMove('mouse',lpos(e));if(B&&B.xsel>=0){const q=lpos(e);B.xptr={x:q.x+cam.x,y:q.y+cam.y};}});
+addEventListener('mousemove',e=>{if(state==='paused'){try{PAUSE.ptr=lpos(e);}catch(x){}}if(touches.has('mouse'))swipeMove('mouse',lpos(e));if(B&&B.xsel>=0){const q=lpos(e);B.xptr={x:q.x+cam.x,y:q.y+cam.y};}});
 addEventListener('mouseup',()=>{if(touches.has('mouse'))touchEndId('mouse');});
 addEventListener('blur',releaseAllTouch);
 addEventListener('orientationchange',()=>setTimeout(resize,120));
@@ -7369,13 +7369,105 @@ function drawGuardBolts(){
     ctx.fillStyle='#bfe6ff';ctx.beginPath();ctx.arc(b.x1,b.y1,8+p*14,0,6.283);ctx.fill();ctx.restore();}
 }
 
+/* ---------- src/ui/satchel.js ---------- */
+/* =====================================================================
+   LEATHER SATCHEL: pixel-art drawing helpers for the pause / inventory menu (stitched leather, brass buckles, bookmark tabs,
+   recessed item slots with a soft glow, parchment tooltips). Pure drawing: the menu logic stays in pause-menu.js.
+   ===================================================================== */
+const SAT={dark:'#2a160a',L0:'#7a4a26',L1:'#8c5a31',L2:'#a8703f',L3:'#5e3a1c',stitch:'#e2b878',stitchSh:'#3a2210',brass:'#e0b44a',brassHi:'#fff0a0',brassLo:'#9a7418',well:'#3a2210',wellDk:'#1c0e06',wellHi:'#6a4a2c'};
+let SAT_PAT=null;
+function satPattern(){   // tiled leather grain
+  if(SAT_PAT)return SAT_PAT;
+  const c=makeSprite(32,32,g=>{g.fillStyle=SAT.L1;g.fillRect(0,0,32,32);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const r=hash2(x*7+3,y*13+5)/4294967296;if(r<.10){g.fillStyle=SAT.L3;g.fillRect(x,y,1,1);}else if(r<.19){g.fillStyle=SAT.L2;g.fillRect(x,y,1,1);}else if(r>.97){g.fillStyle='#6a3e1e';g.fillRect(x,y,2,1);}}});
+  SAT_PAT=ctx.createPattern(c,'repeat');return SAT_PAT;
+}
+function satLeather(x,y,w,h,o={}){   // stitched leather slab: dark outline with cut corners, grain, bevel, dashed stitching
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);const cut=o.cut==null?3:o.cut;
+  ctx.fillStyle=SAT.dark;ctx.fillRect(x+cut,y,w-cut*2,h);ctx.fillRect(x,y+cut,w,h-cut*2);ctx.fillRect(x+1,y+1,w-2,h-2);
+  ctx.save();ctx.beginPath();ctx.rect(x+2+(cut>2?1:0),y+2,w-4-(cut>2?2:0),h-4);ctx.clip();
+  ctx.fillStyle=satPattern();ctx.fillRect(x,y,w,h);
+  if(o.tone){ctx.fillStyle=o.tone;ctx.fillRect(x,y,w,h);}
+  ctx.restore();
+  ctx.fillStyle=SAT.L2;ctx.fillRect(x+cut,y+2,w-cut*2,2);ctx.fillRect(x+2,y+cut,2,h-cut*2);        // lit top / left
+  ctx.fillStyle=SAT.L3;ctx.fillRect(x+cut,y+h-4,w-cut*2,2);ctx.fillRect(x+w-4,y+cut,2,h-cut*2);   // shaded bottom / right
+  if(o.stitch!==false)satStitch(x+6,y+6,w-12,h-12,o.sc);
+}
+function satStitch(x,y,w,h,col){
+  col=col||SAT.stitch;const d=(a,b,len,hor)=>{for(let i=0;i<len;i+=6){const l=Math.min(3,len-i);
+    if(hor){ctx.fillStyle=SAT.stitchSh;ctx.fillRect(a+i,b+1,l,1);ctx.fillStyle=col;ctx.fillRect(a+i,b,l,1);}
+    else{ctx.fillStyle=SAT.stitchSh;ctx.fillRect(a+1,b+i,1,l);ctx.fillStyle=col;ctx.fillRect(a,b+i,1,l);}}};
+  d(x,y,w,true);d(x,y+h,w,true);d(x,y,h,false);d(x+w,y,h,false);
+}
+function satWell(x,y,w,h){   // recessed (sunken) panel
+  x=Math.round(x);y=Math.round(y);ctx.fillStyle=SAT.wellDk;ctx.fillRect(x,y,w,h);ctx.fillStyle=SAT.well;ctx.fillRect(x+2,y+2,w-3,h-3);
+  ctx.fillStyle=SAT.wellHi;ctx.fillRect(x+1,y+h-1,w-1,1);ctx.fillRect(x+w-1,y+1,1,h-1);
+}
+function satBrass(x,y,w,h){   // brass plate / buckle frame with a dark slot
+  x=Math.round(x);y=Math.round(y);ctx.fillStyle='#4a3208';ctx.fillRect(x,y,w,h);ctx.fillStyle=SAT.brass;ctx.fillRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle=SAT.brassHi;ctx.fillRect(x+1,y+1,w-2,2);ctx.fillRect(x+1,y+1,2,h-2);ctx.fillStyle=SAT.brassLo;ctx.fillRect(x+1,y+h-3,w-2,2);ctx.fillRect(x+w-3,y+1,2,h-2);
+}
+function satBuckle(cx,y,w,h){   // brass buckle: a square frame with a hole and a prong across it
+  const x=Math.round(cx-w/2);satBrass(x,y,w,h);ctx.fillStyle='#2a1806';ctx.fillRect(x+4,y+4,w-8,h-8);
+  const my=y+Math.round(h/2);ctx.fillStyle=SAT.brass;ctx.fillRect(x+2,my-1,w-4,2);ctx.fillStyle=SAT.brassHi;ctx.fillRect(x+2,my-1,w-4,1);ctx.fillStyle=SAT.brassLo;ctx.fillRect(x+w-6,my-2,3,4);
+}
+function satTabPath(x,y,w,h){const n=Math.min(9,Math.round(w*.2));ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.lineTo(x+w,y+h);ctx.lineTo(x+w/2,y+h-n);ctx.lineTo(x,y+h);ctx.closePath();}
+function satTab(x,y,w,h,sel){   // bookmark-shaped leather tab (notched bottom)
+  if(sel)y-=2;
+  ctx.save();satTabPath(x-1.5,y-1.5,w+3,h+3);ctx.fillStyle=SAT.dark;ctx.fill();ctx.restore();
+  ctx.save();satTabPath(x,y,w,h);ctx.clip();ctx.fillStyle=satPattern();ctx.fillRect(x,y,w,h);ctx.fillStyle=sel?'rgba(255,210,120,.22)':'rgba(40,20,8,.12)';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=SAT.L2;ctx.fillRect(x,y,w,2);ctx.fillStyle=SAT.L3;ctx.fillRect(x+w-2,y,2,h);ctx.restore();
+  // stitched edge following the notch
+  const n=Math.min(9,Math.round(w*.2)),ix=x+4,iw=w-8,ih=h-6;
+  ctx.fillStyle=SAT.stitch;for(let i=0;i<ih-n;i+=6){ctx.fillRect(ix,y+4+i,1,3);ctx.fillRect(ix+iw,y+4+i,1,3);}
+  for(let i=0;i<iw/2;i+=5){ctx.fillRect(ix+i,y+4+ih-n+Math.round(i*n/(iw/2))-1,2,1);ctx.fillRect(ix+iw-i-1,y+4+ih-n+Math.round(i*n/(iw/2))-1,2,1);}
+  if(sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;satTabPath(x,y,w,h);ctx.stroke();}
+  return y;
+}
+function satGlow(cx,cy,r,a){const g=ctx.createRadialGradient(cx,cy,1,cx,cy,r);g.addColorStop(0,'rgba(255,214,130,'+a+')');g.addColorStop(1,'rgba(255,170,60,0)');ctx.fillStyle=g;ctx.fillRect(cx-r,cy-r,r*2,r*2);}
+function satSlot(x,y,s,glow){   // recessed item slot with an optional soft glow
+  x=Math.round(x);y=Math.round(y);satWell(x,y,s,s);ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+2,y+2,s-4,3);
+  if(glow>0){ctx.save();ctx.beginPath();ctx.rect(x+2,y+2,s-4,s-4);ctx.clip();satGlow(x+s/2,y+s/2,s*.8,.55*glow);ctx.restore();ctx.strokeStyle='rgba(255,207,106,'+(.75*glow)+')';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,s-2,s-2);}
+}
+function satTip(cx,by,name,sub,col,bounds){   // parchment tooltip with a folded corner, anchored above (cx,by)
+  ctx.font='bold '+scaleText(11)+'px "Courier New",monospace';const w1=ctx.measureText(name).width;ctx.font='bold '+scaleText(8)+'px "Courier New",monospace';const w2=sub?ctx.measureText(sub).width:0;
+  const w=Math.round(Math.max(w1,w2)+18),h=sub?32:22;let x=Math.round(cx-w/2),y=Math.round(by-h-6);
+  if(bounds){x=Math.max(bounds.x+2,Math.min(bounds.x+bounds.w-w-2,x));if(y<bounds.y+2)y=Math.round(by+6);}
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x+2,y+3,w,h);
+  ctx.fillStyle='#3a2210';ctx.fillRect(x-1,y-1,w+2,h+2);ctx.fillStyle='#f0dcae';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#e0c88c';ctx.fillRect(x,y+h-3,w,3);ctx.fillStyle='#fff3cf';ctx.fillRect(x,y,w,2);
+  ctx.fillStyle='#c8a868';ctx.fillRect(x+w-7,y+h-7,7,7);ctx.fillStyle='#8a6a38';ctx.fillRect(x+w-7,y+h-7,1,7);ctx.fillRect(x+w-7,y+h-7,7,1);
+  txt(name,x+w/2,y+(sub?14:15),{size:11,align:'center',col:col||'#3a2210',lw:0,out:false});
+  if(sub)txt(sub,x+w/2,y+26,{size:8,align:'center',col:'#6a4a22',lw:0,out:false,bold:false});
+}
+function satStrap(x,y,w,h,sel,warn){   // a leather strap hanging over the bag's lower edge, with a brass buckle at its end
+  satLeather(x,y,w,h,{cut:2,tone:'rgba(30,14,4,.22)'});
+  ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(Math.round(x)+3,Math.round(y+h),w-6,3);
+  if(sel||warn){ctx.strokeStyle=warn?'#ff8a8a':'#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);}
+}
+/* the backpack contents the slots show: equipped gear first, then the backpack, the day's catch and crafting materials */
+function satItems(){
+  const out=[];
+  for(const s of GEAR_SLOTS){const it=GEAR.eq[s];if(it)out.push({name:it.name,sub:'Equipped '+GEAR_SLOT_NAME[s].toLowerCase()+'  Lv'+it.lv,col:GEAR_RAR[it.rar].col,spr:gearIcon(it),tint:GEAR_RAR[it.rar].col,eq:true});}
+  GEAR.inv.slice().sort((a,b)=>GEAR_RAR_ORDER.indexOf(b.rar)-GEAR_RAR_ORDER.indexOf(a.rar)||b.lv-a.lv).forEach(it=>out.push({name:it.name,sub:GEAR_RAR[it.rar].n+' '+GEAR_SLOT_NAME[it.slot].toLowerCase()+'  Lv'+it.lv,col:GEAR_RAR[it.rar].col,spr:gearIcon(it),tint:GEAR_RAR[it.rar].col}));
+  for(const f of FISHES){const n=FSH.fish[f.id]|0;if(n>0)out.push({name:f.n,sub:(f.junk?'Junk':FISH_RARITY[f.rar|0].n+' fish')+'  x'+n,col:f.junk?f.col:FISH_RARITY[f.rar|0].col,fish:f.col,count:n});}
+  for(const k of Object.keys(MATS)){const n=matCount(k);if(n>0)out.push({name:MATS[k].n,sub:'Material  x'+n,col:MATS[k].col,gem:MATS[k].col,count:n});}
+  return out;
+}
+function satItemIcon(it,x,y,s){   // s = slot size; draws the icon centred, ~60% of the slot
+  const sc=Math.max(1,Math.floor(s*.62/16)),px=16*sc,ix=Math.round(x+(s-px)/2),iy=Math.round(y+(s-px)/2);
+  if(it.spr){draw(it.spr,ix,iy,sc);ctx.globalAlpha=.4;draw(tintOf(it.spr,it.tint),ix,iy,sc);ctx.globalAlpha=1;}
+  else if(it.fish){draw(fishTinted(it.fish),ix,iy,sc);}
+  else if(it.gem){const c=it.gem,u=sc;ctx.fillStyle='#14182c';ctx.fillRect(ix+5*u,iy+2*u,6*u,2*u);ctx.fillRect(ix+3*u,iy+4*u,10*u,2*u);ctx.fillRect(ix+4*u,iy+6*u,8*u,5*u);ctx.fillRect(ix+6*u,iy+11*u,4*u,2*u);
+    ctx.fillStyle=c;ctx.fillRect(ix+6*u,iy+3*u,4*u,1*u);ctx.fillRect(ix+4*u,iy+5*u,8*u,2*u);ctx.fillRect(ix+5*u,iy+7*u,6*u,3*u);ctx.fillRect(ix+7*u,iy+10*u,2*u,1*u);ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillRect(ix+5*u,iy+5*u,2*u,1*u);ctx.fillRect(ix+5*u,iy+6*u,1*u,2*u);}
+}
+
 /* ---------- src/ui/pause-menu.js ---------- */
 /* =====================================================================
    PAUSE MENU: a clean main screen of big buttons + a few small sub-pages, each with a BACK button.
    PAUSE_ITEMS stays the flat registry of every feature (keyboard shortcut + action); the pages below just group them.
    ===================================================================== */
 const pauseRects=[];
-const PAUSE={page:'main',sel:0,cols:1,qAt:-99,kbd:false};
+const PAUSE={page:'main',sel:0,cols:1,qAt:-99,kbd:false,tip:null,ptr:null,slotRects:[],sat:null,tipItem:null,tipAt:null};
 const PAUSE_ITEMS=[
   {k:'KeyP',lab:()=>'RESUME',home:'main',act:()=>{pressed.KeyP=true;}},
   {k:'KeyD',lab:()=>'DECK / CARDS',home:'main',act:()=>openDeck()},
@@ -7397,7 +7489,7 @@ const PAUSE_ITEMS=[
 const pauseItem=k=>PAUSE_ITEMS.find(i=>i.k===k);
 function pauseGo(k){const it=pauseItem(k);PAUSE.page=it.home||'main';it.act();}   // opening a feature remembers which page to come back to
 function pauseOpenPage(p){PAUSE.page=p;PAUSE.sel=0;PAUSE.qAt=-99;sfx('select');}
-function pauseReset(){PAUSE.page='main';PAUSE.sel=0;PAUSE.qAt=-99;}
+function pauseReset(){PAUSE.page='main';PAUSE.sel=0;PAUSE.qAt=-99;PAUSE.tip=null;}
 function pauseQuit(){   // save + back to the title screen (second tap confirms)
   if(gtime-PAUSE.qAt>3){PAUSE.qAt=gtime;sfx('select');return;}
   saveGame('menu');
@@ -7464,13 +7556,24 @@ function pauseIcon(id,x,y,s){
 function pauseLayout(){
   const page=PAUSE.page,items=pauseEntries(page),rects=[],gap=10;
   const L=SL+14,R=VW-SR-14,W=Math.round(Math.min(R-L,page==='main'?560:380)),x0=Math.round((VW-W)/2),top=ST+12,bot=VH-SB-14;
-  if(page==='main'){
-    const cols=VW/Math.max(1,VH)>1.25?4:2,grid=items.slice(1),rows=Math.ceil(grid.length/cols),hdr=VH<430?44:96;
-    const rh=Math.max(40,Math.min(76,Math.floor((bot-top-hdr-gap*rows)/(rows+.85)))),resH=Math.round(rh*.85),total=resH+gap+rows*rh+(rows-1)*gap;
-    const y0=Math.round(top+hdr+Math.max(0,(bot-top-hdr-total)/2)),bw=Math.floor((W-gap*(cols-1))/cols);
-    rects.push({x:x0,y:y0,w:W,h:resH,e:items[0]});
-    grid.forEach((e,i)=>{const lone=i===grid.length-1&&grid.length%cols===1;rects.push({x:lone?x0:x0+(i%cols)*(bw+gap),y:y0+resH+gap+Math.floor(i/cols)*(rh+gap),w:lone?W:bw,h:rh,e});});
-    PAUSE.cols=cols;return {rects,hdr,x0,W,top};
+  if(page==='main'){   // the leather satchel: tabs along the top, item slots in the body, straps (Resume / Teleport home / Save & Quit) at the bottom
+    const SG=6,avH=VH-ST-SB,tabH=Math.max(32,Math.min(46,Math.round(avH*.13))),strapH=Math.max(28,Math.min(40,Math.round(avH*.11))),tabsY=ST+(avH<340?6:10)+12;
+    let bodyY=tabsY+tabH-3,bodyB=VH-SB-6-(strapH-12),bodyH=bodyB-bodyY;const infoH=18,padT=12,padB=14+8;let gridH=bodyH-padT-infoH-padB-4;
+    const availW=VW-SL-SR-16;
+    let s_=Math.max(34,Math.min(72,Math.floor((gridH-2*SG)/3)));
+    let cols=Math.max(4,Math.ceil((340-28+SG)/(s_+SG)));cols=Math.max(3,Math.min(cols,Math.floor((availW-28+SG)/(s_+SG))));
+    const rows=Math.max(2,Math.min(4,Math.floor((gridH+SG)/(s_+SG)))),Wb=cols*(s_+SG)-SG+28,bx=Math.round(SL+(VW-SL-SR-Wb)/2);
+    // shrink-wrap the body when the slots do not fill it, and centre the whole bag vertically
+    const need=padT+infoH+4+rows*(s_+SG)-SG+8+padB,slack=bodyH-need;let dy=0;if(slack>2){bodyH=need;bodyB=bodyY+bodyH;dy=Math.floor(slack/2);}
+    const tabsY0=tabsY;if(dy){bodyY+=dy;bodyB+=dy;}const tabsYc=tabsY0+dy;
+    const tabs=items.slice(1,8),tgap=3,tabW=Math.floor((Wb-14-(tabs.length-1)*tgap)/tabs.length);
+    tabs.forEach((e,i)=>rects.push({x:bx+7+i*(tabW+tgap),y:tabsYc,w:tabW,h:tabH,e,kind:'tab'}));
+    const straps=[items[0],items[8],items[9]],sg=8,sw=Math.floor((Wb-36-sg*2)/3),sy=bodyB-12;
+    // reorder so the rect list reads resume, tabs..., home, quit (same ids as before)
+    const sr=straps.map((e,i)=>({x:bx+18+i*(sw+sg),y:sy,w:sw,h:strapH,e,kind:'strap'}));
+    rects.unshift(sr[0]);rects.push(sr[1],sr[2]);
+    PAUSE.cols=7;PAUSE.sat={bx,Wb,bodyY,bodyB,bodyH,tabsY:tabsYc,tabH,strapH,s:s_,cols,rows,gx:bx+14,gy:bodyY+padT+infoH+4,SG,infoY:bodyY+padT};
+    return {rects,hdr:0,x0:bx,W:Wb,top:tabsYc};
   }
   const hdr=(page==='character'&&VH>=470)?128:(VH<430?56:60),backH=Math.max(42,Math.min(54,Math.round(VH*.09))),n=items.length;
   const sg=VH<430?6:gap,rh=Math.max(VH<430?40:46,Math.min(68,Math.floor((bot-top-hdr-backH-sg*(n+1))/n)));
@@ -7479,64 +7582,108 @@ function pauseLayout(){
   PAUSE.cols=1;return {rects,hdr,x0,W,top};
 }
 function pauseButton(r,sel){
-  const e=r.e,x=r.x,y=r.y,w=r.w,h=r.h;
-  ctx.fillStyle=e.col;ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(255,255,255,.10)';ctx.fillRect(x,y,w,Math.max(2,h*.08));ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x,y+h-Math.max(3,h*.1),w,Math.max(3,h*.1));
-  const warn=e.quit&&gtime-PAUSE.qAt<=3;
-  ctx.strokeStyle=sel?'#ffe14d':warn?'#ff8a8a':'#8a86b8';ctx.lineWidth=sel?4:2;ctx.strokeRect(x+1,y+1,w-2,h-2);
-  const is=h>=60?3:2,isz=10*is,iy=y+Math.round((h-isz)/2);
-  const lab=warn?'TAP AGAIN TO QUIT':e.lab,big=e.wide||e.back;
-  if(e.ic&&!e.wide)pauseIcon(e.ic,x+10,iy,is);
-  if(e.wide){const tw=lab.length*13+isz+14,sx=Math.round(x+w/2-tw/2);pauseIcon(e.ic,sx,iy,is);txt(lab,sx+isz+14,y+h/2+7,{size:20,col:'#fff',lw:3});}
-  else if(e.back)txt(lab,x+w/2,y+h/2+6,{size:17,align:'center',col:'#fff',lw:3});
+  const e=r.e,x=r.x,y=r.y,w=r.w,h=r.h,warn=e.quit&&gtime-PAUSE.qAt<=3;
+  if(r.kind==='tab'){   // bookmark tab with its icon
+    const ty=satTab(x,y,w,h,sel),is=h>=34?2:1,isz=10*is,ex=h>=42&&w>=50;
+    pauseIcon(e.ic,Math.round(x+w/2-isz/2),Math.round(ty+(ex?5:Math.max(4,(h-9-isz)/2))),is);
+    if(ex){const lab=e.lab.split(' ')[0];txt(lab,x+w/2,ty+h-14,{size:7,align:'center',col:'#f6e6c0',lw:2,out:'#2a160a'});}
+    const b=e.badge?e.badge():'';if(b){const bx=x+w-6,by=ty+7;ctx.fillStyle='#14182c';ctx.beginPath();ctx.arc(bx,by,8,0,6.283);ctx.fill();ctx.fillStyle='#e8504a';ctx.beginPath();ctx.arc(bx,by,6.5,0,6.283);ctx.fill();txt(b,bx,by+3,{size:b.length>1?7:9,align:'center',col:'#fff',lw:2});}
+    return;
+  }
+  if(r.kind==='strap'){   // leather strap with a brass buckle at the end
+    satStrap(x,y,w,h,sel,warn);
+    const bw=Math.min(24,Math.round(w*.2)),bh=Math.min(20,h-10),bcx=x+w-bw/2-9;satBuckle(bcx,y+Math.round((h-bh)/2)+2,bw,bh);
+    const lab=warn?'TAP AGAIN':e.id==='home'?(HOME.cd>0?'HOME '+Math.ceil(HOME.cd)+'s':'HOME'):e.id==='quit'?'SAVE & QUIT':'RESUME',maxW=w-bw-26;
+    let sz=11;ctx.font='bold '+scaleText(sz)+'px "Courier New",monospace';while(sz>7&&ctx.measureText(lab).width>maxW){sz--;ctx.font='bold '+scaleText(sz)+'px "Courier New",monospace';}
+    txt(lab,x+10+maxW/2,y+Math.round(h*.42)+4,{size:sz,align:'center',col:warn?'#ffb0a0':'#fff3d0',lw:3,out:'#2a160a'});
+    return;
+  }
+  if(e.id==='sound'){satBrass(x,y,w,h);pauseIcon('sound',x+5,y+Math.round((h-14)/2),1.4);if(w>40)txt(muted?'OFF':'ON',x+26,y+h-5,{size:9,col:muted?'#7a1a1a':'#1a4a1a',lw:0,out:false});return;}
+  // sub-page rows: stitched leather strips with a brass icon plate
+  satLeather(x,y,w,h,{cut:2,tone:'rgba(30,14,4,.18)',sc:'#c89858'});
+  if(sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,w-4,h-4);}
+  const is=h>=60?3:2,isz=10*is,iy=y+Math.round((h-isz)/2),lab=warn?'TAP AGAIN TO QUIT':e.lab;
+  if(e.ic){const px=x+10;ctx.fillStyle=e.col;ctx.fillRect(px-3,iy-3,isz+6,isz+6);ctx.strokeStyle='#2a160a';ctx.lineWidth=2;ctx.strokeRect(px-3,iy-3,isz+6,isz+6);pauseIcon(e.ic,px,iy,is);}
+  if(e.back)txt(lab,x+w/2,y+h/2+6,{size:17,align:'center',col:'#fff3d0',lw:3,out:'#2a160a'});
   else{
-    const tx=x+10+isz+10,sz0=lab.length>8&&w<150?11:lab.length>10&&w<170?12:14,sz=Math.max(8,Math.min(sz0,Math.floor((w-(tx-x)-8)/(lab.length*.64))));   // shrink to fit the tile
-    if(e.sub)txt(lab,tx,y+h/2-1,{size:15,col:'#fff',lw:3}),txt(e.sub,tx,y+h/2+15,{size:9,col:'#d7d3f2',lw:2});
-    else txt(lab,tx,y+h/2+5,{size:sz,col:'#fff',lw:3});
+    const tx=x+10+isz+16,sz0=lab.length>8&&w<150?11:lab.length>10&&w<170?12:14,sz=Math.max(8,Math.min(sz0,Math.floor((w-(tx-x)-8)/(lab.length*.64))));
+    if(e.sub)txt(lab,tx,y+h/2-1,{size:15,col:'#fff3d0',lw:3,out:'#2a160a'}),txt(e.sub,tx,y+h/2+15,{size:9,col:'#e8d4a8',lw:2,out:'#2a160a'});
+    else txt(lab,tx,y+h/2+5,{size:sz,col:'#fff3d0',lw:3,out:'#2a160a'});
   }
   const b=e.badge?e.badge():'';
   if(b){const bx=x+w-14,by=y+14;ctx.fillStyle='#14182c';ctx.beginPath();ctx.arc(bx,by,11,0,6.283);ctx.fill();ctx.fillStyle='#e8504a';ctx.beginPath();ctx.arc(bx,by,9,0,6.283);ctx.fill();txt(b,bx,by+4,{size:b.length>1?9:12,align:'center',col:'#fff',lw:2});}
 }
+function pauseSatchelMain(lay){
+  const S=PAUSE.sat,cx=Math.round(S.bx+S.Wb/2),items=satItems(),n=S.cols*S.rows;
+  // body + top handle with a small buckle
+  satLeather(S.bx,S.bodyY,S.Wb,S.bodyH);
+  const hw=Math.min(46,Math.round(S.Wb*.14));satLeather(cx-hw/2,S.tabsY-12,hw,18,{cut:2,stitch:false});satBuckle(cx,S.tabsY-9,18,12);
+  // recessed interior
+  const ih=S.gy+S.rows*(S.s+S.SG)-S.SG+8-(S.bodyY+8);satWell(S.bx+10,S.bodyY+8,S.Wb-20,ih);
+  txt(`Lv ${P.lv}   HP ${Math.max(0,P.hp|0)}/${maxHp()}   ${P.gold} G`,S.bx+18,S.infoY+11,{size:10,col:'#f6e6c0',lw:3,out:'#1c0e06'});
+  // slots
+  PAUSE.slotRects=[];const tip=PAUSE.tip&&gtime-PAUSE.tip.t<4?PAUSE.tip.i:-1;
+  const ptr=PAUSE.ptr,ov=items.length>n;
+  for(let i=0;i<n;i++){
+    const c=i%S.cols,r=Math.floor(i/S.cols),x=S.gx+c*(S.s+S.SG),y=S.gy+r*(S.s+S.SG);
+    PAUSE.slotRects.push({x,y,w:S.s,h:S.s,i});
+    const it=i===n-1&&ov?{name:'+'+(items.length-n+1)+' more',sub:'Open INVENTORY to see them all',col:'#ffe27a',more:true}:items[i];
+    const hov=ptr&&ptr.x>=x&&ptr.x<x+S.s&&ptr.y>=y&&ptr.y<y+S.s,gl=it?(i===tip?1:hov?.8:(PAUSE.kbd&&PAUSE.sel===-1-i?1:0)):(hov?.25:0);
+    satSlot(x,y,S.s,gl);
+    if(it){if(it.more)txt(it.name,x+S.s/2,y+S.s/2+4,{size:10,align:'center',col:'#ffe27a',lw:3,out:'#1c0e06'});else satItemIcon(it,x,y,S.s);
+      if(it.count>1)txt(String(it.count),x+S.s-4,y+S.s-5,{size:9,align:'right',col:'#fff',lw:3,out:'#1c0e06'});
+      if(it.eq){ctx.fillStyle='#e0b44a';ctx.fillRect(x+3,y+3,9,9);txt('E',x+7.5,y+11,{size:8,align:'center',col:'#3a2208',lw:0,out:false});}}
+  }
+  if(!items.length)txt('Your bag is empty - gear, fish and materials will show up here',S.bx+S.Wb/2,S.gy+S.rows*(S.s+S.SG)/2,{size:9,align:'center',col:'#a8845a',lw:2,out:'#1c0e06',bold:false});
+  PAUSE.tipItem=tip>=0?(items.length>n&&tip===n-1?{name:'+'+(items.length-n+1)+' more',sub:'Open INVENTORY to see them all',col:'#3a2210'}:items[tip]):null;
+  if(PAUSE.tipItem){const r=PAUSE.slotRects[tip];PAUSE.tipAt={cx:r.x+r.w/2,by:r.y,bounds:{x:S.bx,y:ST,w:S.Wb,h:S.bodyB}};}
+  // sound toggle sits in the info row
+  const sw=VW<420?30:66,sr={x:S.bx+S.Wb-18-sw,y:S.infoY+1,w:sw,h:18,e:{id:'sound',ic:'sound',lab:'SOUND',act:()=>{muted=!muted;sfx('select');}},kind:'sound'};
+  return sr;
+}
 function drawPause(){
-  ctx.fillStyle='rgba(6,4,18,.95)';ctx.fillRect(0,0,VW,VH);
-  const lay=pauseLayout(),page=PAUSE.page;
+  const page=PAUSE.page;ctx.fillStyle=page==='main'?'rgba(10,6,2,.66)':'rgba(10,6,2,.9)';ctx.fillRect(0,0,VW,VH);
+  const lay=pauseLayout();
   pauseRects.length=0;lay.rects.forEach(r=>pauseRects.push(r));
   if(PAUSE.sel>=pauseRects.length)PAUSE.sel=pauseRects.length-1;
   const cx=VW/2,top=lay.top;
-  txt(PAUSE_TITLES[page]||'PAUSED',cx,top+26,{size:Math.min(30,Math.round(VH*.06)+10),align:'center',col:'#ffe14d',lw:6});
+  if(page==='main'){
+    const sr=pauseSatchelMain(lay);
+    pauseRects.forEach((r,i)=>pauseButton(r,PAUSE.kbd&&i===PAUSE.sel));
+    pauseRects.push(sr);pauseButton(sr,false);
+    if(PAUSE.tipItem){const T=PAUSE.tipAt;satTip(T.cx,T.by,PAUSE.tipItem.name,PAUSE.tipItem.sub,'#3a2210',T.bounds);}
+    return;
+  }
+  // sub-pages: the same leather, as a taller flap holding the list
+  satLeather(lay.x0-16,top-8,lay.W+32,VH-SB-14-top+14);
+  txt(PAUSE_TITLES[page]||'PAUSED',cx,top+26,{size:Math.min(30,Math.round(VH*.06)+10),align:'center',col:'#ffe9a0',lw:6,out:'#2a160a'});
   const info=`Lv ${P.lv}    HP ${Math.max(0,P.hp|0)}/${maxHp()}    ${P.gold} G`;
-  if(page==='main'&&lay.hdr>=90){
-    ctx.fillStyle='#14182c';ctx.fillRect(cx-lay.W/2+4,top+42,52,52);ctx.strokeStyle='#ffe27a';ctx.lineWidth=2;ctx.strokeRect(cx-lay.W/2+5,top+43,50,50);
-    draw(SP.port.hero,cx-lay.W/2+6,top+44,2);
-    txt('HERO  -  Sun Paladin',cx-lay.W/2+66,top+62,{size:13,col:'#ffe9a0',lw:3});txt(info,cx-lay.W/2+66,top+82,{size:12,col:'#cfd8ff',lw:3});
-  }else if(page==='main')txt(info,cx,top+40,{size:11,align:'center',col:'#cfd8ff',lw:3});
   if(page==='character'){
-    if(lay.hdr>=120){const px=cx-lay.W/2;ctx.fillStyle='#1a1630';ctx.fillRect(px,top+38,lay.W,84);ctx.strokeStyle='#4a4470';ctx.lineWidth=2;ctx.strokeRect(px+1,top+39,lay.W-2,82);
-      ctx.fillStyle='#14182c';ctx.fillRect(px+8,top+46,68,68);ctx.strokeStyle='#ffe27a';ctx.strokeRect(px+9,top+47,66,66);draw(SP.port.hero,px+10,top+48,2.75);
-      txt('HERO',px+88,top+64,{size:15,col:'#ffe9a0',lw:3});txt('Sun Paladin   Lv '+P.lv,px+88,top+82,{size:11,col:'#cfd8ff',lw:3});
-      txt('HP '+Math.max(0,P.hp|0)+'/'+maxHp()+'    '+P.gold+' G',px+88,top+98,{size:11,col:'#9be8a0',lw:3});txt('Foes beaten: '+kills,px+88,top+112,{size:9,col:'#9aa0ff',lw:2});}
-    else txt(info,cx,top+44,{size:11,align:'center',col:'#cfd8ff',lw:3});
+    if(lay.hdr>=120){const px=cx-lay.W/2;satWell(px,top+38,lay.W,84);
+      ctx.fillStyle='#14182c';ctx.fillRect(px+8,top+46,68,68);ctx.strokeStyle='#e0b44a';ctx.lineWidth=2;ctx.strokeRect(px+9,top+47,66,66);draw(SP.port.hero,px+10,top+48,2.75);
+      txt('HERO',px+88,top+64,{size:15,col:'#ffe9a0',lw:3});txt('Sun Paladin   Lv '+P.lv,px+88,top+82,{size:11,col:'#f6e6c0',lw:3});
+      txt('HP '+Math.max(0,P.hp|0)+'/'+maxHp()+'    '+P.gold+' G',px+88,top+98,{size:11,col:'#9be8a0',lw:3});txt('Foes beaten: '+kills,px+88,top+112,{size:9,col:'#d8b888',lw:2});}
+    else txt(info,cx,top+44,{size:11,align:'center',col:'#f6e6c0',lw:3});
   }
-  if(page!=='main'&&page!=='character'){const sb=page==='skills'?[skillPoints()+' skill point'+(skillPoints()===1?'':'s')+' to spend',skillPoints()?'#ffe27a':'#9aa0ff']:[pauseReadyQ()+' quest'+(pauseReadyQ()===1?'':'s')+' ready to turn in',pauseReadyQ()?'#ffe27a':'#9aa0ff'];txt(sb[0],cx,top+46,{size:11,align:'center',col:sb[1],lw:3});}
+  if(page!=='character'){const sb=page==='skills'?[skillPoints()+' skill point'+(skillPoints()===1?'':'s')+' to spend',skillPoints()?'#ffe27a':'#d8b888']:[pauseReadyQ()+' quest'+(pauseReadyQ()===1?'':'s')+' ready to turn in',pauseReadyQ()?'#ffe27a':'#d8b888'];txt(sb[0],cx,top+46,{size:11,align:'center',col:sb[1],lw:3});}
   pauseRects.forEach((r,i)=>pauseButton(r,PAUSE.kbd&&i===PAUSE.sel));
-  if(page==='main'){   // sound toggle, top right
-    const s={x:VW-SR-14-86,y:top+4,w:86,h:34,e:{id:'sound',ic:'sound',col:'#2a2740',lab:'SOUND',act:()=>{muted=!muted;sfx('select');}}};
-    if(VW<420)s.x=VW-SR-14-34,s.w=34;
-    pauseRects.push(s);ctx.fillStyle='#2a2740';ctx.fillRect(s.x,s.y,s.w,s.h);ctx.strokeStyle='#8a86b8';ctx.lineWidth=2;ctx.strokeRect(s.x+1,s.y+1,s.w-2,s.h-2);
-    pauseIcon('sound',s.x+8,s.y+7,2);if(s.w>40)txt(muted?'OFF':'ON',s.x+38,s.y+22,{size:12,col:muted?'#ff8a8a':'#9be8a0',lw:2});
-  }
 }
 function pauseTap(p){
-  const r=pauseRects.find(q=>inRect(p,q));PAUSE.kbd=false;
-  if(r)r.e.act();
+  PAUSE.kbd=false;
+  const r=pauseRects.find(q=>inRect(p,q));
+  if(r){PAUSE.tip=null;r.e.act();return;}
+  if(PAUSE.page==='main'&&PAUSE.slotRects){const sl=PAUSE.slotRects.find(q=>inRect(p,q));
+    if(sl){const items=satItems();if(items[sl.i]||(items.length>PAUSE.slotRects.length&&sl.i===PAUSE.slotRects.length-1)){PAUSE.tip=PAUSE.tip&&PAUSE.tip.i===sl.i&&gtime-PAUSE.tip.t<4?null:{i:sl.i,t:gtime};sfx('select');}else PAUSE.tip=null;return;}
+    PAUSE.tip=null;}
 }
 function updatePauseKeys(){   // keyboard / gamepad: arrows + Enter, hotkeys, Esc = back
   for(const it of PAUSE_ITEMS)if(it.k!=='KeyP'&&it.k!=='KeyM'&&hit(it.k)){pauseGo(it.k);return true;}
-  const n=pauseRects.length-(PAUSE.page==='main'?1:0);   // (the sound button is tap-only)
+  const n=pauseRects.length-(PAUSE.page==='main'&&pauseRects.some(q=>q.e.id==='sound')?1:0);   // (the sound button is tap-only)
   const mv=d=>{PAUSE.kbd=true;PAUSE.sel=Math.max(0,Math.min(n-1,PAUSE.sel+d));sfx('select');};
   if(PAUSE.page==='main'){
-    const c=PAUSE.cols;
-    if(hit('ArrowDown','KeyS'))mv(PAUSE.sel===0?1:c);
-    else if(hit('ArrowUp','KeyW'))mv(PAUSE.sel<=c?-PAUSE.sel:-c);
+    const go=i=>{PAUSE.kbd=true;PAUSE.sel=Math.max(0,Math.min(n-1,i));sfx('select');};   // order: 0 resume, 1-7 tabs, 8 home, 9 quit
+    if(hit('ArrowDown','KeyS'))go(PAUSE.sel>=1&&PAUSE.sel<=7?(PAUSE.sel<=3?0:PAUSE.sel<=5?8:9):PAUSE.sel);
+    else if(hit('ArrowUp','KeyW'))go(PAUSE.sel===0?2:PAUSE.sel===8?5:PAUSE.sel===9?7:PAUSE.sel);
     else if(hit('ArrowRight'))mv(1);else if(hit('ArrowLeft'))mv(-1);
   }else{if(hit('ArrowDown','KeyS','ArrowRight'))mv(1);else if(hit('ArrowUp','KeyW','ArrowLeft'))mv(-1);}
   if(hit('Enter','Space')){const r=pauseRects[PAUSE.sel];if(r&&PAUSE.kbd){r.e.act();return true;}PAUSE.kbd=true;}
@@ -7991,7 +8138,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
