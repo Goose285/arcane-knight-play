@@ -7298,11 +7298,13 @@ const guardsOf=()=>NPCS.filter(n=>n.tguard);
 const tBurst=(x,y,c,n,sp,l)=>B?burst(x,y,c,n,sp,l):wfxBurst(x,y,c,n,sp,l),tText=(x,y,t,c,sz)=>B?floatText(x,y,t,c,sz):wfxText(x,y,t,c,sz);   // in or out of a fight
 function townSend(e,fx=true){   // push an enemy back to its home, calm
   const c=ecen(e);if(fx)tBurst(c.x,c.y,'#bfe6ff',12,130,.5);
+  if(B&&B.ens.includes(e))B.guardOut=true;   // the guards (not the hero) removed this foe from the fight
   if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
   Object.assign(e,{engaged:false,frozen:0,fimm:0,chill:0,hp:e.maxhp,st:'idle',cur:null,dash:null,burn:0,mode:'look',mt:2,chasing:false,calm:5,x:e.hx,y:e.hy});
 }
 function townSlay(e){   // struck down by a guard: gone (no loot / xp for the hero)
   const c=ecen(e);tBurst(c.x,c.y,'#fff6d8',16,150,.6);tBurst(c.x,c.y,'#9ad0ff',10,110,.5);
+  if(B&&B.ens.includes(e))B.guardOut=true;
   if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);B.ens=B.ens.filter(o=>o!==e);}
   Object.assign(e,{engaged:false,alive:false,dying:false,respawn:55,frozen:0,st:'idle',cur:null,dash:null});
 }
@@ -7353,12 +7355,12 @@ function updateTown(dt){
     else townSend(e,false);
   }
   if(!B)return;
-  if(!B.ens.some(o=>!o.dying)){townEnd();return;}
+  if(B.guardOut&&!B.cleared&&!B.ens.length){townEnd();return;}   // only when the guards took the last foe: if the hero landed the kill, the normal victory runs
   if(playerInTown()&&B.phase==='fight'){
     B.townT=(B.townT||0)+dt;
     if(B.townT>.7){B.guardCd=(B.guardCd||0)-dt;if(B.guardCd<=0){B.guardCd=.55;
       const t=B.ens.filter(o=>!o.dying).sort((a,b)=>Math.hypot(a.x-P.x,a.y-P.y)-Math.hypot(b.x-P.x,b.y-P.y))[0];if(t)guardStrike(t);
-      if(B&&!B.ens.some(o=>!o.dying))townEnd();}}
+      if(B&&B.guardOut&&!B.cleared&&!B.ens.length)townEnd();}}
   }else if(B)B.townT=0;
 }
 function drawGuardBolts(){
@@ -8133,7 +8135,15 @@ function frame(ts){
 requestAnimationFrame(frame);
 cv.focus();
 {const sp=document.getElementById('splash');if(sp){if(NOSAVE)sp.remove();else setTimeout(()=>{sp.style.opacity=0;setTimeout(()=>sp.remove(),600);},900);}}
-if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Capacitor&&!NOSAVE)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Capacitor&&!NOSAVE){   // PWA / iOS Home Screen: always move to the newest build
+  const sw=navigator.serviceWorker,had=!!sw.controller;let reloading=false;
+  sw.addEventListener('controllerchange',()=>{if(!had||reloading)return;reloading=true;try{saveGame();}catch(e){}location.reload();});   // a new worker took over: reload into the new build (progress saved first)
+  addEventListener('load',()=>sw.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+    const chk=()=>reg.update().catch(()=>{});chk();
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)chk();});addEventListener('pageshow',chk);addEventListener('focus',chk);setInterval(chk,20*60*1000);
+    reg.addEventListener('updatefound',()=>{const w=reg.installing;if(w)w.addEventListener('statechange',()=>{if(w.state==='installed'&&sw.controller)w.postMessage('skipWaiting');});});
+  }).catch(()=>{}));
+}
 
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
