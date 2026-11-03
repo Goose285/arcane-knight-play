@@ -1462,7 +1462,7 @@ const GEAR_ROLL={
   gauge:(L,m)=>+(.035*m+L*.002).toFixed(3),
   crit:(L,m)=>+(.02*m+L*.0015).toFixed(3),
 };
-const GEAR_STAT_LABEL={shot:'SHOT',hp:'HP',def:'DEF',gauge:'GAUGE',crit:'CRIT'};
+const GEAR_STAT_LABEL={shot:'SHOT',hp:'HP',def:'DEF',gauge:'DEAL',crit:'CRIT'};
 // drop odds by enemy level
 const gearDropChance=L=>Math.min(.3,.055+L*.0065);
 const gearRarityWeights=L=>({common:Math.max(8,56-3.6*L),uncommon:30,rare:7+1.5*L,epic:.8+.45*L,legendary:.05+.13*L});
@@ -2276,9 +2276,9 @@ function updateQuestWorld(){
    ===================================================================== */
 const SKILL_NODES=[
   {id:'hp',    g:'STATS',  name:'VITALITY',   max:5,cost:1,lvl:r=>1+r,   col:'#7dffa0',eff:'+12 max HP per rank'},
-  {id:'gauge', g:'STATS',  name:'ARCANE FLOW',max:5,cost:1,lvl:r=>1+r,   col:'#7df9ff',eff:'+6% spell gauge speed per rank'},
+  {id:'gauge', g:'STATS',  name:'ARCANE FLOW',max:5,cost:1,lvl:r=>1+r,   col:'#7df9ff',eff:'+6% faster card dealing per rank'},
   {id:'crit',  g:'STATS',  name:'KEEN EYE',   max:5,cost:1,lvl:r=>2+r,   col:'#ff8a8a',eff:'+2% crit chance per rank'},
-  {id:'slots', g:'STATS',  name:'DEEP POCKETS',max:2,cost:2,lvl:r=>3+r*4,col:'#ffe14d',eff:'+1 card slot in your hand per rank (max 7)'},
+  {id:'slots', g:'STATS',  name:'DEEP POCKETS',max:2,cost:2,lvl:r=>3+r*4,col:'#ffe14d',eff:'+10% faster card dealing per rank'},
   {id:'frost', g:'SCHOOL', name:'FROST',      max:3,cost:1,lvl:r=>1+r*3,col:'#7fd8ff',eff:'Frost spells +7% dmg per rank. Rank 3: ice chills foes'},
   {id:'fire',  g:'SCHOOL', name:'FIRE',       max:3,cost:1,lvl:r=>1+r*3,col:'#ff8a3d',eff:'Fire spells +7% dmg per rank. Rank 3: fire ignites'},
   {id:'shadow',g:'SCHOOL', name:'SHADOW',     max:3,cost:1,lvl:r=>1+r*3,col:'#b69cff',eff:'Shadow spells +7% dmg per rank. Rank 3: longer Shadow Step'},
@@ -4501,9 +4501,7 @@ function updatePlayerCombat(dt){
   if(hit('KeyK'))castFacingNearest();          // K auto-faces the nearest enemy
   ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'].forEach((k,i)=>{if(hit(k))cardUse(i);});
   if(B.xsel>=0&&(!B.hand[B.xsel]||B.hand[B.xsel]!==B.xid))B.xsel=-1;   // the card was cast, replaced or the hand refreshed
-  if(expCards())expDealTick(dt);                                   // experimental: one card every 2.5s, no full refresh
-  else{B.gauge+=dt/8.5*(1+gearStats().gauge);
-  if(B.gauge>=1){B.gauge=0;dealHand();toast('NEW SPELL CARDS!',1.4,'#ffe14d');}}
+  expDealTick(dt*(1+gearStats().gauge+.1*skillRank('slots')));      // one card every 2.5s into an empty slot (gear / skills deal faster); the timer waits while the hand is full
   B.gaugeFlash=Math.max(0,B.gaugeFlash-dt*1.5);
   // leash: run far enough away and the monster gives up
   if(breakingAway(dt))B.fleeT+=dt;else B.fleeT=Math.max(0,B.fleeT-dt*2);
@@ -4774,7 +4772,7 @@ const DECK_MAX=20,DECK_MIN=10,COMBO_WIN=1.5;
 const HEAL_PCT=.22,HEAL_COOL=12,HEAL_MAX_DECK=2;   // Heal: 22% of max HP (was 35%); half as much if cast again within 12s; 1 in the starter deck (was 3), max 2 in any deck
 const CARDS=[
   // ---- common: the starter deck ----
-  {id:'sword',  name:'SWORD',   col:'#6fb7ff',pow:55,rar:'common',desc:'Melee arc'},
+  {id:'sword',  name:'SWORD',   melee:true,col:'#6fb7ff',pow:55,rar:'common',desc:'Melee arc'},
   {id:'fire',   name:'FIREBALL',col:'#ff8a3d',pow:45,rar:'common',desc:'Burning shot'},
   {id:'shield', name:'BARRIER', col:'#58d68d',pow:0, rar:'common',desc:'Blocks 1 hit'},
   {id:'heal',   name:'HEAL',    col:'#4be37a',pow:0, rar:'common',desc:'Restore 22% HP (half if recast within 12s)'},
@@ -4789,8 +4787,8 @@ const CARDS=[
   // ---- rare ----
   {id:'frostburst',  name:'FROST BURST',  lab:'FRST BRST',col:'#5ab8f0',pow:100,rar:'rare',tgt:1,desc:'Freeze an area'},
   {id:'crimsonburst',name:'CRIMSON BURST',lab:'CRMS BRST',col:'#a01830',pow:85, rar:'rare',tgt:1,desc:'Drain an area'},
-  {id:'quake',  name:'EARTHQUAKE',lab:'QUAKE',    col:'#b98a52',pow:55,rar:'rare',desc:'Shockwave around you, stun 1.2s'},
-  {id:'shadow', name:'SHADOW STEP',lab:'SHDW STEP',col:'#8a6bd6',pow:0, rar:'rare',desc:'Dash through walls-safe, i-frames'},
+  {id:'quake',  name:'EARTHQUAKE',melee:true,lab:'QUAKE',    col:'#b98a52',pow:55,rar:'rare',desc:'Shockwave around you, stun 1.2s'},
+  {id:'shadow', name:'SHADOW STEP',melee:true,lab:'SHDW STEP',col:'#8a6bd6',pow:0, rar:'rare',desc:'Dash through walls-safe, i-frames'},
   {id:'ward',   name:'HOLY WARD',lab:'HOLY WARD', col:'#ffe9a0',pow:0, rar:'rare',desc:'Dome blocks shots 3s'},
   {id:'reflect',name:'REFLECT',  lab:'REFLECT',   col:'#bfe8ff',pow:0, rar:'rare',desc:'Bounce shots back 1.5s'},
   {id:'curse',  name:'CURSE',    lab:'CURSE',     col:'#a85fd0',pow:0, rar:'rare',tgt:1,desc:'Target takes 2x damage 6s'},
@@ -4873,7 +4871,7 @@ function drawFromDeck(){
   if(!B.pile||!B.pile.length){B.pile=shuffle(DECK.slice());if(!B.pile.length)B.pile=['sword','fire','heal'];}
   return B.pile.pop();
 }
-function dealHand(){if(expCards()){expDealInit();return;}B.hand=[];for(let i=0;i<handN();i++)B.hand.push(drawFromDeck());B.sel=0;B.gaugeFlash=1;sfx('deal');}
+function dealHand(){expDealInit();}   // the opening hand; after that expDealTick adds one card every 2.5s (no full-hand refresh any more)
 function initExtras(){Object.assign(B,{clk:0,pile:null,lastCard:null,haste:0,ward:0,reflect:0,tstop:0,sanct:0,sanctT:0,ghost:0,channel:null,wolf:null,decoy:null,clouds:[],meteors:[],bolts:[]});}
 
 /* ---- helpers ---- */
@@ -5224,6 +5222,7 @@ function aimPlan(id){
 }
 function drawAimPreview(){
   drawExpAim();
+  if(typeof expAimId==='function'&&expAimId())return;   // a selected (tap-to-aim) card shows no beam / footprint
   const id=heldCardId();if(!id)return;const xid=expAimId(),pl=xid?expWith(expPointer(xid),()=>aimPlan(id)):aimPlan(id);if(!pl)return;
   const bad=pl.blocked||(pl.noTarget&&!!AIM_NEEDS_TARGET[pl.kind]);
   const col=bad?'#ff7a7a':pl.col,ox=cam.x,oy=cam.y,pulse=.5+.5*Math.sin(gtime*7);
@@ -5442,7 +5441,7 @@ function slotRow(slot){
 function statsRow(){
   return {h:46,draw(x0,y,W,h){
     const s=gearStats();ctx.fillStyle='#120f26';ctx.fillRect(x0,y,W,h);
-    const cells=[['SHOT',arcaneDmg(),'#ffe14d'],['HP',maxHp(),'#7dffa0'],['DEF',s.def,'#9ad0ff'],['GAUGE','+'+Math.round(s.gauge*100)+'%','#ffb86b'],['CRIT',Math.round((.05+s.crit)*100)+'%','#ff8a8a']];
+    const cells=[['SHOT',arcaneDmg(),'#ffe14d'],['HP',maxHp(),'#7dffa0'],['DEF',s.def,'#9ad0ff'],['DEAL','+'+Math.round(s.gauge*100)+'%','#ffb86b'],['CRIT',Math.round((.05+s.crit)*100)+'%','#ff8a8a']];
     const cw=W/cells.length;cells.forEach((c,i)=>{txt(c[0],x0+cw*(i+.5),y+16,{size:8,align:'center',col:'#9aa0ff',lw:2});txt(String(c[1]),x0+cw*(i+.5),y+36,{size:14,align:'center',col:c[2],lw:3});});
   }};
 }
@@ -5920,8 +5919,8 @@ const joyZone=()=>LEFTY?{x0:VW*(1-zoneF()),x1:VW-SR}:{x0:SL,x1:VW*zoneF()};
 function fanGeom(HN){
   layoutTouch();
   const A=btn.atk,s=LEFTY?-1:1,ch0=58,zf=zoneF();
-  const base=HN>5?15:20,tries=[[0,1.12],[2,1.06],[4,1.0],[5,.94],[6,.9]];   // [fewer degrees per card, card scale]: squeeze on narrow screens
-  let R=92,step=base,CS=1.12,cw0=HN>5?44:46,cw=0,ch=0,start=0,end=290;
+  const base=HN>5?15:HN<=4?27:20,tries=[[0,1.12],[2,1.06],[4,1.0],[5,.94],[6,.9]];   // [fewer degrees per card, card scale]: squeeze on narrow screens
+  let R=92,step=base,CS=1.12,cw0=HN>5?44:HN<=4?52:46,cw=0,ch=0,start=0,end=290;
   for(let k=0;k<tries.length;k++){
     step=base-tries[k][0];CS=tries[k][1];cw=cw0*CS;ch=ch0*CS;start=end-(HN-1)*step;
     const cosS=Math.cos(start*Math.PI/180),rot0=Math.abs(start*Math.PI/180-1.5*Math.PI)*.45,ext=cw/2*Math.cos(rot0)+ch/2*Math.sin(rot0)+13*Math.abs(cosS);
@@ -6093,14 +6092,12 @@ addEventListener('orientationchange',()=>setTimeout(resize,120));
 function drawSwipeHint(){
   const t=atkTouch,b=btn.atk;
   if(B&&B.swipeFlash){const f=B.swipeFlash;f.t+=1/60;if(f.t>.4)B.swipeFlash=null;else{
-    ctx.save();ctx.globalAlpha=1-f.t/.4;ctx.strokeStyle=f.col;ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.lineDashOffset=-f.t*80;
-    ctx.beginPath();ctx.moveTo(P.x-cam.x,P.y-12-cam.y);ctx.lineTo(f.tx-cam.x,f.ty-cam.y);ctx.stroke();ctx.setLineDash([]);
-    ctx.beginPath();ctx.arc(f.tx-cam.x,f.ty-cam.y,20+f.t*30,0,6.283);ctx.stroke();ctx.restore();}}
+    ctx.save();ctx.globalAlpha=1-f.t/.4;ctx.strokeStyle=f.col;ctx.lineWidth=3;
+    ctx.setLineDash([]);ctx.beginPath();ctx.arc(f.tx-cam.x,f.ty-cam.y,8+f.t*60,0,6.283);ctx.stroke();ctx.restore();}}   // a small ripple where the cast lands (no beam)
   const ct=cardTouch;
   if(ct&&B&&B.phase==='fight'&&!ct.swiped&&ct.dy>10){   // card swipe: aim line to the target + up arrows over the card
     const cid=B.hand[ct.i],cc=cid&&CARDS.find(q=>q.id===cid),prog=clamp(ct.dy/SWIPE_PX,0,1),near=nearestEnemy(),col=cc?cc.col:'#fff';
-    if(near){ctx.save();ctx.globalAlpha=.35+.5*prog;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.setLineDash([7,6]);ctx.lineDashOffset=-gtime*40;
-      ctx.beginPath();ctx.moveTo(P.x-cam.x,P.y-12-cam.y);ctx.lineTo(near.x-cam.x,near.y-13-cam.y);ctx.stroke();ctx.setLineDash([]);
+    if(near){ctx.save();ctx.globalAlpha=.35+.5*prog;ctx.strokeStyle=col;ctx.lineWidth=2;
       ctx.beginPath();ctx.arc(near.x-cam.x,near.y-13-cam.y,eRad(near)+6+Math.sin(gtime*10)*2,0,6.283);ctx.stroke();ctx.restore();}
     const r=cardRects[ct.i];if(r){ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3;
       for(let i=0;i<2;i++){const ay=r.y-8-i*8-prog*4,cx=r.cx!=null?r.cx:r.x+r.w/2;ctx.beginPath();ctx.moveTo(cx-9,ay+6);ctx.lineTo(cx,ay-2);ctx.lineTo(cx+9,ay+6);ctx.stroke();}ctx.restore();}
@@ -6229,20 +6226,19 @@ function drawCombatHud(){
     if(b.target===o&&list.length>1)txt('>',ex+5,ry+9,{size:9,col:'#ffe14d',lw:2});
   });
   if(list.length>4)txt('+'+(list.length-4)+' more',ex+ew/2,ey+eh-8,{size:8,align:'center',col:'#fff',lw:2});
-  // spell gauge
-  let gw=190,gx=(VW-gw)/2,gy=py+2;
+  // card deal timer: a small bar that fills over 2.5s, then a new card drops into an empty slot (waits while the hand is full)
+  let gw=110,gx=(VW-gw)/2,gy=py+2;
   const centerOK=gx>px+182&&gx+gw+6<ex;
-  if(!centerOK){gw=Math.min(190,stacked?VW-SR-8-px:ex-px-8);gx=px;gy=(stacked?ey+eh+6:py+56);}
-  ctx.fillStyle='#000';ctx.fillRect(gx-3,gy,gw+6,22);ctx.fillStyle='#0c0a1a';ctx.fillRect(gx-1,gy+2,gw+2,18);
-  const gcol=b.gaugeFlash>0&&Math.floor(gtime*16)%2?'#fff':'#ffcf3a';
-  ctx.fillStyle=gcol;ctx.fillRect(gx,gy+3,Math.round(gw*clamp(b.gauge,0,1)),16);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fillRect(gx,gy+3,Math.round(gw*clamp(b.gauge,0,1)),4);
-  for(let i=1;i<5;i++){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(gx+gw*i/5,gy+3,1,16);}
-  txt(expCards()?'NEXT CARD':'SPELL GAUGE',gx+gw/2,gy+34,{size:10,align:'center',col:'#ffe9a0'});
-  COMBAT_HUD_BOT=Math.max(py+50,list.length&&(stacked||ex<px+222)?ey+eh:0,gy+40);
+  if(!centerOK){gw=Math.min(110,stacked?VW-SR-8-px:ex-px-8);gx=px;gy=(stacked?ey+eh+6:py+56);}
+  const full=!b.hand.includes(null),gf=full?1:clamp(b.gauge,0,1);
+  ctx.fillStyle='#000';ctx.fillRect(gx-2,gy,gw+4,12);ctx.fillStyle='#0c0a1a';ctx.fillRect(gx,gy+2,gw,8);
+  ctx.fillStyle=full?'#6a6a8a':(b.gaugeFlash>0&&Math.floor(gtime*16)%2?'#fff':'#ffcf3a');ctx.fillRect(gx,gy+2,Math.round(gw*gf),8);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fillRect(gx,gy+2,Math.round(gw*gf),3);
+  txt(full?'HAND FULL':'NEXT CARD  '+(EXPCARD.deal*(1-gf)).toFixed(1)+'s',gx+gw/2,gy+21,{size:8,align:'center',col:full?'#a8a8c8':'#ffe9a0',lw:2});
+  COMBAT_HUD_BOT=Math.max(py+50,list.length&&(stacked||ex<px+222)?ey+eh:0,gy+28);
   // cards
   /* hand. Desktop: 7% larger than the original, shifted right. Touch: a fan of cards arcing around the SHOT button under the right thumb
      (tops point outward, the selected card pops out); left-handed mode mirrors it. Swipe along the fan to cycle, tap to cast, swipe up to cast at the nearest foe. */
-  const HN=b.hand.length||5;
+  const HN=b.hand.length||EXPCARD.hand;
   cardRects=[];
   if(TOUCH){
     const F=fanGeom(HN),{pos,CS,cw0,ch0,cw,ch}=F;
@@ -6445,8 +6441,16 @@ function trkTap(p){if(TRK.rect&&inRect(p,TRK.rect)){if(TRK.done)return true;TRK.
 /* ---- save / load (localStorage) ---- */
 const SAVE_KEY='arcaneKnight.save.v1',NOSAVE=new URLSearchParams(location.search).has('nosave');
 function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&s.P&&isFinite(s.P.x)?s:null;}catch(e){return null;}}
+/* ---- safety net: the previous save is kept as a backup whenever it would be replaced by a clearly less advanced one (New Game, or a fresh hero
+   overwriting a veteran), and the title screen offers to restore it ---- */
+const BAK_KEY=SAVE_KEY+'.backup';
+function readBackup(){try{const s=JSON.parse(localStorage.getItem(BAK_KEY)||'null');return s&&s.v===1&&s.P&&isFinite(s.P.x)?s:null;}catch(e){return null;}}
+function backupSave(raw){   // raw = the JSON text about to be replaced; keep the most advanced one
+  if(NOSAVE||!raw)return;try{const o=JSON.parse(raw),b=readBackup();if(!o||!o.P||!(o.P.lv>1||o.P.gold>0))return;if(b&&(b.P.lv>o.P.lv||(b.P.lv===o.P.lv&&b.P.gold>=o.P.gold)))return;localStorage.setItem(BAK_KEY,raw);}catch(e){}
+}
 function saveGame(why){
   if(NOSAVE||state==='title'||P.hp<=0||RUSH.on)return false;
+  try{const prev=localStorage.getItem(SAVE_KEY);if(prev){try{const o=JSON.parse(prev);if(o&&o.P&&P.lv<o.P.lv-1)backupSave(prev);}catch(e){}}}catch(e){}
   try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),why,area:areaCur,bossDown,lichDown,tod:DAY.t,kills,muted,cards:packCards(),gear:packGear(),quests:packQuests(),skills:packSkills(),craft:packCraft(),pets:packPets(),story:packStory(),daily:packDaily(),ach:packAch(),secrets:packSecrets(),spw:packSpawners(),fish:packFish(),
     P:{x:Math.round(P.x),y:Math.round(P.y),dir:P.dir,hp:Math.max(1,Math.round(P.hp)),lv:P.lv,xp:P.xp,gold:P.gold,up:P.up}}));return true;}catch(e){return false;}
 }
@@ -6457,7 +6461,7 @@ function loadSave(s){
   if(lichDown){const d=enemies.find(o=>o.type==='lich');if(d){d.alive=false;d.respawn=240;}}
   snapCam();
 }
-function clearSave(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
+function clearSave(){try{backupSave(localStorage.getItem(SAVE_KEY));localStorage.removeItem(SAVE_KEY);}catch(e){}}   // New Game keeps the old save as a backup
 let saveTimer=0;
 addEventListener('pagehide',()=>saveGame('hide'));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame('hide');});
@@ -6677,16 +6681,17 @@ function openArenaMaster(){
         again or any HUD control to cancel. Non-targeted buffs (heal, barrier, haste, ward ...) still cast on a tap.
    The whole thing sits behind EXPCARD.enabled (forced on only while the Lab is open). Flip the flag to promote it to the main game.
    ===================================================================== */
-const EXPCARD={enabled:false,hand:4,deal:2.5,snap:70};
+const EXPCARD={enabled:true,hand:4,deal:2.5,snap:70,start:2};   // PROMOTED to the main game: hand of 4, one card per 2.5s, tap-to-aim
 const labOn=()=>RUSH.on&&RUSH.mode==='lab';
 const expCards=()=>EXPCARD.enabled||labOn();          // the lab's 4-card hand + one-card-every-2.5s dealing
 const expAim=()=>true;                                  // tap-to-select / tap-the-world-to-cast targeting: main game AND lab
 const EXP_INSTANT=new Set(['sword','shield','heal','haste','decoy','ward','reflect','timestop','quake','wolf','shadow']);   // no aim needed: cast on tap
 const EXP_GROUND=new Set(['meteor','poison','frostburst','crimsonburst']);                                 // may land on bare ground
 const EXP_NEEDS_FOE=new Set(['frostbolt','crimsonbolt','chain','curse','drain']);                          // must be pointed at a creature
-const expAimed=id=>!!id&&!EXP_INSTANT.has(id);
+const expAimed=id=>!!id&&!EXP_INSTANT.has(id)&&!(CARD[id]&&CARD[id].melee);   // melee cards (sword, quake, shadow ...) are ALWAYS one tap, never aim
 /* ---- dealing: one card every EXPCARD.deal seconds into the first empty slot ---- */
-function expDealInit(){B.hand=[];for(let i=0;i<EXPCARD.hand;i++)B.hand.push(null);B.sel=0;B.xsel=-1;B.xdeal=EXPCARD.deal;B.xt=null;B.xptr=null;B.gauge=1;}
+function expDealInit(){B.hand=[];for(let i=0;i<EXPCARD.hand;i++)B.hand.push(null);B.sel=0;B.xsel=-1;B.xt=null;B.xptr=null;
+  for(let i=0;i<EXPCARD.start;i++)B.hand[i]=drawFromDeck();B.xdeal=0;B.gauge=0;B.gaugeFlash=.6;sfx('deal');}   // a hand of 2 to open with, then one card per 2.5s
 function expDealTick(dt){
   const free=B.hand.indexOf(null);
   if(free<0){B.xdeal=Math.min(B.xdeal,EXPCARD.deal);B.gauge=1;return;}      // full: the timer waits
@@ -6735,13 +6740,7 @@ const expAimId=()=>expSelActive()?B.hand[B.xsel]:null;
 function drawExpAim(){
   if(!B||!expAim()||B.phase!=='fight')return;
   const id=expAimId();if(!id)return;
-  const ch=CARD[id],col=ch.col,xt=expPointer(id),pulse=.5+.5*Math.sin(gtime*7),pc=pcen();
-  ctx.save();ctx.lineCap='round';
-  // ring around the hero + a faint "cast point" reticle at the pointer
-  ctx.globalAlpha=.22;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.setLineDash([4,8]);ctx.lineDashOffset=-gtime*20;ctx.beginPath();ctx.arc(pc.x-cam.x,pc.y-cam.y,170,0,6.283);ctx.stroke();ctx.setLineDash([]);
-  if(!AIM_KIND[id]){const x=xt.x-cam.x,y=xt.y-cam.y,r=10+2*pulse;ctx.globalAlpha=1;ctx.strokeStyle='#0a0818';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.stroke();
-    ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.moveTo(x-r-5,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+5,y);ctx.moveTo(x,y-r-5);ctx.lineTo(x,y-r+4);ctx.moveTo(x,y+r-4);ctx.lineTo(x,y+r+5);ctx.stroke();}
-  ctx.restore();
+  const ch=CARD[id],col=ch.col;   // (no ring / crosshair / beam any more: just the AIM frame on the card, this banner, and a ripple where the cast lands)
   const w=Math.min(300,VW-SL-SR-20),x=Math.round(SL+(VW-SL-SR)/2-w/2),y=Math.round(Math.max(COMBAT_HUD_BOT+(typeof TRK!=='undefined'&&trkVisible()?30:8),VH*.2));
   panel(x,y,w,34,{});txt(cardFullName(ch)+':  TAP A SPOT TO CAST',x+w/2,y+14,{size:9,align:'center',col,lw:2});
   txt('tap the card again or any button to cancel',x+w/2,y+27,{size:8,align:'center',col:'#cfd0ff',bold:false,lw:2});
@@ -7084,12 +7083,15 @@ function updatePauseKeys(){   // keyboard / gamepad: arrows + Enter, hotkeys, Es
 /* ---------- src/ui/title.js ---------- */
 /* ---- title menu ---- */
 const titleMenu={items:[],sel:0,rects:[],confirm:false,save:null};
-function initTitleMenu(){titleMenu.save=readSave();titleMenu.items=titleMenu.save?['Continue','New Game']:['New Game'];titleMenu.sel=0;titleMenu.confirm=false;}
+function initTitleMenu(){
+  titleMenu.save=readSave();const bk=readBackup();titleMenu.bak=bk&&(!titleMenu.save||bk.P.lv>titleMenu.save.P.lv||(bk.P.lv===titleMenu.save.P.lv&&bk.P.gold>titleMenu.save.P.gold))?bk:null;   // a more advanced backup exists
+  titleMenu.items=titleMenu.save?['Continue','New Game']:['New Game'];if(titleMenu.bak)titleMenu.items.push('Restore Backup');titleMenu.sel=0;titleMenu.confirm=false;}
 function startFromTitle(){
   const it=titleMenu.items[titleMenu.sel];
-  if(it==='Continue'){loadSave(titleMenu.save);}
+  if(it==='Restore Backup'){const b=titleMenu.bak;try{localStorage.setItem(SAVE_KEY,JSON.stringify(b));}catch(e){}titleMenu.save=b;loadSave(b);}
+  else if(it==='Continue'){loadSave(titleMenu.save);}
   else if(titleMenu.save&&!titleMenu.confirm){titleMenu.confirm=true;sfx('select');return;}   // erasing a save needs a second press
-  else{clearSave();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
+  else{clearSave();Object.assign(P,{x:SPAWN.x,y:SPAWN.y,dir:'d',aim:Math.PI/2,moving:false,hp:80,lv:1,xp:0,gold:0,up:0,grace:3,regen:0});P.hp=maxHp();snapCam();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
   state='play';sfx('start');toast(it==='Continue'?'Welcome back, hero!':'Stay out of sight cones - or shoot first!',3.5,'#ffe9a0');areaCur='';
 }
 /* ---- title ---- */
@@ -7118,6 +7120,7 @@ function drawTitle(){
     const yc=184+i*52,sel=i===titleMenu.sel,lab=it==='New Game'&&titleMenu.confirm?'Erase save? Press again':it;
     if(sel){ctx.fillStyle='rgba(255,207,58,.16)';ctx.fillRect(320-150,yc-26,300,46);ctx.strokeStyle=`rgba(255,207,58,${.55+.3*Math.sin(gtime*5)})`;ctx.lineWidth=2;ctx.strokeRect(320-150,yc-26,300,46);}
     txt(lab,320,yc,{size:titleMenu.confirm&&sel&&it==='New Game'?18:24,align:'center',col:sel?'#fff':'#a8a0c0',lw:6});
+    if(it==='Restore Backup'&&titleMenu.bak){const sv=titleMenu.bak;txt('Lv '+sv.P.lv+'  -  '+(sv.area||'Realm')+'  -  '+sv.P.gold+' G',320,yc+14,{size:9,align:'center',col:'#9dffb0',lw:3});}
     if(it==='Continue'&&titleMenu.save){const sv=titleMenu.save;txt('Lv '+sv.P.lv+'  -  '+(sv.area||'Realm')+'  -  '+sv.P.gold+' G',320,yc+14,{size:9,align:'center',col:'#ffe9a0',lw:3});}
     titleMenu.rects.push({x:ox+(320-150)*s,y:oy+(yc-26)*s,w:300*s,h:46*s});
   });
@@ -7223,7 +7226,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{expAim,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
