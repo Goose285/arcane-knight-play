@@ -8131,6 +8131,75 @@ function updatePauseKeys(){   // keyboard / gamepad: arrows + Enter, hotkeys, Es
   return false;
 }
 
+/* ---------- src/ui/editor-palette.js ---------- */
+/* =====================================================================
+   WORLD EDITOR PALETTE: every paintable tile / placeable prop / building / enemy / NPC as an item with a thumbnail of its real in-game art.
+   Items live in categories (Ground, Water, Roads, Nature, Props, Enemies, NPCs). kind: 't' ground tile (painted with a brush, road + water edges
+   auto-blend because they are drawn from the map), 'p' single prop tile, 'b' house (w tiles wide), 'e' enemy spawn, 'n' NPC / sign.
+   ===================================================================== */
+const ED_CATS=['Ground','Water','Roads','Nature','Props','Enemies','NPCs'];
+const ED_NPC_DEFS={
+  elder:{name:'Villager',spr:'elder',lines:['Hello, traveler!']},kid:{name:'Child',spr:'kid',lines:['Hi! Want to play?']},guard:{name:'Guard',spr:'guard',lines:['Move along, citizen.']},
+  smith:{name:'Smith',spr:'smith',lines:['Fine steel, made right here.']},priest:{name:'Priest',spr:'priest',lines:['Peace be with you.']},fisher:{name:'Angler',spr:'fisher',lines:['The fish are biting today.']},
+  keeper:{name:'Keeper',spr:'keeper',lines:['Welcome, friend.']},sign:{name:'Sign',spr:'houseSign',lines:['A weathered wooden sign.']}};
+const ED_ITEMS=[
+  {cat:'Ground',kind:'t',id:T.G,name:'Grass'},{cat:'Ground',kind:'t',id:T.K,name:'Dark grass'},{cat:'Ground',kind:'t',id:T.L,name:'Flowers'},{cat:'Ground',kind:'t',id:T.SD,name:'Sand'},
+  {cat:'Ground',kind:'t',id:T.MD,name:'Mud'},{cat:'Ground',kind:'t',id:T.SN,name:'Snow'},{cat:'Ground',kind:'t',id:T.C,name:'Red carpet'},
+  {cat:'Water',kind:'t',id:T.W,name:'Water (banks blend)'},{cat:'Water',kind:'p',id:T.RE,name:'Reeds'},
+  {cat:'Roads',kind:'t',id:T.P,name:'Gravel road (edges blend)'},{cat:'Roads',kind:'t',id:T.F,name:'Stone paving'},{cat:'Roads',kind:'t',id:T.J,name:'Wooden bridge'},
+  {cat:'Nature',kind:'p',id:T.T,name:'Tree'},{cat:'Nature',kind:'p',id:T.PN,name:'Pine'},{cat:'Nature',kind:'p',id:T.PM,name:'Palm'},{cat:'Nature',kind:'p',id:T.AC,name:'Acacia'},
+  {cat:'Nature',kind:'p',id:T.BU,name:'Bush'},{cat:'Nature',kind:'p',id:T.ST,name:'Stump'},{cat:'Nature',kind:'p',id:T.RK,name:'Rock'},
+  {cat:'Props',kind:'p',id:T.N,name:'Fence'},{cat:'Props',kind:'p',id:T.LN,name:'Lantern'},{cat:'Props',kind:'p',id:T.FR,name:'Campfire'},{cat:'Props',kind:'p',id:T.Z,name:'Brazier'},
+  {cat:'Props',kind:'b',w:3,name:'Small house'},{cat:'Props',kind:'b',w:4,name:'House'},{cat:'Props',kind:'b',w:5,name:'Large house'},{cat:'Props',kind:'n',npc:'sign',name:'Sign post'},
+  ...['slime','knight','goblin','wraith','bat','wolf','yeti','toad','witch','scorpion','mummy'].map(t=>({cat:'Enemies',kind:'e',type:t,name:(ENEMY[t].name||t)+' spawn'})),
+  ...['elder','kid','guard','smith','priest','fisher','keeper'].map(k=>({cat:'NPCs',kind:'n',npc:k,name:ED_NPC_DEFS[k].name})),
+];
+for(const it of ED_ITEMS)it.key=it.kind+':'+(it.kind==='t'||it.kind==='p'?it.id:it.kind==='b'?it.w:it.kind==='e'?it.type:it.npc);
+const ED_ITEM_BY=Object.fromEntries(ED_ITEMS.map(i=>[i.key,i]));
+const ED_PROPSET=new Set([T.T,T.BU,T.LN,T.RK,T.N,T.ST,T.PN,T.PM,T.AC,T.RE,T.FR,T.Z]);                 // tiles that count as movable / deletable props
+const ED_GROUNDSET=new Set([T.G,T.K,T.L,T.P,T.W,T.SD,T.MD,T.SN,T.C,T.F,T.J]);                         // ground that can be painted over
+const ED_OKSET=new Set([...ED_PROPSET,...ED_GROUNDSET]);                                              // buildings, the castle... are never overwritten
+/* ---- thumbnails (real art) ---- */
+function edArt(it){
+  if(it._a)return it._a;
+  let a={};const sx=20+OX,sy=8+OY;
+  if(it.kind==='t'||it.kind==='p'){
+    const id=it.id;
+    if(typeof BIGTREE_IDS!=='undefined'&&BIGTREE&&BIGTREE_IDS.has(id)){const L=treeLayers(id,sx,sy);a={tile:L.bg,fg:L.fg};}
+    else if(typeof TREE_IDS!=='undefined'&&TREE_IDS.has(id))a={tile:treeSprite(id,sx,sy)};
+    else a={tile:TSPR[id][0]};
+  }else if(it.kind==='b'){
+    const w=it.w;a={spr:makeSprite(w*16,48,g=>{for(let c=0;c<w;c++){g.drawImage(TSPR[T.R][0],c*16,0);g.drawImage(TSPR[T.RL][0],c*16,16);g.drawImage(TSPR[c===(w>>1)?T.D:T.H][0],c*16,32);}})};
+  }else if(it.kind==='e')a={spr:SP[ENEMY[it.type].spr]};
+  else a={spr:SP[ED_NPC_DEFS[it.npc].spr]};
+  return it._a=a;
+}
+/* draw item art inside a box (x,y = top-left, a = integer art scale; ground tiles fill the box, sprites sit on its floor) */
+function edDrawArt(it,x,y,a,alpha){
+  const A=edArt(it);ctx.save();ctx.globalAlpha=alpha==null?1:alpha;ctx.imageSmoothingEnabled=false;
+  if(A.tile){ctx.drawImage(A.tile,x,y,16*a,16*a);if(A.fg)ctx.drawImage(A.fg,x,y,16*a,16*a);}
+  else if(A.spr){const m=Math.max(A.spr.width,A.spr.height),sc=m>16?a*16/m:a,w=A.spr.width*sc,h=A.spr.height*sc;ctx.drawImage(A.spr,Math.round(x+(16*a-w)/2),Math.round(y+16*a-h),w,h);}
+  ctx.restore();
+}
+/* ---- rules: why an item cannot go on a tile (null = fine) ---- */
+function edWhy(it,tx,ty){
+  if(!it)return 'Pick something from the tray';
+  if(it.kind==='t')return edIn(tx,ty)&&ED_OKSET.has(map[ty][tx])&&!isVillagePondTile(tx,ty)?null:'Cannot paint there';
+  if(it.kind==='p'){if(!edIn(tx,ty)||!ED_OKSET.has(map[ty][tx])||map[ty][tx]===T.W||isVillagePondTile(tx,ty))return 'Cannot place there';return map[ty][tx]===it.id?'Already there':null;}
+  if(it.kind==='b'){const x0=tx-(it.w>>1),y0=ty-2;for(let r=0;r<3;r++)for(let c=0;c<it.w;c++){const x=x0+c,y=y0+r;if(!edIn(x,y)||!ED_OKSET.has(map[y][x])||map[y][x]===T.W||isVillagePondTile(x,y))return 'No room for a house there';}return null;}
+  if(it.kind==='e')return edIn(tx,ty)&&!solidTile(tx,ty)&&!isVillagePondTile(tx,ty)&&!inTownPx(tx*TS+16,ty*TS+16)?null:'Cannot place a spawn there';
+  if(it.kind==='n')return edIn(tx,ty)&&!solidTile(tx,ty)&&!isVillagePondTile(tx,ty)?null:'Cannot place that there';
+  return 'Cannot place there';
+}
+/* the op that places an item on a tile (the door tile for houses) */
+function edPlaceOp(it,tx,ty){
+  if(it.kind==='p')return {k:'tiles',t:[[tx,ty,it.id]]};
+  if(it.kind==='b'){const x0=tx-(it.w>>1),y0=ty-2,t=[];for(let r=0;r<3;r++)for(let c=0;c<it.w;c++)t.push([x0+c,y0+r,r===0?T.R:r===1?T.RL:c===(it.w>>1)?T.D:T.H]);return {k:'tiles',t};}
+  if(it.kind==='e')return {k:'eadd',type:it.type,tx,ty};
+  if(it.kind==='n')return {k:'nadd',key:it.npc,tx,ty};
+  return null;
+}
+
 /* ---------- src/ui/world-editor.js ---------- */
 /* =====================================================================
    WORLD EDITOR (pause menu -> EDITOR). Touch-first: drag to move houses / NPCs / guards / trees / props / enemy spawns (tile snap; collision and door
@@ -8140,16 +8209,18 @@ function updatePauseKeys(){   // keyboard / gamepad: arrows + Enter, hotkeys, Es
    ===================================================================== */
 const ED_KEY='ak_world_edits_v1';
 let EDS=0;                                   // pixel-scale override while editing (0 = normal); read by resize()
-const ED={hold:null,holdT:0,expN:8,on:false,tool:'move',ground:T.G,prop:T.T,brush:1,ops:[],redo:[],base:null,ptrs:new Map(),drag:null,pan:null,stroke:null,pinch:null,sel:null,rects:[],msg:'',msgT:0,resetAt:-99,s0:1};
-const ED_GROUNDS=[['GRASS',T.G],['PATH',T.P],['WATER',T.W],['FLOWERS',T.L],['DIRT',T.SD],['DARK',T.K]];
-const ED_PROPS=[['TREE',T.T],['BUSH',T.BU],['LANTERN',T.LN],['ROCK',T.RK],['FENCE',T.N],['STUMP',T.ST],['SLIME','e:slime'],['KNIGHT','e:knight'],['GOBLIN','e:goblin']];
-const ED_PROPSET=new Set([T.T,T.BU,T.LN,T.RK,T.N,T.ST]);                                   // tiles that count as movable / deletable props
-const ED_GROUNDSET=new Set([T.G,T.K,T.L,T.P,T.W,T.SD,T.MD]);                                // ground that can be painted over
-const ED_OKSET=new Set([...ED_PROPSET,...ED_GROUNDSET]);                                    // buildings, the castle, bridges... are never overwritten
+const ED={item:'t:'+T.G,cat:'Ground',trayX:0,trayMax:0,cells:[],hover:null,barTop:0,hold:null,holdT:0,expN:8,on:false,tool:'move',ground:T.G,prop:T.T,brush:1,ops:[],redo:[],base:null,ptrs:new Map(),drag:null,pan:null,stroke:null,pinch:null,sel:null,rects:[],msg:'',msgT:0,resetAt:-99,s0:1};
 const edOW=py=>py>=OWY0*TS&&py<(OWY0+OW_H)*TS;                      // is this pixel row inside the overworld block?
 const edIn=(x,y)=>x>=1&&y>=OWY0+1&&x<MW-1&&y<OWY0+OW_H-2;
 function edMini(x,y){try{const g=miniMap.getContext('2d');g.fillStyle=TSPR.mini[map[y][x]]||'#000';g.fillRect(x*2,(y-OWY0)*2,2,2);}catch(e){}}
-function edSetTile(x,y,id){if(!edIn(x,y))return;map[y][x]=id;edMini(x,y);}
+/* road + water edges are drawn from the map around each tile: refresh the cached look of a tile and its neighbours after it changes */
+function edInvalidate(x,y){
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const k=ny*MW+nx;PATH_CACHE.delete(k);if(EDGE_MEMO)EDGE_MEMO[k]=0;
+    if(WE_MASK&&Math.abs(dx)<=1&&Math.abs(dy)<=1){const id=map[ny][nx],wt=WE_WATER.has(id),lt=!wt&&WE_LAND.has(id);let m=0;
+      if(wt||lt)for(let i=0;i<8;i++){const ax=nx+WE_DIRS[i][0],ay=ny+WE_DIRS[i][1];if(ax<0||ay<0||ax>=MW||ay>=MH)continue;const n=map[ay][ax];if(wt?WE_LAND.has(n):WE_WATER.has(n))m|=1<<i;}
+      WE_MASK[k]=m;}}
+}
+function edSetTile(x,y,id){if(!edIn(x,y))return;map[y][x]=id;edMini(x,y);edInvalidate(x,y);}
 /* ---- WORLD EXPANSION ----
    EXPAND adds grass rows / columns on any side of the overworld. The overworld block of the shared map is rebuilt at the new size; once it grows north or south
    it moves down to start at row 224 (below the house room) so the interiors (crypt, regions, arena, house) never move. Everything that stands on the overworld
@@ -8215,6 +8286,7 @@ function edRestore(){
   const b=ED.base;if(!b)return;
   if(EXP.W||EXP.N||EXP.E||EXP.S)edGeom(0,0,0,0);   // back to the authored size (the replay re-applies every EXPAND in order)
   for(let y=0;y<OW_H;y++)for(let x=0;x<MW;x++)if(map[y][x]!==b.map[y][x]){map[y][x]=b.map[y][x];edMini(x,y);}
+  if(NPCS.length>b.npcs.length)NPCS.length=b.npcs.length;
   NPCS.forEach((n,i)=>{const s=b.npcs[i];if(!s)return;n.x=s.x;n.y=s.y;if(s.hx!=null){n.hx=s.hx;n.hy=s.hy;}if(s.label===undefined)delete n.label;else n.label=s.label;if(s.lines)n.lines=s.lines.slice();});
   if(enemies.length>b.en)enemies.length=b.en;
   enemies.forEach((e,i)=>{const s=b.enp[i];if(!s)return;e.x=s.x;e.y=s.y;e.hx=s.hx;e.hy=s.hy;if(e.edDel){e.edDel=false;e.alive=true;e.dying=false;e.respawn=0;}});
@@ -8252,6 +8324,8 @@ function edApply(op){
     case 'npcEdit':{const n=NPCS[op.i];if(n&&n.name===op.n){if(op.label!==undefined)n.label=op.label;if(op.lines)n.lines=op.lines.slice();}break;}
     case 'emove':{const e=edFindEnemy(op);if(e){e.hx=e.x=op.tx*TS+TS/2;e.hy=e.y=op.ty*TS+TS-4;}break;}   // op: {i,type,fx,fy} = which one, {tx,ty} = new tile
     case 'eadd':addEnemy(op.type,op.tx,op.ty);break;
+    case 'nadd':{const d=ED_NPC_DEFS[op.key];if(d)NPCS.push({name:op.name||d.name,x:(op.tx+.5)*TS,y:(op.ty+.9)*TS,spr:d.spr,lines:(op.lines||d.lines).slice(),edAdded:true});break;}
+    case 'ndel':{const n=NPCS[op.i];if(n&&n.edAdded){n.x=n.hx=-9999;n.y=n.hy=-9999;}break;}
     case 'edel':{const e=edFindEnemy(op);if(e){e.alive=false;e.edDel=true;e.dying=false;e.engaged=false;}break;}
   }
 }
@@ -8309,24 +8383,22 @@ function edHit(wx,wy){   // what is under a world point: NPC > enemy spawn > hou
 }
 function edBrushTiles(tx,ty){const n=ED.brush,o=Math.floor((n-1)/2),out=[];for(let y=0;y<n;y++)for(let x=0;x<n;x++)out.push([tx-o+x,ty-o+y]);return out;}
 function edStrokeAt(tx,ty){
-  const s=ED.stroke;if(!s)return;
+  const s=ED.stroke;if(!s||s.pending)return;
   const key=tx+','+ty;if(s.seen.has(key))return;s.seen.add(key);
   if(ED.tool==='paint'){
     for(const [x,y] of edBrushTiles(tx,ty)){if(!edIn(x,y)||!ED_OKSET.has(map[y][x]))continue;
       if(map[y][x]===ED.ground||isVillagePondTile(x,y))continue;s.t.push([x,y,ED.ground]);edSetTile(x,y,ED.ground);}
-  }else if(ED.tool==='props'){
-    if(typeof ED.prop==='string'){if(s.spawned)return;s.spawned=true;if(edIn(tx,ty)&&!solidTile(tx,ty)&&!isVillagePondTile(tx,ty)&&!inTownPx(tx*TS+16,ty*TS+16)){s.ops.push({k:'eadd',type:ED.prop.slice(2),tx,ty});}else edMsg('Cannot place a spawn there');return;}
-    if(!edIn(tx,ty)||!ED_OKSET.has(map[ty][tx])||map[ty][tx]===T.W||map[ty][tx]===ED.prop||isVillagePondTile(tx,ty))return;
-    s.t.push([tx,ty,ED.prop]);edSetTile(tx,ty,ED.prop);
   }else if(ED.tool==='erase'){
     for(const [x,y] of edBrushTiles(tx,ty)){if(!edIn(x,y)||!ED_PROPSET.has(map[y][x]))continue;s.t.push([x,y,T.G]);edSetTile(x,y,T.G);}
     for(const e of enemies){if(e.def.boss||e.night||e.edDel||e.spw||e.rush||e.tmp)continue;if(Math.floor(e.hx/TS)===tx&&Math.floor(e.hy/TS)===ty&&!s.dels.has(e)){s.dels.add(e);s.ops.push({k:'edel',i:enemies.indexOf(e),type:e.type,fx:tx,fy:ty});e.edDel=true;}}
+    NPCS.forEach((n,i)=>{if(Math.floor(n.x/TS)!==tx||Math.floor((n.y-4)/TS)!==ty)return;if(n.edAdded&&!s.ops.some(o=>o.k==='ndel'&&o.i===i))s.ops.push({k:'ndel',i,n:n.name});else if(!n.edAdded)edMsg('Story NPCs cannot be removed - drag them instead');});
   }
 }
 const isVillagePondTile=(x,y)=>x>=VILLAGE_POND.x0&&x<=VILLAGE_POND.x1&&y>=VILLAGE_POND.y0&&y<=VILLAGE_POND.y1;
 function edStrokeLine(a,b){const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/(TS*.4)));for(let i=1;i<=n;i++){const x=a.x+(b.x-a.x)*i/n,y=a.y+(b.y-a.y)*i/n;edStrokeAt(Math.floor(x/TS),Math.floor(y/TS));}}
 function edEndStroke(){
   const s=ED.stroke;ED.stroke=null;if(!s)return;
+  if(s.pending){const it=ED_ITEM_BY[ED.item],tx=Math.floor(s.last.x/TS),ty=Math.floor(s.last.y/TS),why=edWhy(it,tx,ty);if(why){edMsg(why);return;}edPush(edPlaceOp(it,tx,ty));sfx('select');return;}
   for(const e of s.dels)e.edDel=false;   // (the flag was only a preview marker: applying the op sets it for real)
   const ops=[];if(s.t.length)ops.push({k:'tiles',t:s.t});for(const o of s.ops)ops.push(o);
   if(!ops.length)return;
@@ -8335,10 +8407,11 @@ function edEndStroke(){
 }
 function edDown(id,p){
   const r=ED.rects.find(q=>inRect(p,q));
-  ED.ptrs.set(id,{x:p.x,y:p.y,sx:p.x,sy:p.y,t0:performance.now(),moved:false,ui:r||null});
+  ED.ptrs.set(id,{x:p.x,y:p.y,sx:p.x,sy:p.y,t0:performance.now(),moved:false,ui:r||null,sc0:ED.trayX});
+  if(id==='mouse')ED.hover=p;
   if(r){if(r.hold){ED.hold=r.hold;ED.holdT=0;}return;}
   if(ED.ptrs.size>=2){   // two fingers: pan + pinch zoom (cancel whatever one finger was doing)
-    if(ED.stroke)edEndStroke();ED.drag=null;ED.pan=null;
+    if(ED.stroke){if(ED.stroke.pending)ED.stroke=null;else edEndStroke();}ED.drag=null;ED.pan=null;
     const [a,b]=[...ED.ptrs.values()];ED.pinch={d0:Math.hypot(a.x-b.x,a.y-b.y)||1,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};return;}
   const w=edW(p);
   if(ED.tool==='cam'){ED.sel=null;ED.pan={cx:cam.x,cy:cam.y,sx:p.x,sy:p.y};return;}   // CAMERA tool: one finger always pans
@@ -8347,12 +8420,12 @@ function edDown(id,p){
     if(h){ED.sel=h;ED.drag={h,w0:w,dtx:0,dty:0,moved:false};}
     else{ED.sel=null;ED.pan={cx:cam.x,cy:cam.y,sx:p.x,sy:p.y};}
   }else{
-    ED.stroke={t:[],ops:[],seen:new Set(),dels:new Set(),last:w,spawned:false};edStrokeAt(Math.floor(w.x/TS),Math.floor(w.y/TS));
+    ED.stroke={t:[],ops:[],seen:new Set(),dels:new Set(),last:w,pending:ED.tool==='props'};edStrokeAt(Math.floor(w.x/TS),Math.floor(w.y/TS));
   }
 }
 function edMove(id,p){
-  const q=ED.ptrs.get(id);if(!q)return;q.x=p.x;q.y=p.y;if(Math.hypot(p.x-q.sx,p.y-q.sy)>6)q.moved=true;
-  if(q.ui)return;
+  const q=ED.ptrs.get(id);if(!q){if(id==='mouse')ED.hover=p;return;}q.x=p.x;q.y=p.y;if(id==='mouse')ED.hover=p;if(Math.hypot(p.x-q.sx,p.y-q.sy)>6*edK())q.moved=true;
+  if(q.ui){if(q.ui.tray&&q.moved)ED.trayX=clamp(q.sc0-(p.x-q.sx),0,ED.trayMax);return;}
   if(ED.pinch&&ED.ptrs.size>=2){
     const [a,b]=[...ED.ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
     cam.x-=mx-ED.pinch.mx;cam.y-=my-ED.pinch.my;ED.pinch.mx=mx;ED.pinch.my=my;edClampCam();
@@ -8361,7 +8434,7 @@ function edMove(id,p){
   if(ED.pan){cam.x=ED.pan.cx-(p.x-ED.pan.sx);cam.y=ED.pan.cy-(p.y-ED.pan.sy);edClampCam();return;}
   const w=edW(p);
   if(ED.drag){const d=ED.drag;d.dtx=Math.floor(w.x/TS)-Math.floor(d.w0.x/TS);d.dty=Math.floor(w.y/TS)-Math.floor(d.w0.y/TS);if(d.dtx||d.dty||q.moved)d.moved=true;return;}
-  if(ED.stroke){edStrokeLine(ED.stroke.last,w);ED.stroke.last=w;}
+  if(ED.stroke){if(ED.stroke.pending)ED.stroke.last=w;else{edStrokeLine(ED.stroke.last,w);ED.stroke.last=w;}}
 }
 function edDragOk(d){   // is the dragged thing allowed to land on its target?
   const h=d.h;
@@ -8384,12 +8457,24 @@ function edCommitDrag(){
 }
 function edUp(id){
   const q=ED.ptrs.get(id);ED.ptrs.delete(id);if(!q)return;
-  if(q.ui){const u=q.ui;if(u.hold){if(ED.hold===u.hold){if(ED.holdT<.18){cam.x+=u.hold[0]*TS*2;cam.y+=u.hold[1]*TS*2;edClampCam();}ED.hold=null;}return;}
+  if(q.ui){const u=q.ui;if(u.tray){if(!q.moved){const c=ED.cells.find(c=>inRect({x:q.x,y:q.y},c));if(c){sfx('select');edSelect(c.key);}}return;}
+    if(u.hold){if(ED.hold===u.hold){if(ED.holdT<.18){cam.x+=u.hold[0]*TS*2;cam.y+=u.hold[1]*TS*2;edClampCam();}ED.hold=null;}return;}
     if(!q.moved&&inRect({x:q.x,y:q.y},q.ui)){sfx('select');q.ui.act();}return;}
   if(ED.pinch){if(ED.ptrs.size<2)ED.pinch=null;return;}
   if(ED.pan){ED.pan=null;return;}
   if(ED.drag){edCommitDrag();return;}
   if(ED.stroke)edEndStroke();
+}
+/* ---- palette selection ---- */
+function edSelect(key){
+  const it=ED_ITEM_BY[key];if(!it)return;ED.item=key;ED.cat=it.cat;ED.sel=null;
+  if(it.kind==='t'){ED.ground=it.id;ED.tool='paint';}
+  else{ED.prop=it.kind==='p'?it.id:it.kind==='b'?'b:'+it.w:it.kind==='e'?'e:'+it.type:'n:'+it.npc;ED.tool='props';}
+  edMsg(it.name);
+}
+function edTool(t){
+  ED.sel=null;ED.tool=t==='build'?(ED_ITEM_BY[ED.item]&&ED_ITEM_BY[ED.item].kind==='t'?'paint':'props'):t;
+  edMsg({move:'Drag things to move them',cam:'Drag to move the camera',build:'Pick from the tray, drag to aim, lift to place',erase:'Tap props, spawns or signs to remove',expand:'Add grass to a side of the world'}[t]);
 }
 /* ---- world expansion action ---- */
 function edExpand(d){
@@ -8407,6 +8492,7 @@ function edNpcLines(){const s=ED.sel;if(!s||s.kind!=='npc')return;const n=s.n;
 function edDelSel(){
   const s=ED.sel;if(!s)return;
   if(s.kind==='prop'){edPush({k:'tiles',t:[[s.tx,s.ty,T.G]]});ED.sel=null;edMsg('Deleted');}
+  else if(s.kind==='npc'&&s.n.edAdded){edPush({k:'ndel',i:s.i,n:s.n.name});ED.sel=null;edMsg('Removed');}
   else if(s.kind==='enemy'){const e=s.e;edPush({k:'edel',i:s.i,type:e.type,fx:Math.floor(e.hx/TS),fy:Math.floor(e.hy/TS)});ED.sel=null;edMsg('Spawn deleted');}
 }
 /* ---- frame ---- */
@@ -8417,40 +8503,93 @@ function updateEditor(dt){
   if(ED.hold){ED.holdT+=dt;if(ED.holdT>.18){const v=(ED.holdT>.9?620:420)*dt;cam.x+=ED.hold[0]*v;cam.y+=ED.hold[1]*v;}}
   const sp=420*dt;if(held('ArrowLeft','KeyA'))cam.x-=sp;if(held('ArrowRight','KeyD'))cam.x+=sp;if(held('ArrowUp','KeyW'))cam.y-=sp;if(held('ArrowDown','KeyS'))cam.y+=sp;edClampCam();
 }
-cv.addEventListener('wheel',e=>{if(state!=='editor')return;e.preventDefault();edZoom(e.deltaY<0?1:-1);},{passive:false});
-function edBtn(x,y,w,h,lab,act,on,col,hold){ED.rects.push({x,y,w,h,lab,act,on,col,hold:hold||null});}
+cv.addEventListener('wheel',e=>{if(state!=='editor')return;e.preventDefault();const tr=ED.rects.find(r=>r.tray);if(tr&&ED.hover&&inRect(ED.hover,tr)){ED.trayX=clamp(ED.trayX+(e.deltaX||e.deltaY)*.6,0,ED.trayMax);return;}edZoom(e.deltaY<0?1:-1);},{passive:false});
+const edK=()=>Math.max(.7,ED.s0/(EDS||S));       // UI scale: buttons keep their size on screen however far the map is zoomed
+function edBtn(x,y,w,h,lab,act,on,col,hold,ex){const r={x,y,w,h,lab,act,on,col,hold:hold||null};if(ex)Object.assign(r,ex);ED.rects.push(r);return r;}
 function edLayout(){
-  ED.rects=[];const m=4,bh=32,tb=ST+m,L=SL+m;let x=L;
+  ED.rects=[];ED.cells=[];const k=edK(),u=v=>Math.round(v*k),m=u(4),bh=u(32),tb=ST+m,L=SL+m,R=VW-SR-m;let x=L;ED.k=k;
   const top=[['EXIT',edExit],['UNDO',edUndo],['REDO',edRedo],['  -  ',()=>edZoom(-1)],['  +  ',()=>edZoom(1)]];
-  for(const [l,f] of top){const w=Math.max(38,Math.round(l.length*8+18));edBtn(x,tb,w,bh,l,f,false,l==='EXIT'?'#7a2a2a':null);x+=w+4;}
-  let rx=VW-SR-m;for(const [l,f,c] of [['RESET',edReset,'#7a2a2a'],['EXPORT',()=>edExportBox(),'#2d6a4f']].map(a=>a)){const w=Math.round(l.length*8+20);rx-=w;edBtn(rx,tb,w,bh,l,f,false,c);rx-=4;}
-  // tool row (bottom)
-  const by=VH-SB-bh-m;x=L;
-  const TIPS={move:'Drag things to move them',cam:'Drag to move the camera',paint:'Drag to paint ground',props:'Tap / drag to place',erase:'Tap props or spawns to remove',expand:'Add grass to a side of the world'};
-  for(const [l,t] of [['MOVE','move'],['CAM','cam'],['PAINT','paint'],['PROPS','props'],['ERASE','erase'],['EXPAND','expand']]){const w=Math.max(44,Math.round(l.length*7.4+16));edBtn(x,by,w,bh,l,()=>{ED.tool=t;ED.sel=null;edMsg(TIPS[t]);},ED.tool===t,t==='expand'?'#6a4a1a':'#34406a');x+=w+4;}
-  // palette row above it
-  const py=by-bh-4;x=L;const pal=(items,cur,set)=>{for(const [l,v] of items){const w=Math.max(46,Math.round(l.length*7.4+14));edBtn(x,py,w,bh,l,()=>set(v),cur===v,'#5a3a1a');x+=w+4;}};
-  if(ED.tool==='paint'){pal(ED_GROUNDS,ED.ground,v=>{ED.ground=v;});x+=8;for(const n of [1,2,3]){edBtn(x,py,34,bh,'x'+n,()=>{ED.brush=n;},ED.brush===n,'#2a4a6a');x+=38;}}
-  else if(ED.tool==='props')pal(ED_PROPS,ED.prop,v=>{ED.prop=v;});
-  else if(ED.tool==='erase'){for(const n of [1,2,3]){edBtn(x,py,34,bh,'x'+n,()=>{ED.brush=n;},ED.brush===n,'#2a4a6a');x+=38;}}
-  else if(ED.tool==='expand'){
-    for(const [l,d] of [['NORTH','n'],['SOUTH','s'],['EAST','e'],['WEST','w']]){const lab=l+' +'+ED.expN,w=Math.round(lab.length*7.4+14);edBtn(x,py,w,bh,lab,()=>edExpand(d),false,'#2d6a4f');x+=w+4;}
-    const py2=py-bh-4;x=L;for(const n of [4,8,16]){edBtn(x,py2,38,bh,'+'+n,()=>{ED.expN=n;},ED.expN===n,'#2a4a6a');x+=42;}
-    ED.sizeTxt='World '+MW+' x '+OW_H+' tiles   (N'+EXP.N+' S'+EXP.S+' E'+EXP.E+' W'+EXP.W+')';ED.sizeX=x+6;ED.sizeY=py2+bh/2+3;}
-  else if(ED.sel){
-    const sl=ED.sel;
-    if(sl.kind==='npc'){edBtn(x,py,70,bh,'NAME',edNpcName,false,'#2d6a4f');x+=74;edBtn(x,py,96,bh,'DIALOGUE',edNpcLines,false,'#2d6a4f');}
-    else if(sl.kind==='enemy'||sl.kind==='prop')edBtn(x,py,78,bh,'DELETE',edDelSel,false,'#7a2a2a');
-  }
+  for(const [l,f] of top){const w=Math.max(u(38),Math.round(l.length*u(8)+u(18)));edBtn(x,tb,w,bh,l,f,false,l==='EXIT'?'#7a2a2a':null);x+=w+u(4);}
+  let rx=R;for(const [l,f,c] of [['RESET',edReset,'#7a2a2a'],['EXPORT',()=>edExportBox(),'#2d6a4f']]){const w=Math.round(l.length*u(8)+u(20));rx-=w;edBtn(rx,tb,w,bh,l,f,false,c);rx-=u(4);}
+  const build=ED.tool==='paint'||ED.tool==='props',small=VH/k<350,a=small?2:Math.max(2,Math.round(2.5*k)),cw=16*a+u(8),chh=16*a+u(10),yRow=VH-SB-m-bh;
+  // left tool rail (squeezes to fit above the tray on short screens)
+  const rw=u(52);let ry=tb+bh+u(10);
+  const trayTopEst=build?VH-SB-m-(chh+u(6))-u(4)-u(26)-u(22)-u(6):VH,rh=Math.min(u(36),Math.floor((trayTopEst-ry-u(3)*4)/5));
+  for(const [l,t] of [['MOVE','move'],['CAM','cam'],['BUILD','build'],['ERASE','erase'],['EXPAND','expand']]){
+    const on=t==='build'?(ED.tool==='paint'||ED.tool==='props'):ED.tool===t;edBtn(L,ry,rw,rh,l,()=>edTool(t),on,t==='expand'?'#6a4a1a':'#4a3016',null,{icon:t});ry+=rh+u(3);}
+  ED.a=a;ED.headTxt=null;ED.trayRect=null;ED.sizeTxt=null;
+  if(build){
+    const trayH=chh+u(6),yCells=VH-SB-m-trayH,yTabs=yCells-u(4)-u(26),yHead=yTabs-u(22);ED.barTop=yHead-u(4);
+    let tx=L;for(const c of ED_CATS){const w=u(20)+Math.round(c.length*u(6))+u(8);edBtn(tx,yTabs,w,u(26),c,()=>{ED.cat=c;ED.trayX=0;},ED.cat===c,'#4a3016',null,{chip:ED_ITEMS.find(i=>i.cat===c)});tx+=w+u(3);}
+    const it=ED_ITEM_BY[ED.item];ED.headTxt={x:L,y:yHead+u(13),t:it?it.name:''};
+    if(ED.tool==='paint'){let bx=R;for(const n of [3,2,1]){bx-=u(34);edBtn(bx,yHead,u(32),u(20),'x'+n,()=>{ED.brush=n;},ED.brush===n,'#2a4a6a');bx-=u(2);}}
+    const items=ED_ITEMS.filter(i=>i.cat===ED.cat),gap=u(4),tot=items.length*(cw+gap)-gap;
+    ED.trayMax=Math.max(0,tot-(R-L));ED.trayX=clamp(ED.trayX,0,ED.trayMax);
+    ED.trayRect=edBtn(L,yCells,R-L,trayH,'',null,false,null,null,{tray:true});
+    items.forEach((i,n)=>{const cx=L+n*(cw+gap)-ED.trayX;if(cx+cw<L||cx>R)return;ED.cells.push({x:cx,y:yCells+u(3),w:cw,h:chh,key:i.key,it:i});});
+  }else if(ED.tool==='expand'){
+    let xx=L;for(const [l,d] of [['NORTH','n'],['SOUTH','s'],['EAST','e'],['WEST','w']]){const lab=l+' +'+ED.expN,w=Math.round(lab.length*u(7.4)+u(14));edBtn(xx,yRow,w,bh,lab,()=>edExpand(d),false,'#2d6a4f');xx+=w+u(4);}
+    const y2=yRow-bh-u(4);xx=L;for(const n of [4,8,16]){edBtn(xx,y2,u(38),bh,'+'+n,()=>{ED.expN=n;},ED.expN===n,'#2a4a6a');xx+=u(42);}
+    ED.sizeTxt='World '+MW+' x '+OW_H+' tiles   (N'+EXP.N+' S'+EXP.S+' E'+EXP.E+' W'+EXP.W+')';ED.sizeX=xx+u(6);ED.sizeY=y2+bh/2+3;ED.barTop=y2-u(6);
+  }else if(ED.tool==='erase'){
+    let xx=L;for(const n of [1,2,3]){edBtn(xx,yRow,u(34),bh,'x'+n,()=>{ED.brush=n;},ED.brush===n,'#2a4a6a');xx+=u(38);}ED.barTop=yRow-u(6);
+  }else if(ED.sel&&(ED.tool==='move')){
+    const sl=ED.sel;let xx=L;
+    if(sl.kind==='npc'){edBtn(xx,yRow,u(70),bh,'NAME',edNpcName,false,'#2d6a4f');xx+=u(74);edBtn(xx,yRow,u(96),bh,'DIALOGUE',edNpcLines,false,'#2d6a4f');xx+=u(100);if(sl.n.edAdded)edBtn(xx,yRow,u(78),bh,'DELETE',edDelSel,false,'#7a2a2a');}
+    else if(sl.kind==='enemy'||sl.kind==='prop')edBtn(xx,yRow,u(78),bh,'DELETE',edDelSel,false,'#7a2a2a');
+    ED.barTop=yRow-u(6);
+  }else ED.barTop=VH;
   // on-screen camera arrows (hold to glide, tap to nudge)
-  {const a=26,cx0=VW-SR-m-a*3-4,cy0=ST+m+bh+8;
-   for(const [l,dx,dy,gx,gy] of [['^',0,-1,1,0],['<',-1,0,0,1],['v',0,1,1,1],['>',1,0,2,1]])edBtn(cx0+gx*(a+2),cy0+gy*(a+2),a,a,l,null,ED.hold&&ED.hold[0]===dx&&ED.hold[1]===dy,'#34406a',[dx,dy]);}
+  {const ar=u(26),cx0=R-ar*3-u(4),cy0=tb+bh+u(8);
+   for(const [l,dx,dy,gx,gy] of [['^',0,-1,1,0],['<',-1,0,0,1],['v',0,1,1,1],['>',1,0,2,1]])edBtn(cx0+gx*(ar+2),cy0+gy*(ar+2),ar,ar,l,null,ED.hold&&ED.hold[0]===dx&&ED.hold[1]===dy,'#34406a',[dx,dy]);}
+}
+/* tiny hand-drawn tool glyphs for the left rail */
+function edGlyph(t,cx,cy,k){
+  const s=Math.max(1,Math.round(k*5));ctx.save();ctx.lineWidth=Math.max(2,Math.round(k*2));ctx.strokeStyle='#fff3d0';ctx.fillStyle='#fff3d0';ctx.lineCap='round';
+  if(t==='move'){ctx.beginPath();ctx.moveTo(cx-s*1.5,cy);ctx.lineTo(cx+s*1.5,cy);ctx.moveTo(cx,cy-s*1.5);ctx.lineTo(cx,cy+s*1.5);ctx.stroke();for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){ctx.beginPath();ctx.moveTo(cx+dx*s*1.9,cy+dy*s*1.9);ctx.lineTo(cx+dx*s*1.1+dy*s*.7,cy+dy*s*1.1+dx*s*.7);ctx.lineTo(cx+dx*s*1.1-dy*s*.7,cy+dy*s*1.1-dx*s*.7);ctx.fill();}}
+  else if(t==='cam'){ctx.beginPath();ctx.ellipse(cx,cy,s*1.9,s*1.1,0,0,6.283);ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,s*.6,0,6.283);ctx.fill();}
+  else if(t==='erase'){ctx.strokeStyle='#ff9a8a';ctx.beginPath();ctx.moveTo(cx-s,cy-s);ctx.lineTo(cx+s,cy+s);ctx.moveTo(cx+s,cy-s);ctx.lineTo(cx-s,cy+s);ctx.stroke();}
+  else if(t==='expand'){ctx.strokeRect(cx-s*.9,cy-s*.9,s*1.8,s*1.8);ctx.beginPath();ctx.moveTo(cx+s*.3,cy-s*.3);ctx.lineTo(cx+s*1.9,cy-s*1.9);ctx.moveTo(cx+s*1.9,cy-s*1.1);ctx.lineTo(cx+s*1.9,cy-s*1.9);ctx.lineTo(cx+s*1.1,cy-s*1.9);ctx.stroke();}
+  else if(t==='build'){const it=ED_ITEM_BY[ED.item];if(it)edDrawArt(it,Math.round(cx-8*Math.max(1,Math.round(k))),Math.round(cy-8*Math.max(1,Math.round(k))),Math.max(1,Math.round(k)));}
+  ctx.restore();
 }
 function edButton(r){
+  if(r.tray)return;
+  const k=ED.k||1;
   ctx.fillStyle='#1c0e06';ctx.fillRect(r.x-1,r.y-1,r.w+2,r.h+2);
-  ctx.fillStyle=r.on?'#e0b44a':(r.col||'#5a3a1a');ctx.fillRect(r.x,r.y,r.w,r.h);
-  ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(r.x,r.y,r.w,2);
-  const lab=r.lab.trim();txt(lab,r.x+r.w/2,r.y+r.h/2+4,{size:lab.length>6?9:10,align:'center',col:r.on?'#2a160a':'#fff3d0',lw:r.on?0:3,out:r.on?false:'#1c0e06'});
+  ctx.fillStyle=r.on?'#e0b44a':(r.col||'#4a3016');ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(r.x,r.y,r.w,2);ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(r.x,r.y+r.h-2,r.w,2);
+  const lab=r.lab.trim(),fs=Math.max(7,Math.round((lab.length>6?9:10)*k));
+  if(r.icon){edGlyph(r.icon,r.x+r.w/2,r.y+r.h*.38,k);txt(lab,r.x+r.w/2,r.y+r.h-Math.round(5*k),{size:Math.max(6,Math.round(7*k)),align:'center',col:r.on?'#2a160a':'#fff3d0',lw:r.on?0:3,out:r.on?false:'#1c0e06'});return;}
+  if(r.chip){const ia=k>=1.5?2:1;edDrawArt(r.chip,r.x+Math.round(3*k),Math.round(r.y+(r.h-16*ia)/2),ia);txt(lab,r.x+Math.round(6*k)+16*ia+(r.w-Math.round(6*k)-16*ia)/2-Math.round(3*k),r.y+r.h/2+Math.round(3.5*k),{size:fs,align:'center',col:r.on?'#2a160a':'#fff3d0',lw:r.on?0:3,out:r.on?false:'#1c0e06'});return;}
+  txt(lab,r.x+r.w/2,r.y+r.h/2+Math.round(4*k),{size:fs,align:'center',col:r.on?'#2a160a':'#fff3d0',lw:r.on?0:3,out:r.on?false:'#1c0e06'});
+}
+/* the picture tray: thumbnails of real in-game art, selected one glows gold */
+function edDrawTray(){
+  const tr=ED.trayRect;if(!tr)return;const k=ED.k||1,a=ED.a||2;
+  ctx.fillStyle='#1c0e06';ctx.fillRect(tr.x-2,tr.y-2,tr.w+4,tr.h+4);ctx.fillStyle='#3a2412';ctx.fillRect(tr.x,tr.y,tr.w,tr.h);
+  ctx.save();ctx.beginPath();ctx.rect(tr.x,tr.y,tr.w,tr.h);ctx.clip();
+  for(const c of ED.cells){const sel=c.key===ED.item;
+    ctx.fillStyle=sel?'#7a5a22':'#56381c';ctx.fillRect(c.x,c.y,c.w,c.h);ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(c.x+2,c.y+2,c.w-4,c.h-4);
+    edDrawArt(c.it,Math.round(c.x+(c.w-16*a)/2),Math.round(c.y+(c.h-16*a)/2),a);
+    if(sel){ctx.fillStyle='rgba(255,225,77,.18)';ctx.fillRect(c.x,c.y,c.w,c.h);ctx.strokeStyle='#ffe14d';ctx.lineWidth=Math.max(2,Math.round(2*k));ctx.strokeRect(c.x+1,c.y+1,c.w-2,c.h-2);}
+    else{ctx.strokeStyle='#8a6232';ctx.lineWidth=1;ctx.strokeRect(c.x+.5,c.y+.5,c.w-1,c.h-1);}}
+  ctx.restore();
+  if(ED.trayX>2)txt('<',tr.x+6,tr.y+tr.h/2+4,{size:Math.round(14*k),align:'center',col:'#ffe14d',lw:3,out:'#1c0e06'});
+  if(ED.trayX<ED.trayMax-2)txt('>',tr.x+tr.w-6,tr.y+tr.h/2+4,{size:Math.round(14*k),align:'center',col:'#ffe14d',lw:3,out:'#1c0e06'});
+  if(ED.headTxt)txt(ED.headTxt.t,ED.headTxt.x+2,ED.headTxt.y,{size:Math.max(8,Math.round(11*k)),align:'left',col:'#ffe9b0',lw:3,out:'#1c0e06'});
+}
+/* see-through preview of the chosen item on a tile (red when it cannot go there) */
+function edGhost(it,tx,ty,cx,cy){
+  const why=edWhy(it,tx,ty),sx=tx*TS-cx,sy=ty*TS-cy,A=edArt(it);ctx.save();ctx.imageSmoothingEnabled=false;ctx.globalAlpha=.75;
+  let bx=sx,by=sy,bw=TS,bh=TS;
+  if(it.kind==='t'||it.kind==='p'){ctx.drawImage(A.tile,sx,sy,TS,TS);if(A.fg){const w=TS*BIGTREE;ctx.drawImage(A.fg,sx+TS/2-w/2,sy+TS-w+2,w,w);}}
+  else if(it.kind==='b'){bx=(tx-(it.w>>1))*TS-cx;by=(ty-2)*TS-cy;bw=it.w*TS;bh=3*TS;ctx.drawImage(A.spr,bx,by,bw,bh);}
+  else if(it.kind==='e')ctx.drawImage(A.spr,sx+TS/2-A.spr.width,sy+TS-6-A.spr.height*2,A.spr.width*2,A.spr.height*2);
+  else ctx.drawImage(A.spr,sx+TS/2-16,sy+Math.round(TS*.9)-31,32,32);
+  ctx.globalAlpha=1;ctx.fillStyle=why?'rgba(255,60,40,.32)':'rgba(255,225,77,.16)';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=why?'#ff5040':'#ffe14d';ctx.lineWidth=2;ctx.strokeRect(bx+1,by+1,bw-2,bh-2);
+  txt(why||it.name,sx+TS/2,by-6,{size:9,align:'center',col:why?'#ffb0a0':'#fff3d0',lw:3,out:'#1c0e06'});
+  ctx.restore();return !why;
 }
 const edTileCol=id=>TSPR.mini[id]||'#888';
 function drawEditor(){
@@ -8472,9 +8611,9 @@ function drawEditor(){
     txt(n.tguard?'GUARD':(n.label||n.name).toUpperCase(),sx,sy+16,{size:7,align:'center',col:sel?'#ffe14d':'#e8f6e8',lw:3,out:'#10240f'});}
   for(let i=0;i<enemies.length;i++){const e=enemies[i];if(e.def.boss||e.night||e.edDel||e.spw||e.rush||e.tmp||!edOW(e.hy))continue;const sx=e.hx-cx,sy=e.hy-cy;if(sx<-20||sy<-20||sx>VW+20||sy>VH+20)continue;
     const sel=ED.sel&&ED.sel.kind==='enemy'&&ED.sel.e===e;
-    ctx.fillStyle='rgba(20,0,0,.55)';ctx.beginPath();ctx.moveTo(sx,sy-22);ctx.lineTo(sx+10,sy-10);ctx.lineTo(sx,sy+2);ctx.lineTo(sx-10,sy-10);ctx.closePath();ctx.fill();
-    ctx.strokeStyle=sel?'#ffe14d':'#ff6b5a';ctx.lineWidth=sel?3:2;ctx.stroke();
-    txt(e.type[0].toUpperCase(),sx,sy-6,{size:9,align:'center',col:'#fff',lw:0,out:false});}
+    const sp=SP[e.def.spr];ctx.fillStyle='rgba(20,0,0,.4)';ctx.beginPath();ctx.ellipse(sx,sy-2,12,5,0,0,6.283);ctx.fill();
+    if(sp)draw(sp,sx-sp.width,sy-4-sp.height*2,2);
+    ctx.strokeStyle=sel?'#ffe14d':'#ff6b5a';ctx.lineWidth=sel?3:2;ctx.beginPath();ctx.ellipse(sx,sy-2,12,5,0,0,6.283);ctx.stroke();}
   // drag ghost
   const d=ED.drag;
   if(d&&d.moved){
@@ -8482,23 +8621,32 @@ function drawEditor(){
     const box=(x,y,w,hh)=>{ctx.fillStyle=ok?'rgba(255,225,77,.28)':'rgba(255,80,60,.35)';ctx.fillRect(x-cx,y-cy,w,hh);ctx.strokeStyle=ok?'#ffe14d':'#ff5040';ctx.lineWidth=2;ctx.strokeRect(x-cx+1,y-cy+1,w-2,hh-2);};
     if(h.kind==='house'){const H=h.h;box((H.x+d.dtx)*TS,(H.y+d.dty)*TS,H.w*TS,3*TS);for(let r=0;r<3;r++)for(let c=0;c<H.w;c++)ctx.drawImage(tileSprite(map[H.y+r][H.x+c],H.x+c,H.y+r,gtime),(H.x+d.dtx+c)*TS-cx,(H.y+d.dty+r)*TS-cy,TS,TS);}
     else if(h.kind==='prop'){const x=(h.tx+d.dtx)*TS,y=(h.ty+d.dty)*TS;ctx.drawImage(tileSprite(h.id,h.tx,h.ty,gtime),x-cx,y-cy,TS,TS);box(x,y,TS,TS);}
-    else if(h.kind==='npc'){const n=h.n;draw(SP[n.spr],n.x+d.dtx*TS-cx-16,n.y+d.dty*TS-cy-31);box(Math.floor((n.x+d.dtx*TS)/TS)*TS,Math.floor((n.y+d.dty*TS)/TS)*TS,TS,TS);}
+    else if(h.kind==='npc'){const n=h.n;draw(SP[n.spr],n.x+d.dtx*TS-cx-16,n.y+d.dty*TS-cy-31,2);box(Math.floor((n.x+d.dtx*TS)/TS)*TS,Math.floor((n.y+d.dty*TS)/TS)*TS,TS,TS);}
     else if(h.kind==='enemy'){const e=h.e,x=(Math.floor(e.hx/TS)+d.dtx)*TS,y=(Math.floor(e.hy/TS)+d.dty)*TS;box(x,y,TS,TS);}
     ctx.restore();
   }
   else if(ED.sel){const s=ED.sel;ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;
     if(s.kind==='house'&&s.h)ctx.strokeRect(s.h.x*TS-cx,s.h.y*TS-cy,s.h.w*TS,3*TS);else if(s.kind==='prop')ctx.strokeRect(s.tx*TS-cx,s.ty*TS-cy,TS,TS);}
-  // brush preview under a finger in paint / erase
-  const pt=[...ED.ptrs.values()][0];
-  if(pt&&!pt.ui&&(ED.tool==='paint'||ED.tool==='erase')&&ED.ptrs.size===1){const w=edW(pt);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2;for(const [x,y] of edBrushTiles(Math.floor(w.x/TS),Math.floor(w.y/TS)))ctx.strokeRect(x*TS-cx+1,y*TS-cy+1,TS-2,TS-2);}
+  // ghost of the chosen item under the finger (or the mouse) before it is placed; erase shows its brush
+  {const pt=[...ED.ptrs.values()][0],it=ED_ITEM_BY[ED.item];let w=null;
+   if(ED.stroke&&ED.stroke.last&&ED.ptrs.size===1)w=ED.stroke.last;
+   else if(pt&&!pt.ui&&ED.ptrs.size===1)w=edW(pt);
+   else if(!ED.ptrs.size&&ED.hover&&!ED.rects.some(r=>inRect(ED.hover,r))&&ED.hover.y<ED.barTop)w=edW(ED.hover);
+   ED.ghost=null;
+   if(w&&(ED.tool==='paint'||ED.tool==='props')&&it){const tx=Math.floor(w.x/TS),ty=Math.floor(w.y/TS);
+     if(ED.tool==='paint'){ctx.save();ctx.globalAlpha=.55;for(const [x,y] of edBrushTiles(tx,ty)){if(!edIn(x,y))continue;ctx.drawImage(edArt(it).tile,x*TS-cx,y*TS-cy,TS,TS);}ctx.globalAlpha=1;ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;for(const [x,y] of edBrushTiles(tx,ty))ctx.strokeRect(x*TS-cx+1,y*TS-cy+1,TS-2,TS-2);ctx.restore();ED.ghost={tx,ty,ok:true};}
+     else ED.ghost={tx,ty,ok:edGhost(it,tx,ty,cx,cy)};}
+   else if(w&&ED.tool==='erase'){ctx.strokeStyle='rgba(255,140,120,.9)';ctx.lineWidth=2;for(const [x,y] of edBrushTiles(Math.floor(w.x/TS),Math.floor(w.y/TS)))ctx.strokeRect(x*TS-cx+1,y*TS-cy+1,TS-2,TS-2);}}
   // bars
   edLayout();
-  ctx.fillStyle='rgba(16,8,2,.55)';ctx.fillRect(0,0,VW,ST+40);ctx.fillRect(0,VH-SB-(ED.tool==='expand'?116:(ED.tool==='move'||ED.tool==='cam')&&!ED.sel?40:78),VW,VH);
+  ctx.fillStyle='rgba(16,8,2,.55)';ctx.fillRect(0,0,VW,ST+Math.round(40*(ED.k||1)));
+  if(ED.barTop<VH){ctx.fillStyle='rgba(28,14,6,.8)';ctx.fillRect(0,ED.barTop,VW,VH-ED.barTop);ctx.fillStyle='#8a6232';ctx.fillRect(0,ED.barTop,VW,2);}
   for(const r of ED.rects)edButton(r);
+  edDrawTray();
   if(ED.tool==='expand'&&ED.sizeTxt)txt(ED.sizeTxt,ED.sizeX,ED.sizeY,{size:9,align:'left',col:'#e8d4a8',lw:3,out:'#1c0e06'});
   const sel=ED.sel,info=gtime-ED.msgT<4&&ED.msg?ED.msg:(sel?(sel.kind==='npc'?'Selected: '+(sel.n.label||sel.n.name)+' - drag to move':sel.kind==='enemy'?'Selected: '+sel.e.type+' spawn - drag to move':sel.kind==='house'?'Selected: house - drag to move (door follows)':'Selected: prop - drag to move'):'');
-  if(info)txt(info,VW/2,ST+56,{size:10,align:'center',col:'#fff3d0',lw:4,out:'#1c0e06'});
-  txt(ED.ops.length+' edit'+(ED.ops.length===1?'':'s'),VW-SR-6,VH-SB-52+((ED.tool==='move'||ED.tool==='cam')&&!ED.sel?36:0),{size:8,align:'right',col:'#e8d4a8',lw:3,out:'#1c0e06'});
+  if(info)txt(info,VW/2,ST+Math.round(56*(ED.k||1)),{size:10,align:'center',col:'#fff3d0',lw:4,out:'#1c0e06'});
+  txt(ED.ops.length+' edit'+(ED.ops.length===1?'':'s'),VW-SR-6,Math.min(ED.barTop,VH-SB-8)-4,{size:8,align:'right',col:'#e8d4a8',lw:3,out:'#1c0e06'});
 }
 /* a save made with another world size: move the hero by the difference so he stays on the same spot of the (shifted) overworld */
 function edFrameFix(pl,fr){
@@ -8971,7 +9119,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edSelect,edTool,edWhy,edArt,edInvalidate,edPlaceOp,ED_ITEMS,ED_CATS,ED_ITEM_BY,PATH_CACHE,WE_MASK:()=>WE_MASK,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
