@@ -5220,52 +5220,9 @@ function aimPlan(id){
   }
   return pl;
 }
-function drawAimPreview(){
-  drawExpAim();
-  if(typeof expAimId==='function'&&expAimId())return;   // a selected (tap-to-aim) card shows no beam / footprint
-  const id=heldCardId();if(!id)return;const xid=expAimId(),pl=xid?expWith(expPointer(xid),()=>aimPlan(id)):aimPlan(id);if(!pl)return;
-  const bad=pl.blocked||(pl.noTarget&&!!AIM_NEEDS_TARGET[pl.kind]);
-  const col=bad?'#ff7a7a':pl.col,ox=cam.x,oy=cam.y,pulse=.5+.5*Math.sin(gtime*7);
-  AIMV.drawn++;AIMV.last={id,kind:pl.kind,bad,hits:pl.hits.length};
-  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
-  const S=p=>[p.x-ox,p.y-oy];
-  // footprint
-  ctx.fillStyle=col;ctx.strokeStyle=col;
-  const circle=(c,r)=>{const [x,y]=S(c);ctx.globalAlpha=.14+.08*pulse;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill();
-    ctx.globalAlpha=.9;ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.lineDashOffset=-gtime*24;ctx.stroke();ctx.setLineDash([]);
-    ctx.globalAlpha=.4;ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r*(.55+.25*pulse),0,6.283);ctx.stroke();};
-  if(pl.kind==='area'&&!pl.blocked)circle({x:pl.end.x,y:pl.end.y+6},pl.r);
-  else if(pl.kind==='self')circle(pl.from,pl.r);
-  else if(pl.kind==='line'){const [x,y]=S(pl.from);ctx.save();ctx.translate(x,y);ctx.rotate(pl.a);ctx.globalAlpha=.16+.08*pulse;ctx.fillRect(0,-pl.w/2,pl.len,pl.w);
-    ctx.globalAlpha=.9;ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.lineDashOffset=-gtime*24;ctx.strokeRect(0,-pl.w/2,pl.len,pl.w);ctx.restore();ctx.setLineDash([]);}
-  else if(pl.kind==='cone'){const [x,y]=S(pl.from);ctx.globalAlpha=.16+.08*pulse;ctx.beginPath();ctx.moveTo(x,y);
-    for(let i=0;i<=pl.rays.length-1;i++){const an=pl.a-pl.half+2*pl.half*i/(pl.rays.length-1);ctx.lineTo(x+Math.cos(an)*pl.rays[i],y+Math.sin(an)*pl.rays[i]);}
-    ctx.closePath();ctx.fill();ctx.globalAlpha=.9;ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.lineDashOffset=-gtime*24;ctx.stroke();ctx.setLineDash([]);}
-  // path hero -> impact
-  if(pl.pts.length>1&&pl.kind!=='line'&&pl.kind!=='cone'){
-    const path=()=>{ctx.beginPath();pl.pts.forEach((p,i)=>{const [x,y]=S(p);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});};
-    ctx.globalAlpha=.55;ctx.strokeStyle='#0a0818';ctx.lineWidth=6;path();ctx.stroke();
-    ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=3;ctx.setLineDash([9,6]);ctx.lineDashOffset=-gtime*40;path();ctx.stroke();ctx.setLineDash([]);
-    const q=pl.pts[pl.pts.length-1],p0=pl.pts[pl.pts.length-2],an=Math.atan2(q.y-p0.y,q.x-p0.x),[qx,qy]=S(q);   // arrow head
-    ctx.fillStyle=col;ctx.globalAlpha=1;ctx.beginPath();ctx.moveTo(qx+Math.cos(an)*3,qy+Math.sin(an)*3);
-    ctx.lineTo(qx-Math.cos(an-.5)*11,qy-Math.sin(an-.5)*11);ctx.lineTo(qx-Math.cos(an+.5)*11,qy-Math.sin(an+.5)*11);ctx.closePath();ctx.fill();
-  }
-  // highlight foes that will be hit
-  for(const e of pl.hits){const [x,y]=S(ecen(e)),r=eRad(e)+7+2*pulse;
-    ctx.globalAlpha=.9;ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.stroke();
-    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.setLineDash([r*.9,r*.55]);ctx.lineDashOffset=-gtime*30;ctx.beginPath();ctx.arc(x,y,r+3,0,6.283);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=col;ctx.globalAlpha=.95;ctx.beginPath();ctx.moveTo(x,y-r-4);ctx.lineTo(x-6,y-r-14);ctx.lineTo(x+6,y-r-14);ctx.closePath();ctx.fill();}
-  // impact marker
-  if(pl.kind!=='self'&&pl.kind!=='cone'){const [x,y]=S(pl.end),r=9+2*pulse;
-    ctx.globalAlpha=1;ctx.strokeStyle='#0a0818';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.stroke();
-    ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,6.283);
-    if(bad){ctx.moveTo(x-r*.6,y-r*.6);ctx.lineTo(x+r*.6,y+r*.6);ctx.moveTo(x+r*.6,y-r*.6);ctx.lineTo(x-r*.6,y+r*.6);}
-    else{ctx.moveTo(x-r-5,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+5,y);ctx.moveTo(x,y-r-5);ctx.lineTo(x,y-r+4);ctx.moveTo(x,y+r-4);ctx.lineTo(x,y+r+5);}
-    ctx.stroke();
-    if(bad){ctx.globalAlpha=1;txt(pl.blocked?'NO LINE OF SIGHT':'NO TARGET',x,y-r-12,{size:9,col:'#ffb0b0',align:'center'});}
-  }
-  ctx.restore();
-}
+/* No dashed beams, footprints or reticles any more (not while a card is held, dragged or selected): the only feedback is the AIM frame on the
+   card, the banner (drawExpAim) and the ripple where the cast lands. aimPlan() stays as pure geometry for the card logic and tests. */
+function drawAimPreview(){drawExpAim();}
 
 /* ---------- src/ui/screens.js ---------- */
 
@@ -6107,9 +6064,8 @@ function drawSwipeHint(){
   const prog=clamp(t.dy/SWIPE_PX,0,1),held=performance.now()-t.t0;
   if(held<90&&prog<.1)return;
   const near=nearestEnemy();
-  if(prog>.12&&near){   // aim line appears as the swipe begins
-    ctx.save();ctx.globalAlpha=.35+.5*prog;ctx.strokeStyle=c.col;ctx.lineWidth=2;ctx.setLineDash([7,6]);ctx.lineDashOffset=-gtime*40;
-    ctx.beginPath();ctx.moveTo(P.x-cam.x,P.y-12-cam.y);ctx.lineTo(near.x-cam.x,near.y-13-cam.y);ctx.stroke();ctx.setLineDash([]);
+  if(prog>.12&&near){   // a ring on the target as the swipe begins (no dashed line)
+    ctx.save();ctx.globalAlpha=.35+.5*prog;ctx.strokeStyle=c.col;ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(near.x-cam.x,near.y-13-cam.y,eRad(near)+6+Math.sin(gtime*10)*2,0,6.283);ctx.stroke();ctx.restore();}
   // up-arrows above the SHOT button (the highlighted card pops out of the fan)
   ctx.save();ctx.globalAlpha=.5+.5*Math.abs(Math.sin(gtime*7));ctx.strokeStyle=prog>=1?'#7dffa0':'#fff';ctx.lineWidth=3.5;
