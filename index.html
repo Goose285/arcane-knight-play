@@ -290,7 +290,29 @@ function person(o){
       if(gun){rect(g,9,7,3,3,O);rect(g,10,8,5,2,'#4b5870');rect(g,12,7,3,4,'#5d6c8a');rect(g,12,8,3,2,'#8ea0c4');rect(g,15,8,1,2,'#7df9ff');}
       else{rect(g,9,8,2,3,bodyD);rect(g,9,10,2,1,skin);}
     }
+    personDetail(g,o,dir,f);
   });
+}
+/* richer NPC detail (light from the top-left, like the fountain / terrain): hair + cloth highlights, right-side shade, collar, cuffs,
+   cheeks, boot shine; then one consistent #14182c outline around the whole silhouette */
+const npcShade=(h,k)=>{const n=parseInt(h.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(k>0?v+(255-v)*k:v*(1+k))));return '#'+((1<<24)|(f(r)<<16)|(f(g)<<8)|f(b)).toString(16).slice(1);};
+function personDetail(g,o,dir,f){
+  const {body,bodyL,bodyD,skin='#f2c9a0',boots='#5a3b1e',helm=false,hair='#5b3a1e',hat=null,beard=null,apron=null}=o,l1=f===1?1:0,l2=f===2?1:0;
+  const skD=npcShade(skin,-.18),bdDD=npcShade(bodyD,-.25);
+  if(dir==='d'){
+    rect(g,10,7,1,3,bodyD);rect(g,5,8,1,2,bodyL);                    // cloth: lit left, shaded right
+    if(!apron){rect(g,7,7,2,1,npcShade(bodyL,.35));rect(g,8,9,1,1,bdDD);}   // collar + a button
+    rect(g,2,7+l2,1,2,bodyL);rect(g,12,7+l1,1,2,bodyL);rect(g,13,9+l1,1,1,bdDD);   // sleeves: highlight + cuff shade
+    rect(g,5,14-l1,1,1,npcShade(boots,.35));rect(g,9,14-l2,1,1,npcShade(boots,.35));
+    if(helm){rect(g,5,1,2,1,npcShade(bodyL,.5));rect(g,10,2,1,1,bodyD);}
+    else{rect(g,5,1,3,1,npcShade(hair,.35));rect(g,10,3,1,2,skD);if(!beard){rect(g,6,5,1,1,'#e8a08a');rect(g,9,5,1,1,'#e8a08a');}else rect(g,6,6,4,1,npcShade(beard,-.15));
+      if(hat)rect(g,5,0,3,1,npcShade(hat,.35));}
+  }else if(dir==='u'){rect(g,10,7,1,4,bdDD);if(!helm)rect(g,5,1,3,1,npcShade(hair,.3));}
+  else{rect(g,6,7,1,3,bodyL);rect(g,9,8,1,2,bodyD);if(!helm)rect(g,5,1,3,1,npcShade(hair,.35));rect(g,6,14,1,1,npcShade(boots,.35));}
+  // outline: every empty pixel touching the figure becomes the shared outline colour
+  const im=g.getImageData(0,0,16,16),d=im.data,A=(x,y)=>x>=0&&y>=0&&x<16&&y<16&&d[(y*16+x)*4+3]>0,add=[];
+  for(let y=0;y<16;y++)for(let x=0;x<16;x++)if(!A(x,y)&&(A(x-1,y)||A(x+1,y)||A(x,y-1)||A(x,y+1)))add.push([x,y]);
+  for(const [x,y] of add)rect(g,x,y,1,1,'#14182c');
 }
 /* ---- SUN PALADIN (the hero): ivory + gold plate, gold helm with a small cream plume, short cream cape with a gold sun on the back, round gold sun shield.
    16x16, same frames / anchor as every other person(). gun=true = combat pose (arcane gauntlet raised). ---- */
@@ -486,6 +508,10 @@ function buildTiles(){
   TSPR[T.J]=[0].map(()=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#3a7fd5');rect(g,0,1,16,14,'#6b4423');for(let y=1;y<16;y+=3){rect(g,0,y,16,1,'#8a5a2c');rect(g,0,y+2,16,1,'#3a2410');}rect(g,0,0,16,1,'#2a1808');rect(g,0,15,16,1,'#2a1808');for(let x=2;x<16;x+=6){rect(g,x,3,1,1,'#c9a15e');rect(g,x+2,10,1,1,'#c9a15e');}}));
   TSPR[T.S]=[0,1].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#7c7e8c');rect(g,0,0,16,3,'#c8cad6');rect(g,0,3,16,1,'#a0a2b0');rect(g,0,13,16,3,'#5a5c6a');rect(g,0,8,16,1,'#6a6c7a');rect(g,v?4:9,3,1,5,'#6a6c7a');rect(g,v?10:3,9,1,4,'#6a6c7a');}));
   // minimap colours
+  // building fronts: top-left light - shingle tops catch the light, plaster gets texture, beams get a lit edge, a soft shade under the eaves
+  for(const id of [T.R,T.RL])for(const c of TSPR[id]){const g=c.getContext('2d');for(let y=0;y<(id===T.RL?12:16);y+=4){for(let x=0;x<16;x+=2)if(((x>>1)+y)%3)rect(g,x,y,1,1,'#d8664a');rect(g,0,y+2,16,1,'rgba(90,24,14,.35)');}rect(g,0,0,16,1,'rgba(255,200,170,.25)');}
+  for(const id of [T.H,T.D])for(const c of TSPR[id]){const g=c.getContext('2d');rect(g,2,2,12,1,'rgba(60,40,20,.28)');rect(g,0,0,1,16,'#8a5a32');rect(g,14,0,1,16,'#8a5a32');rect(g,0,0,16,1,'#8a5a32');
+    if(id===T.H)for(let i=0;i<6;i++){const h=hash2(i*13+7,i*5+3);rect(g,3+(h%10),4+((h>>4)%8),1,1,i%2?'#f8f0dc':'#ddcfae');}}
   TSPR.mini={[T.G]:'#58a845',[T.K]:'#2c7344',[T.T]:'#1d6430',[T.W]:'#3a7fd5',[T.P]:'#d6b985',[T.B]:'#8a8d9c',[T.BT]:'#8a8d9c',[T.F]:'#b9b4a6',[T.R]:'#b8452f',[T.RL]:'#b8452f',[T.H]:'#ecdfc2',[T.D]:'#8a5a2c',[T.L]:'#7ccc62',[T.N]:'#8a5a2c',[T.J]:'#8a5a2c',[T.C]:'#a8232f',[T.S]:'#7c7e8c',[T.U]:'#4a98ea',[T.Z]:'#d0cdc0'};
 }
 buildTiles();
@@ -2045,7 +2071,7 @@ let state='title';      // title | play | paused
 let gtime=0;
 const cam={x:0,y:0};
 const toasts=[];
-function toast(s,dur=2.6,col='#fff'){toasts.push({s,t:0,dur,col});if(toasts.length>4)toasts.shift();}
+function toast(s,dur=2.6,col='#fff'){if(toasts.some(t=>t.s===s))return;toasts.push({s,t:0,dur,col});while(toasts.length>6)toasts.splice(1,1);}   // ONE queue: only the first shows; the rest wait their turn
 let areaT=0,areaCur='',bossDown=false,lichDown=false,kills=0;
 let B=null;             // active real-time combat (null = exploring)
 const joy={on:false,x:0,y:0,id:null,bx:0,by:0,kx:0,ky:0};
@@ -2415,9 +2441,9 @@ const QITEM={
   iron:{name:'Goblin Iron',col:'#9ab0c8'},ring:{name:"Orin's Signet",col:'#ffd23f'}};
 const QUESTS=[
   {id:'slimes',giver:'Elder Orin',name:'Slime Trouble',obj:{k:'kill',type:'slime',n:3},
-   offer:['The meadow north of the village is overrun with Gooey Slimes.','Defeat three of them so the villagers can walk the fields in peace. Will you help?'],
-   prog:['Three slimes, hero. They hop about in the meadow to the north.'],
-   done:['Splendid! The fields are quiet again. Take this for your trouble.'],reward:{gold:60,xp:90,card:'haste'}},
+   offer:['Ah, the new knight! Good. Gooey Slimes have hopped out of the meadow just north of the gate - they are eating our turnips.','Three of them should teach the rest a lesson. They are slow and soft: shoot them from range, or sneak up from behind. Will you help?'],
+   prog:['Three slimes, hero. Go out the north gate - they hop about in the meadow right outside.'],
+   done:['Splendid! The fields are quiet again. Here: coins, and my old shortsword - it has more bite than it looks.','One more thing. Long ago I lost my signet ring in the thicket at the far northwest of that meadow - and the farmers say the south gate road now leads to golden fields. The realm is bigger than Oakvale!'],reward:{gold:80,xp:90,card:'haste',gear:{slot:'weapon',rar:'uncommon'}}},
   {id:'ring',giver:'Elder Orin',req:'slimes',name:'The Lost Signet',obj:{k:'find',item:'ring',tx:10,ty:5},
    offer:['I lost my signet ring in the thicket in the far northwest meadow, behind the old trees.','Squeeze through the gap, find it, and bring it back. I will reward you with something fit for a hero.'],
    prog:['Search the thicket in the northwest of the meadow. Look for a glint between the trees.'],
@@ -2878,6 +2904,7 @@ function questComplete(id){
 }
 /* NPC marker: '!' = new quest to offer, '?' (gold) = ready to hand in, '?' (grey) = in progress */
 function npcMarker(npc){
+  if(introQuiet()&&npc.name!=='Elder Orin')return null;   // first five minutes: only Orin wears a marker
   let m=null;if(storyReady(npc))return 'avail';
   for(const q of QUESTS){if(q.giver!==npc.name)continue;const s=questStatus(q.id);
     if(s==='ready')return 'ready';if(s==='avail')m='avail';else if(s==='active'&&!m)m='active';}
@@ -2890,7 +2917,7 @@ function questTalk(npc){
   const rd=mine.find(q=>questStatus(q.id)==='ready');
   if(rd){const rw=questComplete(rd.id);DLG={name:npc.name,lines:rd.done.concat(rw),i:0,c:0};return true;}
   const av=mine.find(q=>questStatus(q.id)==='avail');
-  if(av){const pre=(!QS.met[npc.name]&&npc.lines)?npc.lines:[];QS.met[npc.name]=true;
+  if(av){const pre=(!QS.met[npc.name]&&npc.lines&&!introQuiet())?npc.lines:[];QS.met[npc.name]=true;
     DLG={name:npc.name,lines:pre.concat(av.offer,['New quest: '+av.name+' - '+questGoalText(av)+'. Reward: '+questRewardText(av.reward)+'. Accept?']),i:0,c:0,yes:'ACCEPT',no:smith?'SHOP':'LATER',noAct:smith?()=>openShop():null,choice:()=>questStart(av.id)};return true;}
   const ac=mine.find(q=>questStatus(q.id)==='active');
   if(ac&&!smith){QS.met[npc.name]=true;DLG={name:npc.name,lines:ac.prog.concat(['('+ac.name+': '+questProgress(ac)+'/'+questNeed(ac)+')']),i:0,c:0};return true;}
@@ -3928,6 +3955,7 @@ let dailyChk=0;
 function updateDaily(dt){
   if(metaOff())return;
   dailyChk-=dt;if(dailyChk>0)return;dailyChk=4;
+  if(introQuiet())return;   // daily challenges are introduced after the first quest
   if(dailyEnsure()&&state==='play')toast('New daily challenges are up!'+(chestReady()?'  Chest ready - open DAILY.':''),3.4,'#ffe14d');
   else if(chestReady()&&!DAILY.noted&&state==='play'){DAILY.noted=true;toast('Your daily chest is ready!  (Pause > DAILY)',3.4,'#ffd23f');}
   if(!chestReady())DAILY.noted=false;
@@ -7030,7 +7058,7 @@ function drawOverHud(){
   if(!cr){drawDayIcon(mx+10,my+10);for(const m of TMAPS)if(SEC.maps[m.id]&&!SEC.dug[m.id]){ctx.fillStyle='#ffd23f';ctx.fillRect(mx+m.x*k2-1,my+(m.y-OWY0)*k2-3,2,6);ctx.fillRect(mx+m.x*k2-3,my+(m.y-OWY0)*k2-1,6,2);}}
   for(const w of WAYSTONES)if(SEC.ways[w.id]){const q=w.zone?zoneArrive(w.zone):{x:(w.tx+.5)*TS,y:(w.ty+.5)*TS};if(zoneOfPx(q.y)===zn){ctx.fillStyle='#7df9ff';ctx.fillRect(mx+q.x/TS*k2-2,my+(q.y-oy)/TS*k2-2,4,4);}}
   drawMapQuest(mx,my,oy,k2,[mx,my,128,96]);
-  if(areaT>0){const a=Math.min(1,areaT*1.5,(3-areaT)*3),y=Math.round(VH*.3);ctx.fillStyle=`rgba(0,0,0,${.5*a})`;ctx.fillRect(0,y,VW,34);txt(areaCur,VW/2,y+25,{size:22,align:'center',col:'#ffe9a0',alpha:a});}
+  if(areaT>0&&INTRO.ph!=='story'){const a=Math.min(1,areaT*1.5,(3-areaT)*3),y=Math.round(VH*.3);ctx.font='bold '+scaleText(22)+'px "Courier New",monospace';const bw=Math.min(VW,ctx.measureText(areaCur).width+60);ctx.fillStyle=`rgba(0,0,0,${.5*a})`;ctx.fillRect(Math.round((VW-bw)/2),y,Math.round(bw),34);txt(areaCur,VW/2,y+25,{size:22,align:'center',col:'#ffe9a0',alpha:a});}
   if(!TOUCH)txt('WASD/Arrows move   J shoot   E / click talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
 }
 function drawRushBar(){
@@ -7038,9 +7066,15 @@ function drawRushBar(){
   panel(x,y,w,22,{});txt((RUSH.mode==='weekly'?'WEEKLY F':'RUSH R')+(RUSH.round+1)+'   SCORE '+RUSH.score+'   '+rushTime(RUSH.t),VW/2,y+15,{size:9,align:'center',col:'#ffb070',lw:2});
 }
 function drawToasts(){
-  const base=Math.max(ST+(VW<560?150:86),VH*.2);
-  toasts.forEach((t,i)=>{const a=clamp(Math.min(t.t*4,(t.dur-t.t)*3),0,1);txt(t.s,VW/2,base+i*18,{size:13,align:'center',col:t.col,alpha:a});});
+  const t=toasts[0];if(!t||introHold())return;   // one transient message at a time, inside the free band (never over the tracker / minimap)
+  const bd=hudBand(),w=bd.x1-bd.x0,cx=Math.round((bd.x0+bd.x1)/2),fs=scaleText(12),font='bold '+fs+'px "Courier New",monospace';
+  const lines=wrapText(t.s,w-16,font).slice(0,3),lh=Math.round(fs*1.3),h=lines.length*lh+10;let tw=0;ctx.font=font;for(const l of lines)tw=Math.max(tw,ctx.measureText(l).width);
+  const a=clamp(Math.min(t.t*4,(t.dur-t.t)*3),0,1),bw=Math.min(w,Math.ceil(tw)+18);
+  ctx.globalAlpha=.78*a;ctx.fillStyle='#0d0a1c';ctx.fillRect(cx-bw/2,bd.y,bw,h);ctx.globalAlpha=1;
+  lines.forEach((l,i)=>txt(l,cx,bd.y+6+fs+i*lh-2,{size:12,align:'center',col:t.col,alpha:a,lw:2}));
+  TOAST_R={x:cx-bw/2,y:bd.y,w:bw,h};
 }
+let TOAST_R=null;
 function drawDlg(){
   if(DLG.cut){drawCut(DLG);return;}
   const d=DLG,x=SL+14,w=VW-SL-SR-28,fs=Math.round(13*(1+(TXS-1)*1.4)),lh=Math.round(fs*1.32),font='bold '+fs+'px "Courier New",monospace';
@@ -7196,13 +7230,15 @@ function trkEntries(){
     const item=o.k==='fish'?'Fish':o.k==='kill'?ENEMY[o.type].name+(o.n>1?'s':''):o.k==='collect'||o.k==='find'?QITEM[o.item].name:'Crypt';
     out.push({id:'q:'+q.id,kind:'quest',q,name:q.name,obj:ready?'Return to '+q.giver:questGoalText(q),short:item,prog,need,ready,order:QS.ord.indexOf(q.id)});
   }
+  const ie=introEntry();if(ie)out.push(ie);
+  if(introQuiet())return out;   // first five minutes: just the one objective / the first quest
   if(STORY.ch<CHAPTERS.length){const c=CHAPTERS[STORY.ch];
     out.push({id:'s',kind:'story',name:'Story: '+c.name,obj:c.hint,short:'Step',prog:STORY.ch,need:CHAPTERS.length,step:STORY.ch+1,steps:CHAPTERS.length,ready:false,order:-1});}
   if(!metaOff())DAILY.ch.forEach((c,i)=>out.push({id:'d:'+i,kind:'daily',c,name:'Daily Challenge',obj:c.done?'Complete!':dailyText(c),short:'Progress',prog:Math.min(c.p,c.n),need:c.n,ready:!!c.done,order:-2}));
   return out;
 }
 const trkValid=id=>!!id&&trkEntries().some(e=>e.id===id);
-function trkPick(list){                                       // newest started quest, else the story chapter, else the first unfinished daily
+function trkPick(list){const ie=list.find(e=>e.kind==='intro');if(ie)return ie;                                       // newest started quest, else the story chapter, else the first unfinished daily
   const qs=list.filter(e=>e.kind==='quest').sort((a,b)=>b.order-a.order);if(qs.length)return qs[0];
   const s=list.find(e=>e.kind==='story');if(s)return s;
   return list.find(e=>e.kind==='daily'&&!e.ready)||list.find(e=>e.kind==='daily')||null;
@@ -7223,6 +7259,7 @@ function trkTarget(en,any){
     if(o.k==='kill')return o.type==='slime'?(foe('slime',meadow)||mc()):(foe(o.type)||camp(o.type));if(o.k==='collect')return o.from==='slime'?(foe('slime',meadow)||mc()):(foe(o.from)||camp(o.from));
     if(o.k==='find'){const w=QWORLD.find(x=>x.quest===q.id);return w&&(!zn||zn==='ow')?{x:w.tx*TS+16,y:w.ty*TS+16}:null;}
     return stairs();}
+  if(en.kind==='intro')return npc('Elder Orin');
   if(en.kind==='story'){const id=CHAPTERS[STORY.ch].id;
     if(id==='c1'||id==='c5')return npc('Elder Orin');if(id==='c2')return npc('Gate Guard');if(id==='c3')return stairs();if(id==='c4')return foe('lich');return null;}
   const c=en.c;if(c.done)return null;
@@ -7282,7 +7319,7 @@ function updateTracker(dt){
 function trkVisible(){return state==='play'&&!WARP&&!(DLG&&DLG.cut)&&!RUSH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}   // stays up through fights, talks and fishing (a compact line while fighting)
 function drawTracker(){
   TRK.rect=null;
-  if(!trkVisible())return;
+  if(!trkVisible()||introHold())return;
   const list=trkEntries(),cur=trkCurrent(list);
   const inB=!!B,open=TRK.open&&!inB;
   const px=SL+8,py=inB?COMBAT_HUD_BOT+4:ST+8+66,mapX=VW-SR-8-128-6;
@@ -7329,6 +7366,50 @@ function drawTracker(){
   TRK.rect={x:px,y:py,w,h:hh};
 }
 function trkTap(p){if(TRK.rect&&inRect(p,TRK.rect)){if(TRK.done)return true;TRK.open=!TRK.open;sfx('select');return true;}return false;}
+
+/* ---------- src/ui/intro.js ---------- */
+/* =====================================================================
+   NEW-GAME INTRO: one thing at a time.  story panel (tap to close) -> the village name -> ONE objective ("Talk to Elder Orin by the
+   fountain", tracker + arrow). Until the first quest (Slime Trouble) is handed in, daily-challenge notices, combat tips, the story
+   tracker and the tutorial stay quiet; afterwards they are introduced one at a time through the toast queue.
+   Only new games get it (flag QS.met.__intro, saved with the quests), so existing saves are untouched.  window.__NOINTRO disables it.
+   ===================================================================== */
+const INTRO={ph:null};
+const introOff=()=>window.__NOINTRO===true;
+const introActive=()=>!!(QS.met&&QS.met.__intro);
+const introQuiet=()=>introActive()&&QS.st.slimes!=='done';
+const introHold=()=>INTRO.ph==='story'||INTRO.ph==='banner';      // nothing transient shows while these run
+const INTRO_STORY=['Embers drift over the Realm again, and every night the monsters creep closer to the quiet village of Oakvale.',
+  'You are its newest Arcane Knight. Elder Orin waits by the fountain - start there.'];
+const INTRO_LATER=[['TIP: Monsters see in a cone. Sneak behind them - or shoot first!',4,'#ffe9a0'],
+  ['NEW: Daily challenges unlocked  (Pause > DAILY)',3.6,'#ffe14d'],['NEW: Your story continues - talk to Elder Orin again',3.6,'#cfd0ff']];
+function introStart(){
+  if(introOff())return false;
+  QS.met.__intro=1;INTRO.ph='story';areaT=0;TRK.id=null;TRK.auto=true;
+  DLG={name:'OAKVALE',lines:INTRO_STORY.slice(),i:0,c:0};
+  return true;
+}
+function updateIntro(){
+  if(!introActive()){INTRO.ph=null;return;}
+  if(INTRO.ph==='story'){areaT=0;if(!DLG){INTRO.ph='banner';areaT=2.4;}return;}
+  if(INTRO.ph==='banner'){if(areaT<=0){INTRO.ph='obj';TRK.flash=1;TRK.fk='';TRK.sig=null;sfx('select');}return;}
+  if(!INTRO.ph)INTRO.ph='obj';                                   // a save made mid-intro
+  if(QS.st.slimes==='done'&&!DLG&&state==='play'){             // first quest handed in: introduce the rest, one toast at a time
+    for(const t of INTRO_LATER)toast(t[0],t[1],t[2]);
+    delete QS.met.__intro;INTRO.ph=null;if(typeof dailyChk!=='undefined')dailyChk=12;saveGame('intro');
+  }
+}
+/* the single first objective for the tracker */
+function introEntry(){
+  if(!introQuiet())return null;const s=QS.st.slimes;if(s==='active'||s==='ready')return null;
+  return {id:'intro',kind:'intro',name:'First Steps',obj:'Talk to Elder Orin by the fountain',short:'Step',prog:0,need:1,ready:false,order:99};
+}
+/* the free strip between the tracker (left) and the minimap (right) where transient text goes, so nothing overlaps */
+function hudBand(){
+  const L=SL+8+Math.max(178,TRK.rect?TRK.rect.x+TRK.rect.w-SL-8:0)+8,R=VW-SR-8-132-8;
+  if(R-L>=220)return {x0:L,x1:R,y:ST+30};
+  return {x0:SL+8,x1:VW-SR-8,y:Math.max(ST+(TRK.rect?TRK.rect.y+TRK.rect.h-ST:120)+14,VH*.2)};   // too narrow: go below the tracker
+}
 
 /* ---------- src/save/save.js ---------- */
 
@@ -9195,8 +9276,8 @@ function startFromTitle(){
   if(it==='Restore Backup'){const b=titleMenu.bak;try{localStorage.setItem(SAVE_KEY,JSON.stringify(b));}catch(e){}titleMenu.save=b;loadSave(b);}
   else if(it==='Continue'){loadSave(titleMenu.save);}
   else if(titleMenu.save&&!titleMenu.confirm){titleMenu.confirm=true;sfx('select');return;}   // erasing a save needs a second press
-  else{clearSave();Object.assign(P,{x:SPAWN.x,y:SPAWN.y,dir:'d',aim:Math.PI/2,moving:false,hp:80,lv:1,xp:0,gold:0,up:0,grace:3,regen:0});P.hp=maxHp();snapCam();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
-  state='play';sfx('start');toast(it==='Continue'?'Welcome back, hero!':'Stay out of sight cones - or shoot first!',3.5,'#ffe9a0');areaCur='';
+  else{clearSave();Object.assign(P,{x:SPAWN.x,y:SPAWN.y,dir:'d',aim:Math.PI/2,moving:false,hp:80,lv:1,xp:0,gold:0,up:0,grace:3,regen:0});P.hp=maxHp();snapCam();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();if(!introStart())tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
+  state='play';sfx('start');if(it==='Continue'||!introActive())toast(it==='Continue'?'Welcome back, hero!':'Stay out of sight cones - or shoot first!',3.5,'#ffe9a0');areaCur='';if(introActive())areaT=0;
 }
 /* ---- title ---- */
 const embers=Array.from({length:40},()=>({x:Math.random()*640,y:Math.random()*448,s:R(8,30),a:Math.random()*6}));
@@ -9272,7 +9353,7 @@ function render(){
 function drawTouchTitle(){}
 function update(dt){
   pollPad();gtime+=dt;tickAtkTouch();musUpdate(dt);
-  toasts.forEach(t=>t.t+=dt);while(toasts.length&&toasts[0].t>toasts[0].dur)toasts.shift();
+  if(toasts.length&&!introHold())toasts[0].t+=dt;while(toasts.length&&toasts[0].t>toasts[0].dur)toasts.shift();updateIntro();
   if(state==='fishlab'){updateFishLab(dt);return;}
   if(state==='editor'){updateEditor(dt);return;}
   if(state==='title'){
@@ -9358,7 +9439,7 @@ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!window.Ca
 /* ---------- src/debug.js ---------- */
 /* debug / test hooks */
 resetCards();
-window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edPublish,edLoadBaked,edAdoptBaked,edMigrate,edSaveBox,edGetToken,ED_TOKEN_KEY,EXP0,GROW,REGION_LABELS,FARM_NAME,growOn,edMapChanged,edSelect,edTool,edWhy,edArt,edInvalidate,edPlaceOp,ED_ITEMS,ED_CATS,ED_ITEM_BY,PATH_CACHE,WE_MASK:()=>WE_MASK,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
+window.__game={get cam(){return cam;},townDbg:()=>({TOWN,guardsOf,inTownPx,townNear,TGB,awareR,dodgeChance,recruit,initCombatEnemy,sensed,updateTown}),tileSpriteOf:tileSprite,render,treeSpriteOf:treeSprite,treeCacheSize:()=>TREE_CACHE.size,get npcs(){return NPCS;},get dlgRects(){return dlgRects;},saveGame,readSave,loadSave,titleMenu,get state2(){return state;},dbg:{toast,INTRO,introStart,introActive,introQuiet,introEntry,hudBand,getToastR:()=>TOAST_R,satItems,fishPose,fishRodGeom,trkEntries,TREE_FADE,BIGTREE,BIGTREE_IDS,HOUSEWALL,houseTile,HOUSEVOID,hwOut,HOUSE_PROPS,HOUSE_KIT,ED,edOpen,edExit,edApply,edPublish,edLoadBaked,edAdoptBaked,edMigrate,edSaveBox,edGetToken,ED_TOKEN_KEY,EXP0,GROW,REGION_LABELS,FARM_NAME,growOn,edMapChanged,edSelect,edTool,edWhy,edArt,edInvalidate,edPlaceOp,ED_ITEMS,ED_CATS,ED_ITEM_BY,PATH_CACHE,WE_MASK:()=>WE_MASK,edUndo,edRedo,edReset,edHouses,edJSON,edPush,edHit,edDown,edMove,edUp,edLayout,edGeom,EXP,edExpand,edFrameFix,world:()=>({FISH_SPOTS,GATES,CHAPEL,INN,WAYSTONES,TOWN,ZONES,SPAWN,CRYPT_IN,CRYPT_ARRIVE,MINI,NPCS,zoneOfPx,solidTile,MH,SPW,SPAWNER_DEFS,TMAPS,camMinY}),get MWv(){return MW;},get OWHv(){return OW_H;},get OWY0v(){return OWY0;},get OXv(){return OX;},get OYv(){return OY;},SFXT:()=>SFXT,updateFormation,formGroup,isRangedT,BAND,FORM_MIN,weMask,WE_LAND,WE_WATER,fishPickAuto,fishPickRare,FISH_CFG,FISH_RARITY,hapticCatch,fishFeedback,discardCard,DISCARD_SAVE,petBasic,petFoe,FL,FLCFG,flSetMode,flAct,flUpdate,flGeom,flTimingNew,flTugNew,flRoll,flEnter,flExit,HOUSE_DOOR,HOUSE_FRONT,enterHouse,updateHouseDoor,readBackup,clearSave,SAVE_KEY,BAK_KEY,expAim,expAimed,EXPCARD,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,ATK,BOSS_BOOK,BOSS_MOVES,bossMove,knockPlayer,addPool,summonMinions,giveShield,updateBossMech,bossMechPhase,damageEnemy,updateWaystones,WAY_AUTO_R,ARENA,HOME,startHome,homeBlock,updateHome,ARENA_Y0,QWORLD,regions,resetEnemyState,sensed,trivial,get GOBLIN_CAMPV(){return GOBLIN_CAMP;},getDeck:()=>DECK,HEAL_PCT,HEAL_COOL,HEAL_MAX_DECK,NIGHT_DARK,NIGHT_DARK_TOWN,deckLimit,fixDeck,get WARPV(){return WARP;},cam,collectLights,lightFlick,dayGrade,CY,BLOSSOM,VILLAGE_POND,VILLAGE_FIRE,VILLAGE_LANTERNS,TREE_TILE,solidTile,SOLIDS:SOLID,treeKindOf:(x,y)=>treeKindAt(T.T,x,y),spwHitArc,spwHitRadius,spwHitZone,hitSpawnerShot,fishTap,gotoDir,SPW,SPAWNER_DEFS,SPW_THEME,hurtSpawner,destroySpawner,updateSpawners,spwMinions,spwLive,WFX,SPW_RESPAWN,SPW_RANGE,packSpawners,unpackSpawners,resetSpawners,FSH,FISH,FISH_SPOTS,FISHES,FISH_JUNK,RODS,startFishing,updateFishing,endFishing,fishLv,fishNeed,buyRod,sellFish,eatFish,fishPick,fishAward,spotCenter,fishSpotNear,openFishing,resetFish,packFish,unpackFish,CHAPEL,inChapel,CHURCH,priestBless,openPriest,openFisher,GOTO,worldTargetAt,setGoto,worldTap,gotoPath,TRK,trkEntries,trkTarget,trkRoute,trkRouteNow,trkCurrent,trkExitOf,trkEntranceTo,trackQuest,trkVisible,updateTracker,WS,LGT,LIGHTS,LIGHT_BY,buyLight,equipLight,toggleLight,activeLight,collectLights,DAY_CFG,WCH,breakingAway,FLEE_DIST,tutDummyOf,regions,losW,toasts,heldCardId,aimPlan,AIMV,SET,SET_KEY,SET_DEFAULT,TEXT_SIZES,CB_MODES,setLoad,setSave,sfxVol,musVol,setVol,setCycle,setToggle,setApply,cbMatrix,cbApply,PAD,pollPad,TUT,TUT_STEPS,tutStart,tutFinish,updateTut,tutMaybeStart,openSettings,scaleText,tone,get AC(){return AC;},musUpdate,layoutTouch,startFromTitle,initTitleMenu,get TXS(){return TXS;},get LEFTY(){return LEFTY;},DAILY,ACH,ACHS,WK,BOONS,LOGIN_REWARDS,DAILY_KINDS,WEEKLY_CFG,nowMs,setNow,dayNum,weekNum,seededRng,hashStr,giveReward,dailyRoll,dailyEnsure,dailyEvent,dailyText,chestReady,chestPreview,claimChest,updateDaily,packDaily,unpackDaily,resetDaily,weeklySeed,weeklyName,weeklyPlan,boonChoices,boonTake,boonOffer,boonDmg,boonDef,boonHp,boonScore,wkLoad,wkEnsure,weeklyFinish,achTick,achProg,achCount,packAch,unpackAch,resetAch,openDaily,openAch,metaOff,SP,STORY,CHAPTERS,CUTS,WHO,VILLAGERS,ENDINGS,TRUST_NEED,storyReady,storyTalk,storyStart,storyApply,storyPerk,storyHp,storyXp,storyDrop,storyGold,packStory,unpackStory,resetStory,updateStory,storyOnLich,openDlg,startCut,storyNextHint,xpNeed,openUIMode,toasts,PET,PETS,PET_IDS,petSnap,COMBAT_HUD_BOT:()=>COMBAT_HUD_BOT,HOUSE,HOUSE_SLOTS,HOUSE_ROOM,HOUSE_DOOR,HOUSE_IN,HOUSE_OUT,TROPHIES,TROPHY_IDS,TROPHY_BOSS,adoptPet,summonPet,petLevel,petDmg,petPower,updatePet,awardTrophy,trophyOnKill,cycleSlot,enterHouse,openHouseNpc,openPets,packPets,unpackPets,resetPets,trophyCount,HOUSE_Y0,AFFIX,AFFIX_IDS,ELITE,eliteRoll,makeElite,eliteInit,eliteLeech,hasAff,mkEnemyObj,addEnemy,damagePlayer,initCombatEnemy,startEncounter,killEnemy,RUSH,getRushLB:()=>RUSHLB,setRushLB(a){RUSHLB=a;},rushLoadLB,rushPlan,rushStart,rushSpawn,rushClear,rushFinish,rushLeave,rushRoundScore,rushTime,updateRush,ARENA,ARENA_Y0,RUSH_ORDER,openArenaMaster,getCol:()=>COL,GUAR_GOT:()=>GUAR_GOT,pauseOpenPage,PAUSE,joyZone,wolfSteer,tilePathTo,wolfFreeSpot,repopulate,sleepToMorning,isEvening,innCost,openInn,settleDying,reapStale,labOn,labStart,labLeave,labClean,LAB,EXPCARD,expCards,expCardTap,expCastAt,expSelActive,expPick,expPointer,expCancel,expDealTick,expTapAt,expAimId,labMake,updateLab,townEnd,endBattle,updateGuards,guardTarget,GUARD_R,GUARD_LEASH,killEnemy,disengage,guarOnBossKill,guarGrant,questRewardText,destroySpawner,GUAR_BOSS,packCards,SOLID,fanGeom,cardAt,joyZone,cycleCard,getPauseRects:()=>pauseRects,PAUSE,pauseLayout,pauseEntries,pauseQuit,pauseTap,pauseOpenPage,pauseReset,maxHp:()=>maxHp(),SEC,WAYSTONES,TMAPS,CHESTS,ZONES,GATES,ZEXITS,ZONE_Y0,zoneOfTy,zoneOfPx,zoneArrive,zoneGateOut,fastTravel,tryInteract,openTravel,openWaystone,activateWay,startWarp,canTravel,MINI,CR,MATS,MAT_DROP,RECIPES,addMat,matCount,craftGear,upgradeCard,upgLvl,upgMult,upgCost,rollMats,cardLabel,openCraft,SK,SKILL_NODES,skillPoints,skillRank,buySkill,respecSkills,handN,schoolMult,CARD_SCHOOL,openSkills,DAY,dayCompute,syncNight,setTimeOfDay,drawLighting,MUS,TRACKS,musWant,endFight(){B=null;WS.length=0;DLG=null;WARP=null;},damageEnemy,inZone,Z,ATK,eRad,lichState(){return {lichDown};},CRY0,startWarp,QS,QUESTS,QUEST_BY_ID,QITEM,questStatus,questStart,questEvent,questLoot,questComplete,questProgress,questTalk,npcMarker,packQuests,unpackQuests,resetQuests,openQuests,updateQuestWorld,questWorldItems,reach,map,T,areaName,PAUSE_ITEMS,GEAR,genGear,addGear,equipGear,unequipGear,sellGear,gearStats,rollGearDrop,openGear,packGear,unpackGear,resetGear,GEAR_RAR,swordLock,NPCS,RAR,addKills(n){kills+=n;},saveNow(){return saveGame('test');},CAST,CARD,COMBOS,COL:()=>COL,DECK:()=>DECK,SHOP:()=>SHOP,UI,openDeck,openShop,closeUI,uiRows,deckAdd,deckRemove,buyCard,grantCard,rollDrop,resetCards,packCards,unpackCards,shopRoll,stunEnemy,aimPos,updateUI,applyLevel,levelFor,freezeEnemy,lvColor,trivial,ATK,startAttack,Z,hitZones,fireProj,losW,wallT,ecen,pcen,useCard,castMagic,startEncounter,eOff,CARDS,get ZOFF(){return ZOFF;},set ZOFF(v){ZOFF=v;}},P,enemies,joy,get B(){return B;},get DLG(){return DLG;},set DLG(v){DLG=v;},get areaCur(){return areaCur;},get state(){return state;},set state(v){state=v;},cam,keys,
   get size(){return {VW,VH,S,DPR,SL,SR,ST,SB,TOUCH};},
   press(code){pressed[code]=true;},
   tp(tx,ty){P.x=tx*TS+16;P.y=ty*TS+30;snapCam();},
