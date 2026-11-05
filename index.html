@@ -4288,10 +4288,12 @@ function updatePet(dt){
   const id=PET.active;if(!id||state==='title')return;const d=PETS[id];
   PET.t+=dt;PET.trail.push({x:P.x,y:P.y});if(PET.trail.length>PET_CFG.follow)PET.trail.shift();
   const tp=PET.trail[0]||P;
-  if(Math.hypot(P.x-PET.x,P.y-PET.y)>320||zoneOfPx(PET.y)!==zoneOfPx(P.y))petSnap();
-  else{let nx=tp.x+(P.dir==='l'?36:P.dir==='r'?-36:P.dir==='u'?14:-14),ny=tp.y+(P.dir==='u'?28:P.dir==='d'?-18:-4);   // t143u: trails a bit farther behindconst k=Math.min(1,dt*7);
+  if(!isFinite(PET.x)||!isFinite(PET.y)||Math.hypot(P.x-PET.x,P.y-PET.y)>900||zoneOfPx(PET.y)!==zoneOfPx(P.y)||(PET.stuck||0)>2.5){petSnap();PET.stuck=0;}
+  else{let nx=tp.x+(P.dir==='l'?36:P.dir==='r'?-36:P.dir==='u'?14:-14),ny=tp.y+(P.dir==='u'?28:P.dir==='d'?-18:-4);   // t143u: trails a bit farther behind
+    // t146u: walks/runs after the hero with a capped speed (catch-up when far) instead of snapping; teleports only when very far, on a zone change, or stuck
+    const ox=PET.x,oy=PET.y;
     if(B&&B.phase==='fight'&&B.target&&!B.target.dying){const c=ecen(B.target),a=Math.atan2(c.y-P.y,c.x-P.x);nx=P.x+Math.cos(a)*34+Math.cos(a+1.57)*18;ny=P.y+Math.sin(a)*24+Math.sin(a+1.57)*14;}   
-    PET.face=nx<PET.x-.5?-1:nx>PET.x+.5?1:PET.face;PET.x=lerp(PET.x,nx,k);PET.y=lerp(PET.y,ny,k);}
+    PET.face=nx<PET.x-.5?-1:nx>PET.x+.5?1:PET.face;{const dx=nx-PET.x,dy=ny-PET.y,dd=Math.hypot(dx,dy),sp=(dd>140?420:dd>60?260:150)*dt,st=Math.min(dd,Math.max(sp*(dd<20?dd/20:1),dd*Math.min(1,dt*2)));if(dd>.01){PET.x+=dx/dd*st;PET.y+=dy/dd*st;}PET.mv=dd>4;const far=Math.hypot(P.x-PET.x,P.y-PET.y);PET.stuck=far>260&&Math.hypot(PET.x-ox,PET.y-oy)<.5?(PET.stuck||0)+dt:0;}}
   petBasic(dt,id,d);
   if(!B){petWorldAssist(dt,id,d);return;}
   if(B.phase!=='fight'||B.cleared)return;
@@ -12206,5 +12208,215 @@ window.__game.t139=()=>({BEST,BEST_INFO,packBest,unpackBest,HELP_SECT,TIPS,TELE,
   REV,revealLevel,npcMarker,isMainQuest,QMARK_COL,QUESTS,NPCS,DECLUTTER,SW,T,map,XTILE_FN,ED_ITEMS,edMigrate,edJSON,P,PM,PM_TABS,pauseRects,Z,ATK,startAttack,warnZones,getB:()=>B,
   setState:s=>{state=s;},getState:()=>state,ENEMY});
 window.__game.t142=()=>({revealPreview,REV,POP_STYLES,nearestEnemy,aimEnemy,spwTargets,spwProxy,SANITY,sanitizeWorld,WATCHDOG,CAST,CARD,COMBO_FX,startEncounter,pcen,SPW,get B(){return B;},endFight(){B=null;},enemies});
+
+/* ---------- src/ui/hud-hd.js ---------- */
+/* =====================================================================
+   t145u HUD REDO (pause-menu style). t143u only thickened the panel border by ~2px and kept a near-black fill, which on a phone
+   read exactly like the old dark box with a thin gold line. This module rebuilds the HUD in the satchel / pause-menu language:
+   a stitched leather frame with a 2px brass rim, corner rivets, a warm recessed interior, ornate bars, pixel icons
+   (heart, star, coin), a brass level badge, a framed minimap with a compass plate, and brass-ringed leather touch buttons.
+   ===================================================================== */
+const HD={rim:'#e0b44a',rimHi:'#fff0a0',rimLo:'#9a7418',rimDk:'#4a3208',in0:'#3e2617',in1:'#22140b'};
+function hdRivet(x,y){ctx.fillStyle=HD.rimDk;ctx.fillRect(x-2,y-2,5,5);ctx.fillStyle=HD.rim;ctx.fillRect(x-1,y-1,3,3);ctx.fillStyle=HD.rimHi;ctx.fillRect(x-1,y-1,1,1);}
+panel=function(x,y,w,h,o={}){
+  if(o.legacy)return _panelOld(x,y,w,h,o);
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(x+2,y+4,w,h);
+  satLeather(x,y,w,h,{stitch:false,cut:3});
+  // brass rim (2px, lit on top/left)
+  ctx.fillStyle=HD.rimDk;ctx.fillRect(x+4,y+4,w-8,h-8);
+  ctx.fillStyle=HD.rim;ctx.fillRect(x+5,y+5,w-10,h-10);
+  ctx.fillStyle=HD.rimHi;ctx.fillRect(x+5,y+5,w-10,1);ctx.fillRect(x+5,y+5,1,h-10);
+  // warm recessed interior (custom fills keep their colour)
+  const custom=o.fill&&o.fill!=='#1a1630';
+  if(custom){ctx.fillStyle=o.fill;}else{const g=ctx.createLinearGradient(0,y+7,0,y+h-7);g.addColorStop(0,HD.in0);g.addColorStop(1,HD.in1);ctx.fillStyle=g;}
+  ctx.fillRect(x+7,y+7,w-14,h-14);
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(x+7,y+7,w-14,2);ctx.fillRect(x+7,y+7,2,h-14);
+  // accent stripe in the caller's border colour (quest tracker colours etc.)
+  if(o.border&&o.border!=='#e8e0c8'){ctx.fillStyle=o.border;ctx.fillRect(x+9,y+h-6,w-18,2);}
+  if(w>=40&&h>=24){hdRivet(x+3,y+3);hdRivet(x+w-4,y+3);hdRivet(x+3,y+h-4);hdRivet(x+w-4,y+h-4);}
+};
+/* ornate bars: dark well, two-tone fill, highlight, segment ticks, brass end caps */
+function hdShade(c,k){const n=parseInt(c.slice(1),16);let r=n>>16&255,g=n>>8&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(k>1?v+(255-v)*(k-1):v*k)));return 'rgb('+f(r)+','+f(g)+','+f(b)+')';}
+bar=function(x,y,w,h,f,col,bg,bd){
+  x=Math.round(x);y=Math.round(y);f=clamp(f,0,1);
+  ctx.fillStyle='#1c0e06';ctx.fillRect(x-2,y-2,w+4,h+4);ctx.fillStyle=HD.rimLo;ctx.fillRect(x-1,y-1,w+2,h+2);
+  ctx.fillStyle='#160b05';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(x,y,w,1);
+  const fw=Math.round(w*f);
+  if(fw>0&&col&&col[0]==='#'&&col.length===7){ctx.fillStyle=hdShade(col,.72);ctx.fillRect(x,y,fw,h);ctx.fillStyle=col;ctx.fillRect(x,y,fw,Math.max(1,Math.ceil(h*.6)));ctx.fillStyle=hdShade(col,1.45);ctx.fillRect(x,y,fw,Math.max(1,h>>2));}
+  else if(fw>0){ctx.fillStyle=col;ctx.fillRect(x,y,fw,h);}
+  if(h>=6){ctx.fillStyle='rgba(0,0,0,.22)';for(let i=10;i<fw;i+=10)ctx.fillRect(x+i,y+1,1,h-1);}
+  if(h>=6){ctx.fillStyle=HD.rim;ctx.fillRect(x-3,y-1,2,h+2);ctx.fillRect(x+w+1,y-1,2,h+2);ctx.fillStyle=HD.rimHi;ctx.fillRect(x-3,y-1,1,h+2);}
+};
+const HD_IC={
+  heart:['.##.##.','#######','#######','.#####.','..###..','...#...'],
+  star:['...#...','..###..','#######','.#####.','.##.##.','#.....#'],
+  coin:['.###.','#####','##.##','#####','.###.'],
+};
+function hdIcon(k,x,y,s,c1,c2){const m=HD_IC[k];x=Math.round(x);y=Math.round(y);
+  ctx.fillStyle='#1c0e06';for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++)if(m[r][c]==='#')ctx.fillRect(x+c*s-1,y+r*s-1,s+2,s+2);
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){const ch=m[r][c];if(ch==='#'){ctx.fillStyle=r<2&&c<3?c2:c1;ctx.fillRect(x+c*s,y+r*s,s,s);}else if(ch==='.'&&k==='coin'&&r===2&&c===2){ctx.fillStyle='#9a7418';ctx.fillRect(x+c*s,y+r*s,s,s);}}}
+function hdBadge(cx,cy,r,label){ctx.fillStyle='#1c0e06';ctx.beginPath();ctx.arc(cx,cy+1,r+2,0,6.283);ctx.fill();
+  const g=ctx.createRadialGradient(cx-r*.4,cy-r*.4,1,cx,cy,r);g.addColorStop(0,HD.rimHi);g.addColorStop(.5,HD.rim);g.addColorStop(1,HD.rimLo);ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,6.283);ctx.fill();
+  ctx.fillStyle='#5a1a10';ctx.beginPath();ctx.arc(cx,cy,r-3,0,6.283);ctx.fill();txt(label,cx,cy+4,{size:label.length>2?8:10,align:'center',col:'#ffe9a0',lw:2,out:'#1c0e06'});}
+function hdPortrait(x,y){satBrass(x,y,24,24);ctx.fillStyle='#2a3a5a';ctx.fillRect(x+3,y+3,18,18);ctx.fillStyle='#3a5070';ctx.fillRect(x+3,y+3,18,6);draw(SP.heroIcon,x+4,y+4,2);}
+function hdPlate(x,y,w,label){satBrass(x,y,w,13);txt(label,x+w/2,y+10,{size:9,align:'center',col:'#3a2208',lw:0,out:false});}
+/* ---- hero card + minimap (replaces the plain version in hud.js) ---- */
+const _drawOverHudOld=drawOverHud;
+drawOverHud=function(){
+  // let the old routine draw the extras (rush / lab strip, minimap contents, area banner, hints), then repaint the hero card + map frame on top
+  _drawOverHudOld();
+  const px=SL+8,py=ST+8;
+  panel(px,py,178,60,{});
+  hdPortrait(px+7,py+6);
+  hdPlate(px+34,py+8,52,'HERO');
+  hdBadge(px+160,py+16,10,String(P.lv));txt('LV',px+142,py+20,{size:8,align:'right',col:'#e8d4a8',lw:2,out:'#1c0e06'});
+  const hpf=P.hp/maxHp();
+  hdIcon('heart',px+34,py+26,1,hpf<.3?'#ff4040':'#e8504a','#ffb0a0');
+  bar(px+46,py+26,124,9,hpf,hpf<.3?'#ff4040':'#44d96a');
+  txt(Math.ceil(P.hp)+'/'+maxHp(),px+108,py+34,{size:8,align:'center',col:'#fff',lw:2,out:'#1c0e06'});
+  hdIcon('star',px+9,py+40,1,'#7fc0ff','#e0f0ff');
+  bar(px+20,py+42,82,5,P.xp/xpNeed(),'#58a8ff');
+  hdIcon('coin',px+110,py+40,1,'#ffd23f','#fff0a0');
+  txt(String(P.gold),px+170,py+48,{size:10,col:'#ffd23f',align:'right',lw:2,out:'#1c0e06'});
+};
+/* minimap frame: drawn after everything, around the map rectangle */
+function hdMapFrame(){
+  if(state!=='play'||B||isUI()||(typeof INTRO!=='undefined'&&INTRO.ph==='story'))return;
+  const mx=VW-SR-8-128,my=ST+8,x=mx-6,y=my-6,w=140,h=108;
+  ctx.fillStyle='#1c0e06';ctx.fillRect(x,y,w,6);ctx.fillRect(x,y+h-6,w,6);ctx.fillRect(x,y,6,h);ctx.fillRect(x+w-6,y,6,h);
+  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.rect(mx-1,my-1,130,98);ctx.clip('evenodd');satLeather(x,y,w,h,{stitch:false,cut:3});ctx.restore();
+  ctx.fillStyle=HD.rimDk;ctx.fillRect(mx-2,my-2,132,1);ctx.fillRect(mx-2,my+97,132,1);ctx.fillRect(mx-2,my-2,1,100);ctx.fillRect(mx+129,my-2,1,100);
+  ctx.fillStyle=HD.rim;ctx.fillRect(mx-3,my-3,134,1);ctx.fillRect(mx-3,my+98,134,1);ctx.fillRect(mx-3,my-3,1,102);ctx.fillRect(mx+130,my-3,1,102);
+  hdRivet(x+3,y+3);hdRivet(x+w-4,y+3);hdRivet(x+3,y+h-4);hdRivet(x+w-4,y+h-4);
+  // compass plate
+  satBrass(x+w/2-9,y-4,18,13);txt('N',x+w/2,y+6,{size:9,align:'center',col:'#3a2208',lw:0,out:false});
+}
+{const _dt=drawTracker;drawTracker=function(){const r=_dt.apply(this,arguments);try{hdMapFrame();}catch(e){}return r;};}
+/* ---- touch buttons: brass-ringed leather discs with icons ---- */
+function hdButton(x,y,r,down,o={}){
+  ctx.globalAlpha=o.alpha==null?1:o.alpha;
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(x+2,y+4,r+3,0,6.283);ctx.fill();
+  ctx.fillStyle='#1c0e06';ctx.beginPath();ctx.arc(x,y,r+3,0,6.283);ctx.fill();
+  const g=ctx.createLinearGradient(x-r,y-r,x+r,y+r);g.addColorStop(0,HD.rimHi);g.addColorStop(.45,HD.rim);g.addColorStop(1,HD.rimLo);
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r+1,0,6.283);ctx.fill();
+  ctx.save();ctx.beginPath();ctx.arc(x,y,r-3,0,6.283);ctx.clip();ctx.fillStyle=satPattern();ctx.fillRect(x-r,y-r,r*2,r*2);
+  ctx.fillStyle=o.tint||(down?'rgba(255,220,140,.25)':'rgba(20,8,2,.35)');ctx.fillRect(x-r,y-r,r*2,r*2);
+  const sh=ctx.createRadialGradient(x-r*.3,y-r*.4,1,x,y,r);sh.addColorStop(0,'rgba(255,230,180,.28)');sh.addColorStop(1,'rgba(0,0,0,.35)');ctx.fillStyle=sh;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore();
+  ctx.strokeStyle='#2a160a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,r-3,0,6.283);ctx.stroke();
+  if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+4.5,0,6.283);ctx.stroke();}
+  ctx.globalAlpha=1;
+}
+drawTouch=function(){
+  layoutTouch();
+  const jx=joy.on?joy.bx:joy.dx,jy=joy.on?joy.by:joy.dy;
+  // joystick: leather well with a brass ring and a brass knob
+  ctx.globalAlpha=joy.on?.75:.5;ctx.fillStyle='rgba(28,14,6,.55)';ctx.beginPath();ctx.arc(jx,jy,52,0,6.283);ctx.fill();
+  ctx.strokeStyle=HD.rim;ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle='#1c0e06';ctx.lineWidth=1;ctx.beginPath();ctx.arc(jx,jy,54.5,0,6.283);ctx.stroke();
+  for(let i=0;i<4;i++){const a=i*1.5708-1.5708;ctx.fillStyle=HD.rimHi;ctx.beginPath();const ax=jx+Math.cos(a)*42,ay=jy+Math.sin(a)*42;ctx.moveTo(ax+Math.cos(a)*5,ay+Math.sin(a)*5);ctx.lineTo(ax+Math.cos(a+2.2)*4,ay+Math.sin(a+2.2)*4);ctx.lineTo(ax+Math.cos(a-2.2)*4,ay+Math.sin(a-2.2)*4);ctx.fill();}
+  ctx.globalAlpha=1;hdButton(joy.on?joy.kx:jx,joy.on?joy.ky:jy,20,joy.on,{alpha:joy.on?.95:.7});
+  const bs=[...activeButtons()];if(state==='play')bs.push(btn.pause);
+  for(const b of bs){
+    const down=keys[b.code]||(b===btn.atk&&atkTouch);
+    hdButton(b.x,b.y,b.r,down,{alpha:down?1:.88,tint:b===btn.atk?(down?'rgba(255,200,80,.3)':'rgba(40,12,60,.35)'):null});
+    if(b===btn.atk&&(B?B.charge:WCH.t)>.2){const f=Math.min(1,B?B.charge:WCH.t);ctx.strokeStyle=f>=1?'#fff':'#7df9ff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(b.x,b.y,b.r+7,-Math.PI/2,-Math.PI/2+f*6.283);ctx.stroke();}
+    if(b===btn.pause){satBrass(b.x-7,b.y-8,5,16);satBrass(b.x+2,b.y-8,5,16);}
+    else if(b===btn.atk){const cy=b.y-8,p=1+.08*Math.sin(gtime*4);
+      const gl=ctx.createRadialGradient(b.x,cy,1,b.x,cy,20*p);gl.addColorStop(0,'rgba(255,240,160,.9)');gl.addColorStop(.5,'rgba(255,190,60,.45)');gl.addColorStop(1,'rgba(255,160,40,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(b.x,cy,20*p,0,6.283);ctx.fill();
+      ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(b.x,cy,10,0,6.283);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x-2,cy-2,4.5,0,6.283);ctx.fill();
+      ctx.fillStyle='#fff8d0';for(let i=0;i<4;i++){const a=gtime*2+i*1.571;ctx.fillRect(Math.round(b.x+Math.cos(a)*15),Math.round(cy+Math.sin(a)*15),2,2);}
+      satBrass(b.x-22,b.y+18,44,15);txt('SHOT',b.x,b.y+29,{size:10,align:'center',col:'#3a2208',lw:0,out:false});}
+    else txt(b.label,b.x,b.y+5,{size:b.r>=30?13:10,align:'center',col:'#fff3d0',lw:3,out:'#1c0e06'});
+  }
+  drawSwipeHint();
+};
+drawRunBtn=function(){
+  if(!TOUCH||state!=='play'||B)return;const b=runBtn(),blk=runBlocked(),on=runActive();
+  hdButton(b.x,b.y,b.r,on,{alpha:blk?.45:.92,ring:on?'#9be8a0':null,tint:on?'rgba(60,160,90,.35)':null});
+  // boot icon
+  const x=Math.round(b.x-6),y=Math.round(b.y-11);ctx.fillStyle='#1c0e06';ctx.fillRect(x-1,y-1,8,12);ctx.fillRect(x-1,y+7,14,6);
+  ctx.fillStyle=blk?'#999':'#c89858';ctx.fillRect(x,y,6,10);ctx.fillRect(x,y+8,12,4);ctx.fillStyle=blk?'#bbb':'#f0d8a0';ctx.fillRect(x,y,2,8);ctx.fillStyle='#5a3418';ctx.fillRect(x,y+11,12,1);
+  if(on){ctx.fillStyle='#fff';ctx.fillRect(x-6,y+3,4,1);ctx.fillRect(x-8,y+6,5,1);}
+  txt('RUN',b.x,b.y+13,{size:8,align:'center',col:blk?'#999':'#fff3d0',lw:2,out:'#1c0e06'});
+};
+/* ---- card tray: a brass-framed card with a leather back ---- */
+{const _cf=drawCardFace;drawCardFace=function(id,cw,ch,sel,idx){
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(2,4,cw+2,ch+1);
+  _cf(id,cw,ch,sel,idx);
+  ctx.fillStyle='#1c0e06';ctx.fillRect(-1,-1,cw+2,1);ctx.fillRect(-1,ch,cw+2,1);ctx.fillRect(-1,-1,1,ch+2);ctx.fillRect(cw,-1,1,ch+2);
+  ctx.fillStyle=sel?'#fff0a0':HD.rim;ctx.fillRect(0,0,cw,2);ctx.fillRect(0,ch-2,cw,2);ctx.fillRect(0,0,2,ch);ctx.fillRect(cw-2,0,2,ch);
+  ctx.fillStyle=HD.rimHi;ctx.fillRect(0,0,cw,1);ctx.fillRect(0,0,1,ch);ctx.fillStyle=HD.rimLo;ctx.fillRect(0,ch-1,cw,1);ctx.fillRect(cw-1,0,1,ch);
+  for(const [a,b2] of [[1,1],[cw-4,1],[1,ch-4],[cw-4,ch-4]]){ctx.fillStyle=HD.rimHi;ctx.fillRect(a,b2,3,3);ctx.fillStyle=HD.rimLo;ctx.fillRect(a+2,b2+2,1,1);}
+};}
+
+/* ---------- src/render/hd.js ---------- */
+/* =====================================================================
+   t145u HIGH-DEFINITION PASS. Every static 16x16 tile (and every small sprite drawn at 2x: hero, NPCs, enemies, pets, props,
+   icons) is re-rendered once into a 32x32 canvas and cached, so the 16-px grid and the 2x look stay exactly the same, but the
+   art gets a second layer of crisp pixel detail at the screen's real resolution:
+   - Scale2x edge smoothing (crisp pixel-art diagonals, no blur)
+   - material-aware micro texture picked per source pixel colour:
+       grass   -> per-subpixel colour noise + little blade strokes (light tip, dark root)
+       dirt    -> colour noise + scattered pebbles with a lit top and a shadow under
+       stone   -> fine grain, lit brick tops / shaded brick bottoms along the mortar lines, moss specks under ledges
+   - bevel shading: lit top edges, shaded bottom edges wherever the colour or the silhouette changes (sprites get a rim light)
+   Trees and house walls / roofs (which Seth likes as they are) and the animated water frames are left alone.
+   ===================================================================== */
+const HDX={cache:new WeakMap(),miss:0,frame:-1,on:true};
+function hdHash(x,y,s){let h=(x*374761393+y*668265263+s*1442695041)|0;h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967296;}
+function hdBuild(src,mode){
+  const w=src.width,h=src.height;let id;try{id=src.getContext('2d').getImageData(0,0,w,h).data;}catch(e){return null;}
+  const W=w*2,H=h*2,out=new Uint8ClampedArray(W*H*4),px=(x,y)=>x<0||y<0||x>=w||y>=h?-1:(y*w+x);
+  const same=(a,b)=>{if(a<0||b<0)return a===b;const i=a*4,j=b*4;return id[i]===id[j]&&id[i+1]===id[j+1]&&id[i+2]===id[j+2]&&id[i+3]===id[j+3];};
+  const lum=p=>p<0?-1:(id[p*4+3]<128?-1:id[p*4]*.3+id[p*4+1]*.59+id[p*4+2]*.11);
+  const seed=(w*7+h*13+id[0]+id[5]*3+id[17]*7+id[(w*h>>1)*4+1]*11)|0;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const P=px(x,y),A=px(x,y-1),B=px(x+1,y),C=px(x-1,y),D=px(x,y+1);
+    // Scale2x
+    let e=[P,P,P,P];
+    if(!same(A,D)&&!same(C,B)){if(same(C,A))e[0]=C;if(same(A,B))e[1]=B;if(same(C,D))e[2]=C;if(same(D,B))e[3]=B;}
+    if(e.some(q=>q<0))e=e.map(q=>q<0?P:q);
+    const L=lum(P),la=lum(A),ld=lum(D);
+    for(let k=0;k<4;k++){
+      const sx=x*2+(k&1),sy=y*2+(k>>1),o=(sy*W+sx)*4,s=e[k]*4;
+      let r=id[s],g=id[s+1],b=id[s+2],a=id[s+3];
+      if(a>0){
+        let f=1;const hv=hdHash(sx,sy,seed),mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx?(mx-mn)/mx:0,lu=r*.3+g*.59+b*.11;
+        const grass=g>r+8&&g>=b&&sat>.18,dirt=r>=g&&g>=b&&r-b>28&&sat<.6&&lu>70,stone=sat<.16&&lu>50&&lu<215;
+        if(mode==='tile'){
+          if(grass){f*=.955+hv*.09;
+            const hb=hdHash(sx,sy-1,seed+3);
+            if(hdHash(sx,sy,seed+1)<.07)f*=1.2;else if(hb<.07)f*=.82;              // blade tip / root
+          }else if(dirt){f*=.95+hv*.1;
+            if(hdHash(x,y,seed+7)<.05&&(k===0)){f*=1.28;}else if(hdHash(x,y-1,seed+7)<.05&&k<2){f*=.74;}   // pebble + its shadow
+          }else if(stone){f*=.96+hv*.08;
+            if(hdHash(x,y+1,seed+9)<.04&&k>=2&&ld>=0&&ld<L-25){r=r*.6+58*.4;g=g*.6+110*.4;b=b*.6+52*.4;}   // moss under a ledge
+          }
+        }
+        // bevel: lit top / shaded bottom across colour or silhouette edges
+        if(k<2&&(la<0?mode==='spr':la<L-18))f*=mode==='spr'?1.16:1.1;
+        if(k>=2&&(ld<0?mode==='spr':ld<L-18))f*=mode==='spr'?.84:.9;
+        if(f!==1){r=Math.min(255,r*f);g=Math.min(255,g*f);b=Math.min(255,b*f);}
+      }
+      out[o]=r;out[o+1]=g;out[o+2]=b;out[o+3]=a;
+    }
+  }
+  const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').putImageData(new ImageData(out,W,H),0,0);return c;
+}
+function hdGet(src,mode){
+  if(!HDX.on||!src||!src.getContext)return null;let c=HDX.cache.get(src);if(c!==undefined)return c;
+  const fr=Math.floor(gtime*60);if(fr!==HDX.frame){HDX.frame=fr;HDX.miss=0;}if(++HDX.miss>60)return null;   // never stall a frame
+  c=hdBuild(src,mode);HDX.cache.set(src,c);return c;
+}
+const HD_SKIP_TILE=id=>(typeof TREE_IDS!=='undefined'&&TREE_IDS.has(id))||id===T.H||id===T.D||id===T.R||id===T.RL||id===T.W||id===T.U||id===T.PW||id===T.PR||id===T.FR;
+{const _ts=tileSprite;tileSprite=function(id,x,y,time){const s=_ts.apply(this,arguments);if(!s||s.width!==16||s.height!==16||HD_SKIP_TILE(id))return s;return hdGet(s,'tile')||s;};}
+/* sprites drawn at 2x or more (hero, NPCs, enemies, pets, props, lamps, signs, UI icons): the main canvas's drawImage swaps a small
+   source canvas for its HD twin when it is scaled up by 2x or more. Trees / houses / water returned by tileSprite are marked to skip. */
+const HD_NO=new WeakSet();
+{const _ts2=tileSprite;tileSprite=function(id,x,y,time){const s=_ts2.apply(this,arguments);if(s&&HD_SKIP_TILE(id))HD_NO.add(s);return s;};}
+if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){const L=_tl.apply(this,arguments);if(L){HD_NO.add(L.bg);HD_NO.add(L.fg);}return L;};}
+{const _di=ctx.drawImage.bind(ctx);ctx.drawImage=function(img,a,b,c,d){
+  if(arguments.length===5&&img&&img.getContext&&img.width<=48&&img.height<=64&&c>=img.width*1.9&&d>=img.height*1.9&&!HD_NO.has(img)){const h=hdGet(img,'spr');if(h)return _di(h,a,b,c,d);}
+  return _di.apply(null,arguments);};}
 
 </script></body></html>
