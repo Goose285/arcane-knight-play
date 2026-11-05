@@ -518,7 +518,7 @@ function buildTiles(){
   // building fronts: top-left light - shingle tops catch the light, plaster gets texture, beams get a lit edge, a soft shade under the eaves
   for(const id of [T.R,T.RL])for(const c of TSPR[id]){const g=c.getContext('2d');for(let y=0;y<(id===T.RL?12:16);y+=4){for(let x=0;x<16;x+=2)if(((x>>1)+y)%3)rect(g,x,y,1,1,'#d8664a');rect(g,0,y+2,16,1,'rgba(90,24,14,.35)');}rect(g,0,0,16,1,'rgba(255,200,170,.25)');}
   for(const id of [T.H,T.D])for(const c of TSPR[id]){const g=c.getContext('2d');rect(g,2,2,12,1,'rgba(60,40,20,.28)');rect(g,0,0,1,16,'#8a5a32');rect(g,14,0,1,16,'#8a5a32');rect(g,0,0,16,1,'#8a5a32');
-    if(id===T.H)for(let i=0;i<6;i++){const h=hash2(i*13+7,i*5+3);rect(g,3+(h%10),4+((h>>4)%8),1,1,i%2?'#f8f0dc':'#ddcfae');}}
+    if(id===T.H)for(let i=0;i<6;i++){const h=hash2(i*13+7,i*5+3);rect(g,3+(h%10),4+((h>>>4)%8),1,1,i%2?'#f8f0dc':'#ddcfae');}}
   TSPR.mini={[T.G]:'#58a845',[T.K]:'#2c7344',[T.T]:'#1d6430',[T.W]:'#3a7fd5',[T.P]:'#d6b985',[T.B]:'#8a8d9c',[T.BT]:'#8a8d9c',[T.F]:'#b9b4a6',[T.R]:'#b8452f',[T.RL]:'#b8452f',[T.H]:'#ecdfc2',[T.D]:'#8a5a2c',[T.L]:'#7ccc62',[T.N]:'#8a5a2c',[T.J]:'#8a5a2c',[T.C]:'#a8232f',[T.S]:'#7c7e8c',[T.U]:'#4a98ea',[T.Z]:'#d0cdc0'};
 }
 buildTiles();
@@ -1433,7 +1433,7 @@ function drawAmbientDay(){
     ambientCells(6,34,(bx,by,h)=>{
       const t=gtime*(.45+(h&7)*.05)+(h&1023),x=bx+Math.sin(t*1.1)*46+Math.sin(t*2.3)*14,y=by+Math.cos(t*.9)*34+Math.sin(t*1.7)*10;
       if(!ambientOk(x,y))return;
-      const c=BF_COL[(h>>4)%BF_COL.length],fl=Math.sin(gtime*(14+(h&3))+h)>0?1:0,sx=Math.round(x-ca),sy=Math.round(y-cb);
+      const c=BF_COL[(h>>>4)%BF_COL.length],fl=Math.sin(gtime*(14+(h&3))+h)>0?1:0,sx=Math.round(x-ca),sy=Math.round(y-cb);
       ctx.globalAlpha=a;ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(sx,sy+12,3,1);
       ctx.fillStyle=c[0];if(fl){ctx.fillRect(sx-3,sy-2,3,3);ctx.fillRect(sx+2,sy-2,3,3);ctx.fillStyle=c[1];ctx.fillRect(sx-2,sy-1,1,1);ctx.fillRect(sx+3,sy-1,1,1);}
       else{ctx.fillRect(sx-2,sy-1,2,2);ctx.fillRect(sx+1,sy-1,2,2);ctx.fillStyle=c[1];ctx.fillRect(sx-2,sy-1,1,1);ctx.fillRect(sx+2,sy-1,1,1);}
@@ -1455,7 +1455,7 @@ function drawNightFx(){            // called from drawLighting, on top of the da
     const pu=.35+.65*Math.max(0,Math.sin(gtime*2.2+(h&63))),sx=Math.round(x-ca),sy=Math.round(y-cb);
     ctx.globalAlpha=n*pu*.28;ctx.fillStyle='#d8ff7a';ctx.fillRect(sx-3,sy-3,7,7);
     ctx.globalAlpha=n*(.5+.5*pu);ctx.fillStyle='#f4ffb0';ctx.fillRect(sx,sy,2,2);});
-  if(!TOUCH||VW>=700||true){for(let i=0;i<22;i++){const hh=hash2(i*31+5,77),sx=hh%VW,sy=(hh>>10)%Math.floor(VH*.7);
+  if(!TOUCH||VW>=700||true){for(let i=0;i<22;i++){const hh=hash2(i*31+5,77),sx=hh%VW,sy=(hh>>>10)%Math.floor(VH*.7);
     const tw=Math.sin(gtime*(1.2+(i%5)*.4)+i*1.7);if(tw<.2)continue;ctx.globalAlpha=n*.3*tw;ctx.fillStyle='#e8ecff';ctx.fillRect(sx,sy,1,1);if(i%4===0){ctx.fillRect(sx-1,sy,3,1);ctx.fillRect(sx,sy-1,1,3);}}}
   ctx.globalAlpha=1;
 }
@@ -1675,7 +1675,7 @@ const XTILE_FN={};
   for(const id of WALL_IDS)XTILE_FN[id]=(x,y)=>wallTile(id,x,y);
   // ---- planters ----
   const flower=(g,x,y,c,cc='#ffe14d')=>{rect(g,x-1,y,3,1,c);rect(g,x,y-1,1,3,c);px(g,x,y,cc);};
-  const leaves=(g,x0,y0,w,h,seed)=>{rect(g,x0,y0,w,h,'#3e7a2e');for(let i=0;i<w*h/3;i++){const hh=hash2(seed+i,i*7);px(g,x0+hh%w,y0+(hh>>4)%h,hh&1?'#5ea83a':'#2e5e22');}};
+  const leaves=(g,x0,y0,w,h,seed)=>{rect(g,x0,y0,w,h,'#3e7a2e');for(let i=0;i<w*h/3;i++){const hh=hash2(seed+i,i*7);px(g,x0+hh%w,y0+(hh>>>4)%h,hh&1?'#5ea83a':'#2e5e22');}};
   TSPR[T.PL1]=[0,1].map(v=>makeSprite(16,16,g=>{grass(g);rect(g,1,2,14,13,O);rect(g,2,3,12,11,'#a8642a');leaves(g,3,4,10,7,v+3);
     for(const [x,y,c] of [[5,5,'#f070a0'],[10,6,'#fff4e0'],[7,9,'#fff4e0'],[11,9,'#f070a0']])flower(g,x,y,c);
     rect(g,2,11,12,3,'#b8743a');rect(g,2,11,12,1,'#d8945a');rect(g,2,13,12,1,'#8a4a1e');for(const [x,y] of [[1,2],[12,2],[1,11],[12,11]]){rect(g,x,y,3,3,'#c8844a');px(g,x,y,'#e8a46a');}}));
@@ -1696,22 +1696,22 @@ const XTILE_FN={};
   const CH=[0,1,2].map(t=>[chest(false,t),chest(true,t)]);
   XTILE_FN[T.CHST]=(x,y)=>{const t=chestTier(x,y);return CH[t][chestOpened(x,y)?1:0];};
   // ---- Glowcap Grove ----
-  TSPR[T.MO]=[1,2,3].map(s=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#2e5a3a');sprinkle(g,s*31,['#3a6e44','#264a30','#4a8050'],22);for(let i=0;i<3;i++){const h=hash2(s,i);px(g,h%16,(h>>4)%16,'#8ae0a0');}}));
+  TSPR[T.MO]=[1,2,3].map(s=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#2e5a3a');sprinkle(g,s*31,['#3a6e44','#264a30','#4a8050'],22);for(let i=0;i<3;i++){const h=hash2(s,i);px(g,h%16,(h>>>4)%16,'#8ae0a0');}}));
   TSPR[T.MS1]=[0,1].map(v=>makeSprite(16,16,g=>{g.drawImage(TSPR[T.MO][v],0,0);rect(g,3,15,10,1,'rgba(0,0,0,.35)');rect(g,6,8,4,7,'#e8dcc4');rect(g,9,8,1,7,'#c4b496');
     ell(g,8,6,7,5,O);ell(g,8,6,6,4,'#b8283a');ell(g,6,4,3,2,'#e05a5a');rect(g,2,8,13,1,'#7a1424');for(const [x,y] of [[4,5],[10,3],[11,7],[6,7]])rect(g,x,y,2,1,'#fff0e0');}));
   TSPR[T.MS2]=[0,1].map(v=>makeSprite(16,16,g=>{g.drawImage(TSPR[T.MO][v],0,0);rect(g,5,15,8,1,'rgba(0,0,0,.35)');rect(g,7,8,3,7,'#d8d0e8');ell(g,8,6,6,4,O);ell(g,8,6,5,3,'#7a3aa4');ell(g,7,5,3,2,'#b07ae0');
     for(const [x,y] of [[5,6],[10,5],[8,3]])px(g,x,y,'#f0d8ff');rect(g,3,8,11,1,'#4a1e6a');px(g,4,11,'#c8a0ff');px(g,12,12,'#c8a0ff');}));
   TSPR[T.MS3]=[0,1,2].map(v=>makeSprite(16,16,g=>{g.drawImage(TSPR[T.MO][v],0,0);const cols=['#c8323a','#9a5ab8','#d8902a'];for(let i=0;i<3;i++){const x=3+i*4+(v*2)%3,y=8+(i%2)*3;rect(g,x+1,y+1,1,3,'#f0e6d0');ell(g,x+1,y,2,1,cols[(i+v)%3]);px(g,x,y-1,'#fff0e0');}}));
   // ---- Shardstone Caverns / quarry ----
-  TSPR[T.RG]=[1,2,3].map(s=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#8a8494');sprinkle(g,s*17,['#9e98a8','#76707e','#aaa4b4','#6a6472'],30);for(let i=0;i<2;i++){const h=hash2(s*3,i);rect(g,h%14,(h>>4)%14,2,1,'#625c6a');}}));
+  TSPR[T.RG]=[1,2,3].map(s=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#8a8494');sprinkle(g,s*17,['#9e98a8','#76707e','#aaa4b4','#6a6472'],30);for(let i=0;i<2;i++){const h=hash2(s*3,i);rect(g,h%14,(h>>>4)%14,2,1,'#625c6a');}}));
   const crystal=(c,cl,cd)=>[0,1].map(v=>makeSprite(16,16,g=>{g.drawImage(TSPR[T.RG][v],0,0);rect(g,2,14,12,2,'rgba(0,0,0,.3)');
     for(const [x,h,w] of [[7,13,4],[3,8,3],[11,9,3]]){tri(g,x+w/2,15-h,x,15,x+w,15,O);tri(g,x+w/2,16-h,x+.6,15,x+w-.6,15,c);rect(g,x+1,16-h+3,1,h-4,cl);rect(g,x+w-1,16-h+4,1,h-5,cd);}
     px(g,8,4,'#ffffff');}));
   TSPR[T.CR1]=crystal('#a060e0','#e0c0ff','#6a2aa4');TSPR[T.CR2]=crystal('#40c8d8','#c8ffff','#1a7a8a');
-  TSPR[T.CL]=[0,1,2].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#5e5868');for(let i=0;i<5;i++){const h=hash2(v*7+i,i*3);const x=h%12,y=(h>>4)%12;rect(g,x,y,5,4,'#787282');rect(g,x,y,5,1,'#948ea0');rect(g,x+4,y,1,4,'#4a4454');}rect(g,0,0,16,1,'#a8a2b4');rect(g,0,15,16,1,'#3a3444');}));
+  TSPR[T.CL]=[0,1,2].map(v=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#5e5868');for(let i=0;i<5;i++){const h=hash2(v*7+i,i*3);const x=h%12,y=(h>>>4)%12;rect(g,x,y,5,4,'#787282');rect(g,x,y,5,1,'#948ea0');rect(g,x+4,y,1,4,'#4a4454');}rect(g,0,0,16,1,'#a8a2b4');rect(g,0,15,16,1,'#3a3444');}));
   // ---- Ember Rift (volcanic edge) ----
   TSPR[T.VB]=[1,2,3].map(s=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#3a3036');sprinkle(g,s*13,['#4a3e44','#2e262c','#5a4a4e'],26);if(s===2){line(g,3,4,6,7,'#c8501e');px(g,7,8,'#ff9a2a');}}));
-  const LAVA=[0,1,2,3].map(f=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#c83a10');for(let i=0;i<10;i++){const h=hash2(i*7+f,i);ell(g,(h+f*3)%16,(h>>4)%16,2,1,i%2?'#ff8a1e':'#ffc23a');}for(let i=0;i<3;i++){const h=hash2(f,i*9);px(g,h%16,(h>>4)%16,'#fff0a0');}}));
+  const LAVA=[0,1,2,3].map(f=>makeSprite(16,16,g=>{rect(g,0,0,16,16,'#c83a10');for(let i=0;i<10;i++){const h=hash2(i*7+f,i);ell(g,(h+f*3)%16,(h>>>4)%16,2,1,i%2?'#ff8a1e':'#ffc23a');}for(let i=0;i<3;i++){const h=hash2(f,i*9);px(g,h%16,(h>>>4)%16,'#fff0a0');}}));
   XTILE_FN[T.LV]=(x,y,time)=>LAVA[(Math.floor(time*3)+x+y)&3];TSPR[T.LV]=[LAVA[0]];
   TSPR[T.VR]=[0,1].map(v=>makeSprite(16,16,g=>{g.drawImage(TSPR[T.VB][v],0,0);ell(g,8,10,4,2,'#1e1418');ell(g,8,10,2,1,'#ff6a1e');px(g,8,9,'#ffd23f');}));
   Object.assign(TSPR.mini,{[T.WLM]:'#7a7888',[T.WLC]:'#8a8a98',[T.WCM]:'#6a6878',[T.WCC]:'#8a8a98',[T.WIV]:'#4a7a3a',[T.WRU]:'#7a7888',[T.TWM]:'#5a5868',[T.TWC]:'#7a7a88',[T.WCN]:'#6a6878',[T.WGH]:'#2a2436',[T.WGT]:'#7a4a24',
@@ -1732,12 +1732,12 @@ XTILE_FN[T.CWL]=(x,y)=>chapelWallTile(x,y);
 Object.assign(T,{WSB:87,WPI:88,WOC:89,WIC:90,WTB:91,WPT:92,WGP:93});
 [T.WSB,T.WPI,T.WOC,T.WIC,T.WTB,T.WGP].forEach(t=>{SOLID.add(t);XWALLS.add(t);});WALL_IDS.add(T.WSB);
 const SW=(()=>{
-  const O='#14182c',S='#8e8e9c',L='#b4b4c2',D='#62626e',M='#44444f',r=(g,x,y,w,h,c)=>rect(g,x,y,w,h,c),px=(g,x,y,c)=>rect(g,x,y,1,1,c);
+  const O='#3a3236',S='#a49c92',L='#c8c0b2',D='#7a7268',M='#6a625a',r=(g,x,y,w,h,c)=>rect(g,x,y,w,h,c),px=(g,x,y,c)=>rect(g,x,y,1,1,c);
   const bricks=(g,x0,y0,x1,y1,seed)=>{r(g,x0,y0,x1-x0,y1-y0,S);for(let y=y0;y<y1;y+=4){r(g,x0,Math.min(y+3,y1-1),x1-x0,1,M);const off=((y>>2)+seed)%2?0:4;
       for(let x=x0+off;x<x1;x+=8){r(g,x,y,1,3,M);r(g,x+1,y,Math.min(5,x1-x-1),1,L);}}};
-  const moss=(g,y,seed)=>{for(let x=0;x<16;x++){const h=hash2(x+seed,y)%4;if(h<2){r(g,x,y-h,1,h+1,'#5a9a34');if(h===1)px(g,x,y-h,'#8ac850');}}};
+  const moss=(g,y,seed)=>{for(let x=0;x<16;x++){const h=hash2(x+seed,y)%4;if(h<2){r(g,x,y-h,1,h+1,'#6fa24a');if(h===1)px(g,x,y-h,'#9ccc6a');}}};
   const crown=(g,y,seed,L0,R0)=>{   // merlons (4 wide, gaps 4) + a coping band below them
-    for(let x=0;x<16;x+=8){r(g,x,y,5,5,O);r(g,x+1,y+1,3,4,S);r(g,x+1,y+1,3,1,L);}
+    for(let x=0;x<16;x+=8){r(g,x+1,y,3,1,O);r(g,x,y+1,5,4,O);r(g,x+1,y+1,3,4,S);r(g,x+1,y+1,3,1,L);px(g,x+1,y+1,'#d8d0c2');}
     r(g,0,y+5,16,3,O);r(g,0,y+6,16,1,L);r(g,0,y+7,16,1,D);if(L0)r(g,0,y,1,y+8,O);if(R0)r(g,15,y,1,8,O);};
   const grass=g=>g.drawImage(TSPR[T.G][0],0,0);
   const banner=(g,x)=>{r(g,x-1,1,8,2,O);r(g,x,1,6,1,'#e0b43a');r(g,x,3,6,9,O);r(g,x+1,3,4,8,'#2f5ab8');r(g,x+1,3,1,8,'#4a7ae0');r(g,x+1,11,2,2,'#2f5ab8');r(g,x+3,11,2,2,'#2f5ab8');
@@ -1756,23 +1756,24 @@ const SW=(()=>{
       if(z.row===0){grass(g);r(g,0,12,16,4,O);crown(g,2,x,z.tl,!z.tl);bricks(g,z.tl?1:0,10,z.tl?16:15,16,1);r(g,z.tl?0:15,10,1,6,O);}
       else if(z.row===1){bricks(g,z.tl?1:0,0,z.tl?16:15,16,x);r(g,z.tl?0:15,0,1,16,O);if(z.tl)banner(g,10);else r(g,4,4,2,6,O);}
       else{bricks(g,z.tl?1:0,0,z.tl?16:15,16,x+1);r(g,z.tl?0:15,0,1,16,O);r(g,z.tl?10:4,2,2,6,O);moss(g,15,x);r(g,0,15,16,1,'rgba(20,24,44,.4)');}});}
-    if(z.gateL||z.gateR){const k='g'+z.row+(z.gateL?'l':'r');return mk(k,g=>{
-      g.drawImage(TSPR[T.P][0],0,0);
-      const L=z.gateL;
-      if(z.row===0){crown(g,4,x,false,false);bricks(g,0,12,16,16,0);}
-      else if(z.row===1){bricks(g,0,0,16,16,1);   // arch voussoirs + dark passage + raised portcullis
-        g.fillStyle='#1a1622';g.beginPath();g.ellipse(L?16:0,16,13,13,0,Math.PI,2*Math.PI);g.fill();
-        g.fillStyle='#6a4a2a';for(let i=0;i<4;i++)g.fillRect(L?4+i*3:i*3+1,4,1,12);g.fillRect(L?3:0,8,13,1);g.fillRect(L?3:0,12,13,1);
-        g.strokeStyle=O;g.lineWidth=1;g.beginPath();g.ellipse(L?16:0,16,14,14,0,Math.PI,2*Math.PI);g.stroke();g.strokeStyle=L0c;g.beginPath();g.ellipse(L?16:0,16,15,15,0,Math.PI,2*Math.PI);g.stroke();
-        lantern(g,L?1:11,8);}
-      else{r(g,L?0:13,0,3,16,S);r(g,L?2:13,0,1,16,O);r(g,L?0:14,0,1,16,L0c);r(g,0,0,16,3,'rgba(10,8,20,.45)');moss(g,15,x);}});}
+    if((z.gateL||z.gateR)&&z.row<=2){const k='g'+z.row+(z.gateL?'l':'r');return mk(k,g=>{   // t142u: a walk-over GATE SPAN - you cross on its flagstone deck
+      const L=z.gateL,FL='#b8ae9e',FD='#958a7a',FH='#d4cab8';
+      const flags=(y0,y1)=>{r(g,0,y0,16,y1-y0,FL);for(let y=y0;y<y1;y+=5){r(g,0,Math.min(y+4,y1-1),16,1,FD);const off=((y/5|0)+(L?0:1))%2?0:5;for(let x=off;x<16;x+=10){r(g,x,y,1,4,FD);r(g,x+1,y,4,1,FH);}}};
+      if(z.row===0){g.drawImage(TSPR[T.P][0],0,0);flags(10,16);r(g,0,10,16,1,FH);r(g,L?0:14,6,2,10,S);r(g,L?0:14,6,2,1,L);}
+      else if(z.row===1){flags(0,16);r(g,L?0:13,0,3,16,S);r(g,L?0:13,0,3,1,L);r(g,L?2:13,0,1,16,M);   // deck + low parapet lip on the outer side
+        r(g,L?0:13,5,3,1,M);r(g,L?0:13,11,3,1,M);lantern(g,L?4:8,1);}
+      else{flags(0,7);   // the south face: arched opening with the portcullis raised, lantern glow, steps down to the road
+        r(g,0,7,16,9,S);bricks(g,0,7,16,16,1);g.fillStyle='#2a2228';g.beginPath();g.ellipse(L?16:0,17,11,8,0,Math.PI,2*Math.PI);g.fill();
+        g.fillStyle='#7a5a36';for(let i=0;i<4;i++)g.fillRect(L?6+i*3:i*3+1,10,1,6);g.fillRect(L?5:0,12,11,1);
+        g.strokeStyle=L0c;g.lineWidth=1;g.beginPath();g.ellipse(L?16:0,17,12,9,0,Math.PI,2*Math.PI);g.stroke();
+        r(g,0,6,16,1,FD);r(g,0,7,16,1,L);moss(g,15,x);}});}
     if(z.wall&&isW(id)){const k='w'+z.row+(x&1)+(map[y][x-1]===T.P?'L':'')+(map[y][x+1]===T.P?'R':'');return mk(k,g=>{
       if(z.row===1){grass(g);crown(g,3,x,false,false);bricks(g,0,11,16,16,x);}
       else if(z.row===2){bricks(g,0,0,16,15,x+1);moss(g,15,x);r(g,0,15,16,1,'rgba(20,24,44,.45)');}
       else return;});}
     return null;
   }
-  const L0c='#b4b4c2';
+  const L0c='#c8c0b2';
   // ---- editor pieces ----
   const isSW=id=>id===T.WSB||id===T.WPI||id===T.WOC||id===T.WIC||id===T.WTB;
   function piece(id,x,y,thumb){const l=!thumb&&x>0&&isSW(map[y][x-1]),rr=!thumb&&x<map[y].length-1&&isSW(map[y][x+1]);const k='p'+id+(l?1:0)+(rr?1:0)+(x&1);return mk(k,g=>{
@@ -2142,6 +2143,7 @@ const ZONES={
   swamp: {y0:ZONE_Y0.swamp, name:ZONE_NAME.swamp, floor:T.MD,wall:T.MR,deco:[[T.RE,.085],[T.MR,.045]],  seed:22,gate:{x:50,y:43}, mobs:['toad','witch'],boss:'mossback'},
   desert:{y0:ZONE_Y0.desert,name:ZONE_NAME.desert,floor:T.SD,wall:T.SR,deco:[[T.SC,.04],[T.RU,.07],[T.PM,.03],[T.AC,.03]],   seed:33,gate:{x:58,y:30}, mobs:['scorpion','mummy'],boss:'colossus'},
 };
+ZONES.swamp.spawns=[[0,13,24],[0,24,21],[1,35,24.5],[0,44,21.5],[1,51,15],[0,45,11],[1,33,13.5],[0,25,15],[1,18,19],[0,52,25]];   // t142u bog layout (see map/bog-layout.js)
 const zoneArrive=id=>({x:5*TS+16,y:(ZONES[id].y0+26)*TS+28,dir:'u'});
 const zoneGateOut=id=>({x:ZONES[id].gate.x*TS+16,y:(ZONES[id].gate.y+1)*TS+28,dir:'d'});
 const zoneBossArena=id=>({tx0:12,ty0:ZONES[id].y0+1,tx1:60,ty1:ZONES[id].y0+8});
@@ -2965,7 +2967,7 @@ function findGoblinCamp(){
 }
 function populate(){
   const meadow=(x,y)=>x>=3&&x<=24&&y>=14&&y<=24;   // (the village starts at y29: keep monsters well clear of its gates)
-  spawnSpots(8,meadow,3.5).forEach(([x,y])=>addEnemy('slime',x,y));   // all the open-world slimes live in the meadow just north of Oakvale (the slime quests point there), none in the east forest
+  spawnSpots(4,meadow,5).forEach(([x,y])=>addEnemy('slime',x,y));   // all the open-world slimes live in the meadow just north of Oakvale (the slime quests point there), none in the east forest
   const f=(x,y)=>regions.forest(x,y);
   spawnSpots(4,f,5).forEach(([x,y])=>addEnemy('knight',x,y));
   spawnSpots(2,f,5).forEach(([x,y])=>addEnemy('goblin',x,y));
@@ -2977,14 +2979,14 @@ function populate(){
   addEnemy('dragon',32,4);
   // night-only monsters (appear at dusk, gone at dawn): wraiths in the meadow, extra undead + goblins in the forest
   const nightAdd=(type,list)=>list.forEach(([x,y])=>{addEnemy(type,x,y);const e=enemies[enemies.length-1];e.night=true;e.alive=false;e.respawn=55;});
-  nightAdd('wraith',spawnSpots(4,meadow,4));nightAdd('knight',spawnSpots(2,f,5));nightAdd('goblin',spawnSpots(2,f,5));nightAdd('slime',spawnSpots(2,meadow,4));
+  nightAdd('wraith',spawnSpots(4,meadow,4));nightAdd('knight',spawnSpots(2,f,5));nightAdd('goblin',spawnSpots(2,f,5));   // t142u: no night slimes - exactly 4 slimes live north of Oakvale
   // the crypt: bats and wraiths in the halls, the Lich King on his throne
   const spots=[['bat',22,69],['bat',41,70],['bat',31,75],['bat',9,70],['bat',54,70],['bat',31,64],['bat',9,76],['bat',54,76],
     ['wraith',24,68],['wraith',39,70],['wraith',9,67],['wraith',54,67],['wraith',31,69],['wraith',9,73],['wraith',54,73]];
   spots.forEach(([t,x,y])=>addEnemy(t,x,y));
   addEnemy('lich',31,56);
   // the three regions: ten monsters each + a boss in the arena
-  for(const id in ZONES){const z=ZONES[id];ZONE_SPAWNS.forEach(([k,x,dy])=>addEnemy(z.mobs[k],x,z.y0+dy));addEnemy(z.boss,36,z.y0+4);}
+  for(const id in ZONES){const z=ZONES[id];(z.spawns||ZONE_SPAWNS).forEach(([k,x,dy])=>addEnemy(z.mobs[k],Math.round(x),z.y0+Math.round(dy)));addEnemy(z.boss,36,z.y0+4);}
 }
 populate();
 
@@ -3268,7 +3270,8 @@ const ACHS=[
    M13 DATA: settings defaults, text sizes, colourblind modes, tutorial steps.
    ===================================================================== */
 const SET_KEY='arcaneKnight.settings.v1';
-const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false};
+const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0};
+const POP_STYLES=[{id:'parchment',n:'PARCHMENT'},{id:'scroll',n:'WAX-SEALED SCROLL'},{id:'sign',n:'SHOP SIGN'},{id:'chest',n:'TREASURE CHEST'},{id:'banner',n:'MINIMAL BANNER'}];
 const TEXT_SIZES=[{n:'NORMAL',k:1},{n:'LARGE',k:1.15},{n:'EXTRA LARGE',k:1.3}];
 // colour-vision assist: a daltonisation filter over the canvas (error redistributed into channels the player can tell apart)
 const CB_MODES=[{id:'off',n:'OFF'},{id:'deutan',n:'GREEN-WEAK (DEUTAN)'},{id:'protan',n:'RED-WEAK (PROTAN)'},{id:'tritan',n:'BLUE-WEAK (TRITAN)'}];
@@ -7759,6 +7762,7 @@ UI_MODES.settings={title:()=>'SETTINGS',sub:()=>['Saved on this device','#7dd3ff
     optRow('TEXT SIZE','text',()=>TEXT_SIZES[SET.text].n,d=>setCycle('text',TEXT_SIZES.length,d),'Dialogues and small labels'),
     optRow('COLOUR-BLIND MODE','cb',()=>CB_MODES[SET.cb].n,d=>setCycle('cb',CB_MODES.length,d),'Re-maps colours that look alike'),
     {h:34,draw(x0,y,W,h){ctx.fillStyle='#120f26';ctx.fillRect(x0,y,W,h);['#e8504a','#4ade80','#ff9a3d','#4a8aff','#c58bff','#ffd23f'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(x0+10+i*34,y+6,28,22);});txt('preview',x0+W-8,y+21,{size:8,col:'#9aa0ff',align:'right',bold:false});}},
+    optRow('REWARD POPUP STYLE','pop',()=>POP_STYLES[SET.pop|0].n,d=>{setCycle('pop',POP_STYLES.length,d);if(typeof revealPreview==='function')revealPreview();},'How new items, cards and level-ups are shown'),
     {t:'head',s:'CONTROLS'},
     optRow('LEFT-HANDED LAYOUT','lefty',()=>SET.lefty?'ON':'OFF',()=>setToggle('lefty'),'Mirrors the touch layout: SHOT + card fan left, stick right'),
     optRow('GAMEPAD','pad',()=>SET.pad?'ON':'OFF',()=>setToggle('pad'),PAD.on?'Connected: '+String(PAD.id).slice(0,30):'Stick move, A shoot, B talk, Start pause'),
@@ -8473,6 +8477,108 @@ function drawReveal(){   // t139u: cozy parchment + dark-wood card (matches the 
   if(t>.6)txt(TOUCH?'tap to continue':'press Enter',cx,VH-SB-16,{size:9,align:'center',col:'rgba(255,240,210,.8)',lw:2});
 }
 
+/* ---------- src/ui/reveal-styles.js ---------- */
+/* =====================================================================
+   t142u REWARD POPUP STYLES (Settings > DISPLAY > REWARD POPUP STYLE). Same queue / timing / backdrop as REVEAL; only the frame changes:
+     0 PARCHMENT (the t139u card)  1 WAX-SEALED SCROLL  2 WOODEN SHOP SIGN on chains  3 TREASURE CHEST opening  4 MINIMAL BANNER
+   revealPreview() queues a sample (Silver Ring of Might) so the player can see the choice right away.
+   ===================================================================== */
+const _drawRevealParchment=drawReveal;
+function revIcon(r,t,ts){   // the thing itself on a rarity tile, centred at (0,0)
+  ctx.fillStyle='#2a160a';ctx.fillRect(-ts/2-2,-ts/2-2,ts+4,ts+4);ctx.fillStyle=r.col;ctx.fillRect(-ts/2,-ts/2,ts,ts);
+  const tg=ctx.createRadialGradient(0,0,4,0,0,ts*.7);tg.addColorStop(0,'rgba(255,255,255,.55)');tg.addColorStop(1,'rgba(0,0,0,.25)');ctx.fillStyle=tg;ctx.fillRect(-ts/2,-ts/2,ts,ts);
+  ctx.save();ctx.translate(0,Math.sin(t*3)*2);const k=ts/64;ctx.scale(k,k);
+  if(r.k==='card'){const cw=42,ch=58;ctx.translate(-cw/2,-ch/2);drawCardFace(r.id,cw,ch,true,null);}
+  else if(r.k==='item'){gearIconBox(-26,-26,r.it,52);}
+  else if(r.k==='level'){ctx.fillStyle='#14182c';ctx.beginPath();ctx.arc(0,0,26,0,6.283);ctx.fill();ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(0,0,22,0,6.283);ctx.fill();txt(String(r.lv||P.lv),0,10,{size:26,align:'center',col:'#2a160a',lw:0,out:false});}
+  else draw(TSPR[T.CHST]?TSPR[T.CHST][0]:SP.ic.sword,-24,-24,3);
+  ctx.restore();
+}
+function revInfo(r){return r.info||(r.k==='item'&&r.it&&typeof gearStatLine==='function'?gearStatLine(r.it):'');}
+function revLines(r,y,w,col,max){const info=revInfo(r);if(!info)return;const font='bold '+scaleText(9)+'px "Courier New",monospace';wrapText(info,w,font).slice(0,max||3).forEach((l,i)=>txt(l,0,y+i*12,{size:9,align:'center',col,lw:0,out:false}));}
+function revBackdrop(a,t,cx,cy){
+  ctx.fillStyle=`rgba(20,12,6,${.5*a})`;ctx.fillRect(0,0,VW,VH);
+  ctx.save();ctx.globalAlpha=a;const gl=ctx.createRadialGradient(cx,cy,10,cx,cy,Math.min(VW,VH)*.6);gl.addColorStop(0,'rgba(255,214,120,.32)');gl.addColorStop(1,'rgba(255,214,120,0)');ctx.fillStyle=gl;ctx.fillRect(0,0,VW,VH);ctx.restore();
+}
+const REV_STYLE_FN={
+  scroll(r,t,a){   // a cream scroll with rolled wooden ends and a red wax seal
+    const W=Math.min(VW*.5,250),H=Math.min(VH*.62,180),x0=-W/2,y0=-H/2;
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(x0+4,y0+8,W,H);
+    const pg=ctx.createLinearGradient(0,y0,0,y0+H);pg.addColorStop(0,'#f6e9c8');pg.addColorStop(.5,'#fbf1d8');pg.addColorStop(1,'#ecdbb2');ctx.fillStyle=pg;ctx.fillRect(x0,y0,W,H);
+    ctx.fillStyle='rgba(150,110,60,.18)';for(let i=0;i<6;i++)ctx.fillRect(x0+10+i*37%W,y0+20+(i*53)%(H-40),18,2);
+    for(const yy of [y0-8,y0+H-6]){ctx.fillStyle='#5a3418';ctx.fillRect(x0-12,yy,W+24,14);ctx.fillStyle='#8a5a32';ctx.fillRect(x0-12,yy+2,W+24,4);ctx.fillStyle='#3a2010';ctx.fillRect(x0-16,yy-2,6,18);ctx.fillRect(x0+W+10,yy-2,6,18);}
+    txt(REV_TITLES[r.k]||'NEW!',0,y0+22,{size:15,align:'center',col:'#7a2a1a',lw:0,out:false});
+    ctx.fillStyle='#b89a6a';ctx.fillRect(-50,y0+28,100,1);
+    ctx.save();ctx.translate(-W/2+50,y0+72);revIcon(r,t,56);ctx.restore();
+    ctx.save();ctx.translate(38,0);txt(r.name,0,y0+60,{size:12,align:'center',col:r.k==='level'?'#3f7a3a':r.col,lw:3,out:'#2a160a'});if(r.sub)txt(r.sub,0,y0+78,{size:9,align:'center',col:'#5a3a1e',lw:0,out:false});ctx.restore();
+    ctx.save();ctx.translate(0,0);revLines(r,y0+118,W-40,'#2a1a0e',3);ctx.restore();
+    // wax seal with a ribbon tail
+    const sx=W/2-26,sy=H/2-22;ctx.fillStyle='#8a1a1a';ctx.fillRect(sx-6,sy+8,5,16);ctx.fillRect(sx+3,sy+8,5,14);
+    ctx.fillStyle='#b02a24';ctx.beginPath();ctx.arc(sx,sy,13,0,6.283);ctx.fill();ctx.fillStyle='#d8463a';ctx.beginPath();ctx.arc(sx-2,sy-2,9,0,6.283);ctx.fill();
+    ctx.fillStyle='#7a1414';ctx.font='bold 12px "Courier New",monospace';ctx.textAlign='center';ctx.fillText('AK',sx,sy+4);ctx.textAlign='left';
+  },
+  sign(r,t,a){   // a wooden shop sign swinging gently on two chains
+    const W=Math.min(VW*.5,240),H=Math.min(VH*.56,160),sw=Math.sin(t*2.2)*.025*Math.max(0,1-t/2.5);
+    const top=-H/2-36;ctx.strokeStyle='#4a4a52';ctx.lineWidth=2;
+    for(const sx of [-W/2+24,W/2-24]){for(let i=0;i<5;i++){ctx.strokeRect(sx-3,top+i*8,6,8);}ctx.fillStyle='#2a2a30';ctx.fillRect(sx-6,top-6,12,6);}
+    ctx.save();ctx.rotate(sw);const x0=-W/2,y0=-H/2+4;
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(x0+5,y0+7,W,H);
+    ctx.fillStyle='#4a2a14';ctx.fillRect(x0-3,y0-3,W+6,H+6);
+    for(let i=0;i<5;i++){const yy=y0+i*H/5;ctx.fillStyle=i%2?'#8a5a32':'#9a6a3a';ctx.fillRect(x0,yy,W,H/5);ctx.fillStyle='#6b4423';ctx.fillRect(x0,yy+H/5-2,W,2);}
+    ctx.fillStyle='rgba(255,230,180,.08)';ctx.fillRect(x0,y0,W,6);
+    for(const [qx,qy] of [[x0+6,y0+6],[x0+W-10,y0+6],[x0+6,y0+H-10],[x0+W-10,y0+H-10]]){ctx.fillStyle='#2a2a30';ctx.fillRect(qx,qy,4,4);ctx.fillStyle='#8a8a96';ctx.fillRect(qx,qy,2,2);}
+    txt(REV_TITLES[r.k]||'NEW!',0,y0+22,{size:16,align:'center',col:'#ffe14d',lw:4,out:'#2a160a'});
+    ctx.save();ctx.translate(0,y0+66);revIcon(r,t,52);ctx.restore();
+    txt(r.name,0,y0+110,{size:13,align:'center',col:'#fff4d8',lw:3,out:'#2a160a'});if(r.sub)txt(r.sub,0,y0+125,{size:9,align:'center',col:'#ffe6b8',lw:2,out:'#2a160a'});
+    const info=revInfo(r);if(info){const font='bold '+scaleText(9)+'px "Courier New",monospace';wrapText(info,W-30,font).slice(0,2).forEach((l,i)=>txt(l,0,y0+140+i*11,{size:8,align:'center',col:'#fff0d0',lw:2,out:'#2a160a'}));}
+    ctx.restore();
+  },
+  chest(r,t,a){   // a treasure chest whose lid swings open, the reward rising out of it on golden light
+    const W=Math.min(VW*.4,180),cy=-VH*.02,open=Math.min(1,Math.max(0,(t-.15)/.45)),rise=Math.min(1,Math.max(0,(t-.35)/.5));
+    // light shaft
+    ctx.save();ctx.globalAlpha=a*open;const sh=ctx.createLinearGradient(0,cy,0,cy-170);sh.addColorStop(0,'rgba(255,220,120,.7)');sh.addColorStop(1,'rgba(255,220,120,0)');ctx.fillStyle=sh;
+    ctx.beginPath();ctx.moveTo(-W*.36,cy);ctx.lineTo(W*.36,cy);ctx.lineTo(W*.6,cy-170);ctx.lineTo(-W*.6,cy-170);ctx.fill();ctx.restore();
+    // the reward floats up
+    ctx.save();ctx.translate(0,cy-30-rise*78);ctx.globalAlpha=a*rise;revIcon(r,t,54);ctx.restore();
+    // chest body
+    const bx=-W/2,by=cy,bw=W,bh=48;ctx.fillStyle='#2a160a';ctx.fillRect(bx-3,by-3,bw+6,bh+6);ctx.fillStyle='#7a4a24';ctx.fillRect(bx,by,bw,bh);
+    for(let i=1;i<4;i++){ctx.fillStyle='#5a3418';ctx.fillRect(bx,by+i*bh/4,bw,2);}
+    ctx.fillStyle='#e0b43a';ctx.fillRect(bx,by,bw,5);ctx.fillRect(bx+14,by,8,bh);ctx.fillRect(bx+bw-22,by,8,bh);ctx.fillStyle='#fbe08a';ctx.fillRect(bx,by,bw,1);
+    ctx.fillStyle='#e0b43a';ctx.fillRect(-9,by+4,18,20);ctx.fillStyle='#2a160a';ctx.fillRect(-2,by+10,4,8);
+    // lid (tilts back as it opens)
+    const lh=34*(1-open*.75);ctx.fillStyle='#2a160a';ctx.fillRect(bx-3,by-lh-3,bw+6,lh+3);ctx.fillStyle='#8a5a2e';ctx.fillRect(bx,by-lh,bw,lh);
+    ctx.fillStyle='#e0b43a';ctx.fillRect(bx,by-lh,bw,3);ctx.fillRect(bx+14,by-lh,8,lh);ctx.fillRect(bx+bw-22,by-lh,8,lh);
+    if(open>.3){ctx.fillStyle='rgba(255,230,140,.9)';ctx.fillRect(bx+4,by-3,bw-8,3);}
+    // text plate under the chest
+    const py=by+bh+10;ctx.fillStyle='rgba(30,18,8,.85)';ctx.fillRect(-W*.7,py,W*1.4,58);ctx.strokeStyle='#e0b43a';ctx.lineWidth=2;ctx.strokeRect(-W*.7,py,W*1.4,58);
+    txt((REV_TITLES[r.k]||'NEW!')+'  '+r.name,0,py+18,{size:12,align:'center',col:r.k==='level'?'#7dffa0':r.col,lw:3,out:'#2a160a'});
+    if(r.sub)txt(r.sub,0,py+33,{size:9,align:'center',col:'#ffe6b8',lw:0,out:false});
+    const info=revInfo(r);if(info){const font='bold '+scaleText(9)+'px "Courier New",monospace';txt(wrapText(info,W*1.3,font)[0]||'',0,py+48,{size:8,align:'center',col:'#fff0d0',lw:0,out:false});}
+  },
+  banner(r,t,a){   // a slim dark banner across the screen: icon left, name + stats right
+    const W=Math.min(VW*.86,520),H=74,x0=-W/2,y0=-H/2,sl=Math.min(1,t/.3);
+    ctx.save();ctx.beginPath();ctx.rect(-W/2*sl,y0-20,W*sl,H+40);ctx.clip();
+    ctx.fillStyle='rgba(12,10,22,.92)';ctx.fillRect(x0,y0,W,H);ctx.fillStyle=r.col;ctx.fillRect(x0,y0,W,2);ctx.fillRect(x0,y0+H-2,W,2);
+    const gr=ctx.createLinearGradient(x0,0,x0+W,0);gr.addColorStop(0,'rgba(255,214,120,0)');gr.addColorStop(.5,'rgba(255,214,120,.10)');gr.addColorStop(1,'rgba(255,214,120,0)');ctx.fillStyle=gr;ctx.fillRect(x0,y0,W,H);
+    ctx.save();ctx.translate(x0+44,0);revIcon(r,t,50);ctx.restore();
+    txt(REV_TITLES[r.k]||'NEW!',x0+82,y0+18,{size:9,col:'#ffe14d',lw:2});
+    txt(r.name,x0+82,y0+38,{size:14,col:r.k==='level'?'#7dffa0':r.col,lw:3,out:'#000'});
+    const info=revInfo(r);txt([r.sub,info].filter(Boolean).join('   '),x0+82,y0+56,{size:9,col:'#d8d0e8',lw:0,out:false});
+    ctx.restore();
+  },
+};
+drawReveal=function(){
+  const st=(POP_STYLES[SET.pop|0]||POP_STYLES[0]).id;const fn=REV_STYLE_FN[st];
+  if(!fn||!REV.cur)return _drawRevealParchment.apply(this,arguments);
+  for(const p of REV.parts){ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.fillRect(Math.round(p.x),Math.round(p.y),p.sz,p.sz);}ctx.globalAlpha=1;
+  const r=REV.cur,t=REV.t,cx=VW/2,cy=VH*.46,inA=Math.min(1,t/.25),outA=t>3?Math.max(0,1-(t-3)/.4):1,a=inA*outA;
+  revBackdrop(a,t,cx,cy);
+  const k=Math.min(1,t/.45),sc=st==='banner'||st==='chest'?1:(k<1?1-Math.pow(1-k,3)*Math.cos(k*7):1);
+  ctx.save();ctx.translate(cx,cy);ctx.scale(sc,sc);ctx.globalAlpha=a;fn(r,t,a);ctx.restore();ctx.globalAlpha=1;
+  if(t>.6)txt(TOUCH?'tap to continue':'press Enter',cx,VH-SB-16,{size:9,align:'center',col:'rgba(255,240,210,.8)',lw:2});
+};
+function revealPreview(){REV.q.length=0;REV.cur=null;const mr=Math.random;Math.random=mulberry32(1427);let it;try{it=Object.assign(genGear('ring',8,'rare',false),{name:'Silver Ring of Might'});}finally{Math.random=mr;}revealItem(it);}
+
 /* ---------- src/player/first-fight.js ---------- */
 /* =====================================================================
    FIRST 5 MINUTES (t135u)
@@ -8591,12 +8697,29 @@ function loadSave(s){
   bossDown=!!s.bossDown;lichDown=!!s.lichDown;if(typeof s.tod==='number'){DAY.t=s.tod;dayCompute();syncNight(true);}kills=s.kills|0;unpackCards(s.cards);if(typeof s.muted==='boolean')muted=s.muted;
   if(bossDown){const d=enemies.find(o=>o.type==='dragon');if(d){d.alive=false;d.respawn=150;}}
   if(lichDown){const d=enemies.find(o=>o.type==='lich');if(d){d.alive=false;d.respawn=240;}}
+  try{sanitizeWorld('load');}catch(e){}
   snapCam();
 }
 function clearSave(){try{backupSave(localStorage.getItem(SAVE_KEY));localStorage.removeItem(SAVE_KEY);}catch(e){}}   // New Game keeps the old save as a backup
 let saveTimer=0;
 addEventListener('pagehide',()=>saveGame('hide'));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame('hide');});
+
+/* t142u: load-time (and every few seconds) sanitizing so a corrupted or looping state recovers:
+   non-finite hero position / numbers are repaired, NaN or runaway entities are dropped, leftover boss summons are removed. */
+const SANITY={fixed:0,last:''};
+function sanitizeWorld(why){
+  let f=0;const fin=v=>typeof v==='number'&&isFinite(v);
+  if(!fin(P.x)||!fin(P.y)||P.x<0||P.y<0||P.x>MW*TS||P.y>MH*TS){const s=typeof HOUSE_OUT!=='undefined'&&HOUSE_OUT?HOUSE_OUT:{x:TS*12,y:TS*(OWY0+30)};P.x=s.x;P.y=s.y;f++;}
+  for(const k of ['hp','xp','gold','lv'])if(!fin(P[k])){P[k]=k==='lv'?1:k==='hp'?maxHp():0;f++;}
+  if(P.lv<1){P.lv=1;f++;}if(P.xp<0){P.xp=0;f++;}if(P.xp>1e7){P.xp=0;f++;}if(P.hp>maxHp())P.hp=maxHp();
+  if(!B){const n0=enemies.length;
+    for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(!e||!fin(e.x)||!fin(e.y)||!fin(e.hx)||!fin(e.hy)||e.tmp&&e.rush&&!(typeof RUSH!=='undefined'&&RUSH.on)){enemies.splice(i,1);f++;}else{if(!fin(e.hp)){e.hp=e.maxhp||1;f++;}e.engaged=false;}}
+    if(enemies.length>2500){enemies.length=2500;f++;}}
+  try{for(const s of SPW){if(!isFinite(s.hp)){s.hp=s.maxhp;f++;}const kids=enemies.filter(e=>e.spw===s);if(kids.length>12){let k=kids.length-12;for(let i=enemies.length-1;i>=0&&k>0;i--)if(enemies[i].spw===s&&!enemies[i].engaged){enemies.splice(i,1);k--;f++;}}}}catch(e){}
+  if(f){SANITY.fixed+=f;SANITY.last=why;try{console.warn('[sanitize]',why,f);}catch(e){}}
+  return f;
+}
 
 /* ---------- src/player/settings.js ---------- */
 /* =====================================================================
@@ -8609,7 +8732,7 @@ function setLoad(){
   let o={};try{o=JSON.parse(localStorage.getItem(SET_KEY)||'{}')||{};}catch(e){}
   for(const k of ['master','music','sfx'])SET[k]=Number.isFinite(o[k])?cl01(o[k]):SET_DEFAULT[k];
   SET.text=Number.isFinite(o.text)?clamp(o.text|0,0,TEXT_SIZES.length-1):0;SET.cb=Number.isFinite(o.cb)?clamp(o.cb|0,0,CB_MODES.length-1):0;
-  SET.lefty=o.lefty===true;SET.pad=o.pad!==false;SET.tutDone=o.tutDone===true;
+  SET.pop=Number.isFinite(o.pop)?clamp(o.pop|0,0,POP_STYLES.length-1):0;SET.lefty=o.lefty===true;SET.pad=o.pad!==false;SET.tutDone=o.tutDone===true;
 }
 function setSave(){if(NOSAVE)return;try{localStorage.setItem(SET_KEY,JSON.stringify(SET));}catch(e){}}
 const sfxVol=()=>SET.master*SET.sfx;
@@ -9042,6 +9165,42 @@ const CARD_INFO={
   thunder:'Lightning gathers in your hand, then you lunge forward, piercing EVERY foe on the line and stunning them.',
   star:'Throw a spinning ninja star. It pierces 2 foes and ricochets off walls twice.'};
 function cardInfo(id){const c=CARD[id];return CARD_INFO[id]||(c&&c.desc)||'';}
+
+/* ---------- src/enemies/spawner-target.js ---------- */
+/* =====================================================================
+   SPAWNERS AS TARGETS (t142u): every attack hurts spawners and auto-aim can pick them.
+   A live spawner in the fight's zone gets a small PROXY object that looks like a foe to the targeting code (nearestEnemy / aimEnemy,
+   foesIn area checks). Damage to a proxy goes to hurtSpawner; stuns / knockback / statuses on it are ignored. Live monsters in
+   range always win the auto-aim; a spawner is picked when no monster is nearer than it (or none is left).
+   Plus explicit spawner hits for the cards that sweep B.ens directly (Dragonfire, Thunder Fang, Phantom Slash, Judgment, magic splash).
+   ===================================================================== */
+const SPW_PROXY=new Map();
+function spwProxy(s){let p=SPW_PROXY.get(s);if(!p){p={spwProxy:s,type:'spawner',def:{name:'Spawner',big:false,freezeImmune:true,boss:false},sz:1,lv:1,engaged:true,alive:true,tmp:true,face:1,bob:0};SPW_PROXY.set(s,p);}
+  Object.assign(p,{x:s.x,y:s.y,hx:s.x,hy:s.y,hp:s.hp,maxhp:s.maxhp,dying:!spwLive(s)});return p;}
+const isSpwProxy=e=>!!(e&&e.spwProxy);
+function spwTargets(maxD){const pc=pcen(),o=[];for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;const c=spwCenter(s);if(Math.hypot(c.x-pc.x,c.y-pc.y)<(maxD||SPW_RANGE))o.push(spwProxy(s));}return o;}
+{
+  const _de=damageEnemy;damageEnemy=function(e,d,k){if(isSpwProxy(e))return hurtSpawner(e.spwProxy,d,k);return _de.apply(this,arguments);};
+  const _st=stunEnemy;stunEnemy=function(e){if(isSpwProxy(e))return false;return _st.apply(this,arguments);};
+  if(typeof knock==='function'){const _kn=knock;knock=function(e){if(isSpwProxy(e))return;return _kn.apply(this,arguments);};}
+  const _fi=foesIn;foesIn=function(x,y,r){const o=_fi.apply(this,arguments);if(B)for(const p of spwTargets(1e9)){const c=spwCenter(p.spwProxy);if(Math.hypot(c.x-x,c.y-y)<r+SPW_REACH)o.push(p);}return o;};
+  const _ne=nearestEnemy;nearestEnemy=function(){const e=_ne.apply(this,arguments);const sp=spwTargets();if(!sp.length)return e;
+    const pc=pcen();let best=null,bd=1e9;for(const p of sp){const c=spwCenter(p.spwProxy),d=Math.hypot(c.x-pc.x,c.y-pc.y);if(d<bd){bd=d;best=p;}}
+    if(!e||e.dying)return best;const c=ecen(e);return Math.hypot(c.x-pc.x,c.y-pc.y)<=bd+40?e:best;};   // monsters win ties (40px bias)
+  const _cm=castMagic;castMagic=function(id,ch,m){const tg=aimEnemy();const r=_cm.apply(this,arguments);if(isSpwProxy(tg)){const cfg=MAGIC[id];const c=spwCenter(tg.spwProxy);hurtSpawner(tg.spwProxy,ch.pow*m,id);}return r;};
+  const wrapCast=(id,after)=>{const f=CAST[id];if(!f)return;CAST[id]=function(ch,m,a,pc){const r=f.apply(this,arguments);try{after(ch,m,a,pc||pcen());}catch(e){}return r;};};
+  wrapCast('dragonfire',(ch,m,a,pc)=>{const z=Z.cone(pc.x,pc.y,a,280,.6);schedule(.1,()=>spwHitZone(z,ch.pow*m,'fire'));});
+  wrapCast('thunder',(ch,m,a)=>{const from={x:P.x,y:P.y};schedule(.19,()=>{const to={x:P.x,y:P.y};for(const s of SPW){if(!spwLive(s)||!spwSameZone(s))continue;const c=spwCenter(s);
+      const dx=to.x-from.x,dy=to.y-from.y,L2=dx*dx+dy*dy||1;let t=clamp(((c.x-from.x)*dx+(c.y-from.y+12)*dy)/L2,0,1);if(Math.hypot(from.x+dx*t-c.x,from.y-12+dy*t-c.y)<SPW_REACH+40||Math.hypot(to.x-c.x,to.y-12-c.y)<64)hurtSpawner(s,ch.pow*m,'zap');}});});
+  // drain / spirit wolf: when no monster is in reach they keep working on the nearest spawner
+  const liveNear=r=>{const pc=pcen();return B.ens.some(e=>!e.dying&&Math.hypot(ecen(e).x-pc.x,ecen(e).y-pc.y)<r);};
+  const nearSpw=r=>{const pc=pcen();let b=null,bd=r;for(const p of spwTargets(1e9)){const c=spwCenter(p.spwProxy),d=Math.hypot(c.x-pc.x,c.y-pc.y);if(d<bd){bd=d;b=p.spwProxy;}}return b;};
+  wrapCast('drain',(ch,m)=>{for(let i=1;i<=8;i++)schedule(i*.25,()=>{if(!B||!B.channel||liveNear(250))return;const s=nearSpw(250);if(s){hurtSpawner(s,ch.pow*m,'dot');}});});
+  wrapCast('wolf',(ch,m)=>{for(let i=1;i<=12;i++)schedule(i*.8,()=>{if(!B||!B.wolf||liveNear(200))return;const s=nearSpw(220);if(s){hurtSpawner(s,B.wolf.dmg||ch.pow*m,'pet');const c=spwCenter(s);burst(c.x,c.y,'#bcd0f5',6,80,.3);}});});
+}
+{const cf=COMBO_FX;
+ const _ps=cf['PHANTOM SLASH'];cf['PHANTOM SLASH']=function(m){const r=_ps.apply(this,arguments);schedule(.09,()=>spwHitRadius(P.x,P.y-12,84,160*m,'sword'));return r;};
+ const _j=cf['JUDGMENT'];cf['JUDGMENT']=function(m){const r=_j.apply(this,arguments);let n=0;for(const p of spwTargets()){newMeteor(p.x,p.y,150*m,62,1.2+n*.12);n++;}return r;};}
 
 /* ---------- src/ui/rush-screen.js ---------- */
 /* =====================================================================
@@ -10863,6 +11022,81 @@ function placeVillagers(){
 function placeWorld135(){roundZones();roundOverworld();buildPen();edMapChanged();placeSigns();placeVillagers();}
 placeWorld135();
 
+/* ---------- src/map/bog-layout.js ---------- */
+/* =====================================================================
+   t142u MIREWOOD BOG LAYOUT REDO
+   The old bog was the shared serpentine of straight bands. It is now carved from a winding ROUTE (a polyline from the arrival to the
+   Hydra's arena), widened by noise, so every edge is rounded. Along the way:
+   - three WATER POCKETS the route crosses on a winding BOARDWALK (new walkable tile T.BWK, planks over dark water),
+   - a ring of REEDS / dead cypress (T.RE, drawn by tree-art) around the water and the outer edge, bog water beyond, rock furthest out,
+   - MOSSY ISLANDS (T.MO) dotted over the mud, a few bushes and dead stumps,
+   - two CHEST SIDE POCKETS (west and east) reached by short spurs, each with an iron chest,
+   - the arrival / exit rune, Mirewood Pool (fishing), the hidden cave's cracked wall and the boss arena stay where they were,
+   - the bog's monsters are re-spaced along the route (about 7 tiles apart, never inside the arena).
+   ===================================================================== */
+Object.assign(T,{BWK:94});
+const BOG={
+  route:[[5,26],[11,24.5],[17,21.5],[24,22],[31,24.6],[38,23],[45,20.5],[51,17],[50,13],[43,11.6],[34,13.2],[26,15],[19,12.8],[16,9],[21,6.5],[28,5]],
+  spurs:[[[17,9],[12,7],[8,5.5]],[[38,23],[46,24.5],[53,25.5],[57,25]],[[31,24.6],[30.5,27.2]],[[5,26],[3.5,27]]],
+  water:[[28,23.4,2.7],[40.5,12.3,2.5],[17.6,11.2,2.2],[47.6,23.4,1.8]],           // [x, dy, r] - the route / spur crossing them is boardwalk
+  pockets:[[7.5,5,2.9,6,5],[57,25,2.7,58,25]],                                       // [x, dy, r, chest x, chest dy]
+  arena:[36,4.6,24.5,4.3],
+  spawns:ZONES.swamp.spawns,
+};
+function bogSegDist(px,py,pts){let best=1e9;for(let i=0;i<pts.length-1;i++){const [ax,ay]=pts[i],[bx,by]=pts[i+1],dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy||1;
+  const t=clamp(((px-ax)*dx+(py-ay)*dy)/L,0,1);best=Math.min(best,Math.hypot(ax+dx*t-px,ay+dy*t-py));}return best;}
+function buildBog(){
+  const z=ZONES.swamp,y0=z.y0,F=z.floor,WL=z.wall,rnd=mulberry32(9142);
+  const set=(x,dy,t)=>{if(x>=0&&x<MW&&dy>=0&&dy<ZONE_H)map[y0+dy][x]=t;};
+  const routeD=(x,y)=>Math.min(bogSegDist(x,y,BOG.route),...BOG.spurs.map(s=>bogSegDist(x,y,s)+.5));
+  const inArena=(x,y)=>{const [cx,cy,rx,ry]=BOG.arena;return ((x-cx)/rx)**2+((y-cy)/ry)**2<1-.18*evnoise(x,y,911,3);};
+  const inPocket=(x,y)=>BOG.pockets.some(([cx,cy,r])=>Math.hypot(x-cx,y-cy)<r+.6*evnoise(x,y,913,2));
+  const waterOf=(x,y)=>BOG.water.find(([cx,cy,r])=>Math.hypot(x-cx,(y-cy)*1.15)<r+.5*evnoise(x,y,917,2));
+  for(let dy=1;dy<=28;dy++)for(let x=2;x<=61;x++){
+    const d=routeD(x,dy),n=evnoise(x,dy,903,3),rad=1.7+1.5*n,walk=d<rad||inArena(x,dy)||inPocket(x,dy);
+    let t;
+    if(walk){t=F;const w=waterOf(x,dy);if(w&&!inArena(x,dy))t=d<1.05?T.BWK:(d<1.6&&Math.hypot(x-w[0],dy-w[1])>w[2]-.4?F:T.W);
+      else if(evnoise(x,dy,931,2)>.66&&d>.9)t=T.MO;}
+    else{const edge=d-rad;t=edge<1.4?(rnd()<.62?T.RE:T.W):edge<3.2&&evnoise(x,dy,941,3)>.4?T.W:edge<3.2?T.RE:WL;}
+    set(x,dy,t);
+  }
+  // outer frame stays rock; the bottom rows keep the hidden cave
+  for(let x=0;x<MW;x++){set(x,0,WL);set(x,29,WL);}for(let dy=0;dy<30;dy++){set(0,dy,WL);set(1,dy,WL);set(62,dy,WL);set(63,dy,WL);}
+  set(30,29,T.GB);set(30,28,F);set(30,27,F);
+  // arrival + exit rune
+  for(let dy=24;dy<=28;dy++)for(let x=3;x<=8;x++)if(map[y0+dy][x]!==F&&map[y0+dy][x]!==T.MO)set(x,dy,F);
+  set(3,27,T.GX);ZEXITS[3+','+(y0+27)]=ZEXITS[3+','+(y0+27)]||'swamp';
+  // Mirewood Pool (fishing spot) + its bank
+  const fs=(typeof FISH_SPOTS!=='undefined'?FISH_SPOTS:[]).find(s=>s.id==='bog');
+  if(fs&&fs.pond){const p=fs.pond;for(let y=p.y;y<p.y+p.h;y++)for(let x=p.x;x<p.x+p.w;x++)map[y][x]=T.W;const [bx,by]=fs.bank;map[by][bx]=F;}
+  // the boss arena floor is plain mud; spawners and spawn spots are clear ground
+  for(let dy=1;dy<=8;dy++)for(let x=12;x<=60;x++)if(inArena(x,dy)&&map[y0+dy][x]!==F)set(x,dy,F);
+  for(const d of SPAWNER_DEFS)if(d.id.startsWith('sp_swamp'))for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const t=map[d.ty+b][d.tx+a];if(SOLID.has(t)||t===T.W)map[d.ty+b][d.tx+a]=F;}
+  for(const [k,x,dy] of BOG.spawns){const X=Math.round(x),Y=Math.round(dy);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const t=map[y0+Y+b][X+a];if(SOLID.has(t)||t===T.W)set(X+a,Y+b,F);}}
+  // chest pockets
+  for(const [cx,cy,r,hx,hy] of BOG.pockets){set(hx,hy,T.CHST);CHEST_TIER[(hx-OX)+','+(y0+hy-OY)]=1;}
+  // sparse bushes / dead stumps on open mud away from the route
+  for(let dy=2;dy<=27;dy++)for(let x=3;x<=60;x++){if(map[y0+dy][x]!==F||inArena(x,dy)||routeD(x,dy)<1.4)continue;const q=rnd();if(q<.05)set(x,dy,T.BU);else if(q<.075)set(x,dy,T.ST);}
+  // monsters: the bog's regular foes spawn at ZONES.swamp.spawns (set in zones.js, used by populate)
+  // map caches
+  try{const m=MINI.swamp.spr.getContext('2d');for(let y=0;y<ZONE_H;y++)for(let x=0;x<MW;x++){m.fillStyle=TSPR.mini[map[y0+y][x]]||'#000';m.fillRect(x*2,y*2,2,2);}}catch(e){}
+  try{edMapChanged();}catch(e){}
+}
+/* boardwalk planks: they run along the route (horizontal when the walk continues left/right, else vertical), dark water peeks at the sides */
+(function(){
+  const C=new Map(),isB=(x,y)=>map[y]&&map[y][x]===T.BWK,isW=(x,y)=>map[y]&&(map[y][x]===T.BWK||!SOLID.has(map[y][x])&&map[y][x]!==T.W);
+  const draw=(hz,x,y)=>{const k=(hz?1:0)+''+((x*7+y*3)&3);let s=C.get(k);if(s)return s;
+    s=makeSprite(16,16,g=>{rect(g,0,0,16,16,'#1d3a34');rect(g,0,0,16,2,'#24463e');rect(g,2,9,3,1,'#3a6a5a');rect(g,11,4,2,1,'#3a6a5a');
+      const v=(x*7+y*3)&3,W1='#8a6a42',W2='#6e5232',OL='#3e2c1a';
+      if(hz){rect(g,0,3,16,10,OL);for(let i=0;i<4;i++){rect(g,i*4,4,3,8,(i+v)%2?W1:W2);rect(g,i*4,4,3,1,'#a8865a');}rect(g,0,12,16,1,'#2a1e12');rect(g,1,13,1,3,OL);rect(g,14,13,1,3,OL);}
+      else{rect(g,3,0,10,16,OL);for(let i=0;i<4;i++){rect(g,4,i*4,8,3,(i+v)%2?W1:W2);rect(g,4,i*4,8,1,'#a8865a');}rect(g,12,0,1,16,'#2a1e12');}
+      rect(g,hz?7:5,hz?8:6,1,1,'#3e2c1a');});
+    C.set(k,s);return s;};
+  XTILE_FN[T.BWK]=(x,y)=>{const hz=(isB(x-1,y)||isB(x+1,y)||isW(x-1,y)&&isW(x+1,y))&&!(isB(x,y-1)&&isB(x,y+1));return draw(hz,x,y);};
+  TSPR[T.BWK]=[draw(true,0,0)];TSPR.mini[T.BWK]='#8a6a42';
+})();
+buildBog();
+
 /* ---------- src/player/life.js ---------- */
 /* =====================================================================
    LIFE (t135u): the world goes on without you.
@@ -11529,6 +11763,7 @@ function drawTitle(){
 }
 
 /* ---------- src/main.js ---------- */
+let SANITY_T=0;
 
 /* ---- frame ---- */
 function render(){
@@ -11627,8 +11862,20 @@ let last=performance.now();
 function frame(ts){
   {const hw=houseZoomWant();if(hw!==HZ){HZ=hw;resize();}}
   let dt=Math.min(1/30,(ts-last)/1000);last=ts;if(!(dt>0))dt=0;
-  if(!ROTATE_BLOCK)update(dt);render();pressed={};released={};
+  try{if(!ROTATE_BLOCK)update(dt);}catch(err){watchdog('update',err);}
+  SANITY_T=(SANITY_T||0)+dt;if(SANITY_T>5){SANITY_T=0;try{if(!B)sanitizeWorld('tick');}catch(e){}}
+  try{render();}catch(err){watchdog('render',err);try{ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;}catch(e){}}
+  pressed={};released={};
   requestAnimationFrame(frame);
+}
+/* t142u WATCHDOG: an error inside one frame is logged (console + WATCHDOG.log, last 20) and the game keeps running instead of freezing.
+   Repeated errors from a battle reset that battle so a broken fight state can't lock the game. */
+const WATCHDOG={n:0,log:[],last:0,burst:0};
+function watchdog(where,err){
+  WATCHDOG.n++;const msg=where+': '+(err&&err.stack||err);if(WATCHDOG.log.length>=20)WATCHDOG.log.shift();WATCHDOG.log.push(msg.slice(0,500));
+  try{console.error('[watchdog]',msg);}catch(e){}
+  const now=performance.now();WATCHDOG.burst=now-WATCHDOG.last<1000?WATCHDOG.burst+1:1;WATCHDOG.last=now;
+  if(WATCHDOG.burst>30&&B){try{resetFighters(false);}catch(e){}B=null;WATCHDOG.burst=0;try{toast('Something went wrong in that fight - it was reset.',3,'#ffb0a0');}catch(e){}}
 }
 requestAnimationFrame(frame);
 cv.focus();
@@ -11665,5 +11912,6 @@ window.__game.t138=()=>({SFX_SOFT,softWave,FSH,FSH_SHOP,FISH_BY,sellFish,openFis
 window.__game.t139=()=>({BEST,BEST_INFO,packBest,unpackBest,HELP_SECT,TIPS,TELE,TELE_STATS,teleKindOf,ROCK_TYPES,FIRE_IMMUNE,IMMUNE_LOG,isRock,rockBurnCheck,damageEnemy,
   REV,revealLevel,npcMarker,isMainQuest,QMARK_COL,QUESTS,NPCS,DECLUTTER,SW,T,map,XTILE_FN,ED_ITEMS,edMigrate,edJSON,P,PM,PM_TABS,pauseRects,Z,ATK,startAttack,warnZones,getB:()=>B,
   setState:s=>{state=s;},getState:()=>state,ENEMY});
+window.__game.t142=()=>({revealPreview,REV,POP_STYLES,nearestEnemy,aimEnemy,spwTargets,spwProxy,SANITY,sanitizeWorld,WATCHDOG,CAST,CARD,COMBO_FX,startEncounter,pcen,SPW,get B(){return B;},endFight(){B=null;},enemies});
 
 </script></body></html>
