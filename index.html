@@ -3260,7 +3260,7 @@ const ACHS=[
    M13 DATA: settings defaults, text sizes, colourblind modes, tutorial steps.
    ===================================================================== */
 const SET_KEY='arcaneKnight.settings.v1';
-const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0,perf:true,fps:false};  // t149u: perf default ON (DPR1); fps overlay off
+const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0,perf:false,fps:false};  // t149u: perf default OFF (DPR2 crisp); turn ON if the phone lags; fps overlay off
 const POP_STYLES=[{id:'parchment',n:'PARCHMENT'},{id:'scroll',n:'WAX-SEALED SCROLL'},{id:'sign',n:'SHOP SIGN'},{id:'chest',n:'TREASURE CHEST'},{id:'banner',n:'MINIMAL BANNER'}];
 const TEXT_SIZES=[{n:'NORMAL',k:1},{n:'LARGE',k:1.15},{n:'EXTRA LARGE',k:1.3}];
 // colour-vision assist: a daltonisation filter over the canvas (error redistributed into channels the player can tell apart)
@@ -4726,6 +4726,7 @@ function drawWarp(){
 /* =====================================================================
    OVERWORLD + shared free movement (also used during combat)
    ===================================================================== */
+let EN_AI_I=0;   // t152u: must be declared — bare assign threw every frame and skipped camera follow
 function moveBox(o,dx,dy,hw,h){
   const blocked=(x,y)=>{
     for(const [cx,cy] of [[x-hw,y-h],[x+hw,y-h],[x-hw,y],[x+hw,y]])if(solidTile(Math.floor(cx/TS),Math.floor(cy/TS)))return true;
@@ -4751,13 +4752,20 @@ function stepEnemy(e,vx,vy,sp,dt){
   if(inTownPx(e.x,e.y-8)){e.x=bx;e.y=by;}   // monsters never path into the village
   if(Math.hypot(e.x-bx,e.y-by)<sp*dt*.25&&!(e.slideT>0)){e.slideT=.6;e.slide=Math.random()<.5?1:-1;}
 }
+function camFollow(dt){
+  // t152u: always keep the hero on screen (soft follow). Snap if wildly off (dialog/warp/error recovery).
+  const cy0=camMinY(),tx=clamp(P.x-VW/2,0,Math.max(0,MW*TS-VW)),ty=clamp(P.y-VH/2-10,cy0,Math.max(cy0,MH*TS-VH));
+  const dx=tx-cam.x,dy=ty-cam.y;
+  if(!(dt>0)||Math.hypot(dx,dy)>VW*.55){cam.x=tx;cam.y=ty;return;}   // hard snap if far behind
+  const k=Math.min(1,dt*8);cam.x+=dx*k;cam.y+=dy*k;
+}
 function updateExplore(dt){
   const fighting=!!B;
   const frozen=fighting&&B.phase!=='fight';
-  if(WARP){updateWarp(dt);return;}
-  if(DLG&&!fighting){updateDlg(dt);return;}
+  if(WARP){updateWarp(dt);camFollow(dt);return;}
+  if(DLG&&!fighting){updateDlg(dt);camFollow(dt);return;}   // t152u: camera still follows during dialog
   updateSpawners(dt);updateGoto(dt);
-  if(FISH.on&&!fighting){updateFishing(dt);return;}
+  if(FISH.on&&!fighting){updateFishing(dt);camFollow(dt);return;}
   statusTick(dt);
   if(!frozen&&dashTick(dt)){}
   else if(!frozen){
@@ -4792,19 +4800,19 @@ function updateExplore(dt){
   }
   if(!B)reapStale();
   // t151u: near enemies every frame; far ones staggered (cuts AI hitch with 100+ foes)
-  EN_AI_I=(EN_AI_I|0)+1;
-  for(let ei=0;ei<enemies.length;ei++){
-    const e=enemies[ei];
-    if(e.alive&&e.terr)clampTerr(e);
-    if(!e.alive){if(e.night||e.spw||e.tmp||e.edDel)continue;if(dungeonHold(e))continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;resetEnemyState(e);}continue;}
-    if(e.engaged)continue;
-    const near=Math.abs(e.x-P.x)<VW*1.2&&Math.abs(e.y-P.y)<VH*1.2;
-    if(!near&&((ei+EN_AI_I)&3)!==0)continue;   // far: 1/4 of foes per frame
-    updateEnemyWorld(e,near?dt:dt*4);
-  }
-  // camera
-  const cy0=camMinY(),tx=clamp(P.x-VW/2,0,Math.max(0,MW*TS-VW)),ty=clamp(P.y-VH/2-10,cy0,Math.max(cy0,MH*TS-VH));
-  cam.x=lerp(cam.x,tx,Math.min(1,dt*8));cam.y=lerp(cam.y,ty,Math.min(1,dt*8));
+  try{
+    EN_AI_I++;
+    for(let ei=0;ei<enemies.length;ei++){
+      const e=enemies[ei];
+      if(e.alive&&e.terr)clampTerr(e);
+      if(!e.alive){if(e.night||e.spw||e.tmp||e.edDel)continue;if(dungeonHold(e))continue;e.respawn-=dt;if(e.respawn<=0){if(!e.def.boss&&!window.__NOELITE){eliteRoll(e);applyLevel(e,e.lv);}e.alive=true;resetEnemyState(e);}continue;}
+      if(e.engaged)continue;
+      const near=Math.abs(e.x-P.x)<VW*1.2&&Math.abs(e.y-P.y)<VH*1.2;
+      if(!near&&((ei+EN_AI_I)&3)!==0)continue;   // far: 1/4 of foes per frame
+      updateEnemyWorld(e,near?dt:dt*4);
+    }
+  }catch(err){try{watchdog('enemyAI',err);}catch(e){}}
+  camFollow(dt);
   const an=areaName(Math.floor(P.x/TS),Math.floor(P.y/TS));
   if(an!==areaCur){const first=areaCur==='';areaCur=an;areaT=3;if(!first)saveGame('area');questEvent('area',an);}
   areaT=Math.max(0,areaT-dt);
@@ -7903,7 +7911,7 @@ UI_MODES.settings={title:()=>'SETTINGS',sub:()=>['Saved on this device','#7dd3ff
     optRow('COLOUR-BLIND MODE','cb',()=>CB_MODES[SET.cb].n,d=>setCycle('cb',CB_MODES.length,d),'Re-maps colours that look alike'),
     {h:34,draw(x0,y,W,h){ctx.fillStyle='#120f26';ctx.fillRect(x0,y,W,h);['#e8504a','#4ade80','#ff9a3d','#4a8aff','#c58bff','#ffd23f'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(x0+10+i*34,y+6,28,22);});txt('preview',x0+W-8,y+21,{size:8,col:'#9aa0ff',align:'right',bold:false});}},
     optRow('REWARD POPUP STYLE','pop',()=>POP_STYLES[SET.pop|0].n,d=>{setCycle('pop',POP_STYLES.length,d);if(typeof revealPreview==='function')revealPreview();},'How new items, cards and level-ups are shown'),
-    optRow('PERFORMANCE MODE','perf',()=>SET.perf!==false?'ON':'OFF',()=>{SET.perf=!(SET.perf!==false);setSave();setApply();},'ON = sharper FPS (pixel-scaled). OFF = sharper pixels (heavier on phones)'),
+    optRow('PERFORMANCE MODE','perf',()=>SET.perf?'ON':'OFF',()=>{SET.perf=!SET.perf;setSave();setApply();},'ON = lighter FX (fog/lights/HD). Pixels stay sharp either way'),
     optRow('SHOW FPS','fps',()=>SET.fps?'ON':'OFF',()=>{SET.fps=!SET.fps;setSave();},'Overlay frame rate in the corner (for diagnosing lag)'),
     {t:'head',s:'CONTROLS'},
     optRow('LEFT-HANDED LAYOUT','lefty',()=>SET.lefty?'ON':'OFF',()=>setToggle('lefty'),'Mirrors the touch layout: SHOT + card fan left, stick right'),
@@ -12514,10 +12522,10 @@ if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){co
 
 /* ---------- src/render/perf.js ---------- */
 /* =====================================================================
-   t147–t151 PERFORMANCE
-   Perf mode = draw quality only (DPR1 + pixelated). NEVER change VW/VH/S/HUD.
-   t151u: hitch/stutter fixes — resize early-out (in main), vision throttle,
-   entity cull, AI stagger, no-alloc wlife cull, hitch counter on FPS overlay.
+   t147–t152 PERFORMANCE
+   NEVER change VW/VH/S/HUD layout. Perf mode = cheaper FX only.
+   t152u: DPR always capped at 2 (crisp); do NOT force DPR=1 (looked chunky).
+   Hitch fixes kept: resize early-out, vision throttle, entity cull, AI stagger.
    ===================================================================== */
 const QUAL={mode:'perf',fps:60,acc:0,n:0,t:0,wantDpr:1,locked:true,hitch:0,hitchN:0,frameMs:16,lastTs:0};
 function qualTick(dt){
@@ -12528,15 +12536,15 @@ function qualTick(dt){
   QUAL.lastTs=now;
   if(QUAL.t<.75)return;QUAL.fps=QUAL.n/Math.max(.001,QUAL.t);QUAL.hitch=QUAL.hitchN;QUAL.hitchN=0;QUAL.n=0;QUAL.t=0;
 }
-function perfOn(){return typeof SET==='undefined'||SET.perf!==false;}   // default ON (unset / true); only OFF when explicitly false
+function perfOn(){return typeof SET!=='undefined'&&SET.perf===true;}   // t152u: default OFF (crisp DPR2); ON only when user enables
 function qualApply(){
-  const on=perfOn();QUAL.mode=on?'perf':'hi';QUAL.wantDpr=on?1:2;
+  const on=perfOn();QUAL.mode=on?'perf':'hi';QUAL.wantDpr=2;   // t152u: always crisp (DPR≤2); perf only cuts FX, never pixel density
   FOG_LQ=on;if(typeof HDX!=='undefined'){HDX.on=!on;HDX.spr=!on;}
   try{resize();}catch(e){}
 }
-/* ---- DPR: perf mode forces 1; otherwise cap at 2 ---- */
+/* ---- DPR: always cap at 2 so VW≈CSS width and pixels stay sharp (never force DPR=1) ---- */
 {const _rs=resize;resize=function(){
-  const raw=window.devicePixelRatio||1,cap=perfOn()?1:2;
+  const raw=window.devicePixelRatio||1,cap=2;
   const desc=Object.getOwnPropertyDescriptor(window,'devicePixelRatio');
   try{Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>Math.min(raw,cap)});_rs();}
   finally{if(desc)Object.defineProperty(window,'devicePixelRatio',desc);else delete window.devicePixelRatio;}
@@ -12719,7 +12727,7 @@ function drawFps(){
 }
 {const _up=update;update=function(dt){qualTick(dt);return _up.apply(this,arguments);};}
 /* apply once settings exist */
-setTimeout(()=>{try{if(typeof SET!=='undefined'){if(SET.perf===undefined)SET.perf=!!TOUCH;qualApply();}}catch(e){}},0);
+setTimeout(()=>{try{if(typeof SET!=='undefined'){if(SET.perf===undefined)SET.perf=SET_DEFAULT.perf;qualApply();}}catch(e){}},0);
 /* stubs */
 const CH={map:new Map(),n:8,px:256,live:false,zn:null};
 function chGet(){return null;}function chInvalidate(){}function chkKey(){return 0;}
