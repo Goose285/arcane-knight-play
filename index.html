@@ -3260,7 +3260,7 @@ const ACHS=[
    M13 DATA: settings defaults, text sizes, colourblind modes, tutorial steps.
    ===================================================================== */
 const SET_KEY='arcaneKnight.settings.v1';
-const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0};
+const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0,perf:true,fps:false};  // t149u: perf default ON (DPR1); fps overlay off
 const POP_STYLES=[{id:'parchment',n:'PARCHMENT'},{id:'scroll',n:'WAX-SEALED SCROLL'},{id:'sign',n:'SHOP SIGN'},{id:'chest',n:'TREASURE CHEST'},{id:'banner',n:'MINIMAL BANNER'}];
 const TEXT_SIZES=[{n:'NORMAL',k:1},{n:'LARGE',k:1.15},{n:'EXTRA LARGE',k:1.3}];
 // colour-vision assist: a daltonisation filter over the canvas (error redistributed into channels the player can tell apart)
@@ -7893,6 +7893,8 @@ UI_MODES.settings={title:()=>'SETTINGS',sub:()=>['Saved on this device','#7dd3ff
     optRow('COLOUR-BLIND MODE','cb',()=>CB_MODES[SET.cb].n,d=>setCycle('cb',CB_MODES.length,d),'Re-maps colours that look alike'),
     {h:34,draw(x0,y,W,h){ctx.fillStyle='#120f26';ctx.fillRect(x0,y,W,h);['#e8504a','#4ade80','#ff9a3d','#4a8aff','#c58bff','#ffd23f'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(x0+10+i*34,y+6,28,22);});txt('preview',x0+W-8,y+21,{size:8,col:'#9aa0ff',align:'right',bold:false});}},
     optRow('REWARD POPUP STYLE','pop',()=>POP_STYLES[SET.pop|0].n,d=>{setCycle('pop',POP_STYLES.length,d);if(typeof revealPreview==='function')revealPreview();},'How new items, cards and level-ups are shown'),
+    optRow('PERFORMANCE MODE','perf',()=>SET.perf!==false?'ON':'OFF',()=>{SET.perf=!(SET.perf!==false);setSave();setApply();},'ON = sharper FPS (pixel-scaled). OFF = sharper pixels (heavier on phones)'),
+    optRow('SHOW FPS','fps',()=>SET.fps?'ON':'OFF',()=>{SET.fps=!SET.fps;setSave();},'Overlay frame rate in the corner (for diagnosing lag)'),
     {t:'head',s:'CONTROLS'},
     optRow('LEFT-HANDED LAYOUT','lefty',()=>SET.lefty?'ON':'OFF',()=>setToggle('lefty'),'Mirrors the touch layout: SHOT + card fan left, stick right'),
     optRow('GAMEPAD','pad',()=>SET.pad?'ON':'OFF',()=>setToggle('pad'),PAD.on?'Connected: '+String(PAD.id).slice(0,30):'Stick move, A shoot, B talk, Start pause'),
@@ -8914,6 +8916,8 @@ const cl01=v=>Math.round(clamp(+v,0,1)*10)/10;
 function setLoad(){
   let o={};try{o=JSON.parse(localStorage.getItem(SET_KEY)||'{}')||{};}catch(e){}
   for(const k of ['master','music','sfx'])SET[k]=Number.isFinite(o[k])?cl01(o[k]):SET_DEFAULT[k];
+  if('perf' in o)SET.perf=!!o.perf; else SET.perf=SET_DEFAULT.perf;
+  if('fps' in o)SET.fps=!!o.fps; else SET.fps=SET_DEFAULT.fps;
   SET.text=Number.isFinite(o.text)?clamp(o.text|0,0,TEXT_SIZES.length-1):0;SET.cb=Number.isFinite(o.cb)?clamp(o.cb|0,0,CB_MODES.length-1):0;
   SET.pop=Number.isFinite(o.pop)?clamp(o.pop|0,0,POP_STYLES.length-1):0;SET.lefty=o.lefty===true;SET.pad=o.pad!==false;SET.tutDone=o.tutDone===true;
 }
@@ -8936,7 +8940,7 @@ function cbApply(){
     svg.appendChild(defs);document.body.appendChild(svg);}
   const id=CB_MODES[SET.cb].id;cv.style.filter=id==='off'?'':'url(#cbf-'+id+')';
 }
-function setApply(){TXS=TEXT_SIZES[SET.text].k;LEFTY=SET.lefty;cbApply();if(typeof layoutTouch==='function')layoutTouch();}
+function setApply(){TXS=TEXT_SIZES[SET.text].k;LEFTY=SET.lefty;cbApply();if(typeof layoutTouch==='function')layoutTouch();try{if(typeof qualApply==='function')qualApply();}catch(e){}}
 function setCycle(key,n,dir){SET[key]=(SET[key]+(dir||1)+n)%n;setSave();setApply();sfx('select');}
 function setToggle(key){SET[key]=!SET[key];setSave();setApply();sfx('select');}
 setLoad();
@@ -11357,9 +11361,7 @@ const SMITHY=(()=>{
     let x0=tx,x1=tx;while(x0>0&&(map[wy][x0-1]===T.H||map[wy][x0-1]===T.D))x0--;while(x1<MW-1&&(map[wy][x1+1]===T.H||map[wy][x1+1]===T.D))x1++;
     let y0=wy;while(y0>0&&(map[y0-1][x0]===T.R||map[y0-1][x0]===T.RL||map[y0-1][x0+1]===T.R))y0--;
     box={x0,x1,y0,wy,door:tx,tx,ty};
-    // yard props (only on open ground, never on the road)
-    const put=(x,y,id)=>{const t=map[y]&&map[y][x];if(t===T.G||t===T.L||t===T.K||t===id)map[y][x]=id;};
-    put(x0-1,wy+1,T.FRN);put(tx-2,ty,T.ANV);
+    // t149u: yard anvil/furnace removed (they floated in the open); forge props stay inside the shop
     return box;}
   const roof=(x,y,b)=>mk('r'+(y-b.y0)+(x===b.x0?'l':x===b.x1?'r':'m')+(x===b.x1-1?'c':''),g=>{
     const top=y===b.y0;r(g,0,0,16,16,'#3a3a48');for(let yy=top?4:0;yy<16;yy+=4){r(g,0,yy,16,1,'#26262f');for(let xx=((yy/4)%2)*4;xx<16;xx+=8)r(g,xx,yy,1,4,'#26262f');r(g,0,yy+1,16,1,'#4a4a5a');}
@@ -12205,11 +12207,15 @@ function resize(){rotateCheck();
   const {cw,ch}=viewSize();VIEW_LAST=cw+'x'+ch+'@'+(window.devicePixelRatio||1);
   const dw=Math.max(1,Math.floor(cw*DPR)),dh=Math.max(1,Math.floor(ch*DPR));
   S=Math.max(1,Math.round(Math.min(dw,dh)/400));
+  // t149u: keep the game view around ~400px wide so tile fill cost stays bounded (pixel art upscales via S / CSS)
+  if(DPR<=1&&typeof SET!=='undefined'&&SET.perf!==false)S=Math.max(2,S);
+  while(!EDS&&Math.floor(dw/(S+1))>=420)S++;
   if(EDS)S=EDS;
   // t148u: was S++ inside the house; that shrank VW/VH so fixed-size HUD panels looked enlarged. Room fill is handled by camera alone.
   VW=Math.max(240,Math.floor(dw/S));VH=Math.max(240,Math.floor(dh/S));
   cv.width=VW*S;cv.height=VH*S;
   cv.style.width=(VW*S/DPR)+'px';cv.style.height=(VH*S/DPR)+'px';
+  try{cv.style.imageRendering='pixelated';}catch(e){}
   readSafe();layoutTouch();
   vign=makeSprite(VW,VH,g=>{const gr=g.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.75);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.42)');g.fillStyle=gr;g.fillRect(0,0,VW,VH);});
   snapCam();
@@ -12494,49 +12500,58 @@ if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){co
 
 /* ---------- src/render/perf.js ---------- */
 /* =====================================================================
-   t147u / t148u PERFORMANCE (t148u: chunk cache REMOVED — it left black holes when
-   tileSprite returned null during bake, and auto-quality + resize thrashing made lag
-   constant). Kept: DPR cap at 2 (no auto oscillation), fog half-res buffer, cached HUD
-   panel/button skins, cheaper HD wrap + prewarm, throttled night/crypt light mask.
+   t147–t149 PERFORMANCE
+   t149u root cause on real iPhones: canvas backing store at DPR 2–3 with S=2–3
+   fills ~1–2M pixels every frame. Pixel art does not need that. Performance mode
+   (default ON for touch) draws at DPR=1 and CSS-upscales with image-rendering:pixelated.
+   Also: HD off in perf mode, fog half-res, HUD skins cached, water-life culled,
+   FPS overlay, no auto-quality resize thrash.
    ===================================================================== */
-const QUAL={mode:'hi',fps:60,acc:0,n:0,t:0,wantDpr:2,locked:true};   // t148u: locked — no auto DPR/mode flips
+const QUAL={mode:'perf',fps:60,acc:0,n:0,t:0,wantDpr:1,locked:true};
 function qualTick(dt){
   QUAL.acc+=dt;QUAL.n++;QUAL.t+=dt;
-  if(QUAL.t<.75)return;QUAL.fps=QUAL.n/QUAL.t;QUAL.n=0;QUAL.t=0;
-  // locked: never call resize from quality (that was the constant-lag spiral)
+  if(QUAL.t<.75)return;QUAL.fps=QUAL.n/Math.max(.001,QUAL.t);QUAL.n=0;QUAL.t=0;
 }
-function qualApply(){QUAL.wantDpr=2;FOG_LQ=false;HDX.on=true;HDX.spr=true;}
-/* ---- DPR cap at 2 (iPhone Pro = 3 was ~2.2M px) ---- */
+function perfOn(){return typeof SET==='undefined'||SET.perf!==false;}   // default ON (unset / true); only OFF when explicitly false
+function qualApply(){
+  const on=perfOn();QUAL.mode=on?'perf':'hi';QUAL.wantDpr=on?1:2;
+  FOG_LQ=on;if(typeof HDX!=='undefined'){HDX.on=!on;HDX.spr=!on;}
+  try{resize();}catch(e){}
+}
+/* ---- DPR: perf mode forces 1; otherwise cap at 2 ---- */
 {const _rs=resize;resize=function(){
-  const raw=window.devicePixelRatio||1,cap=2;
+  const raw=window.devicePixelRatio||1,cap=perfOn()?1:2;
   const desc=Object.getOwnPropertyDescriptor(window,'devicePixelRatio');
   try{Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>Math.min(raw,cap)});_rs();}
   finally{if(desc)Object.defineProperty(window,'devicePixelRatio',desc);else delete window.devicePixelRatio;}
-  DPR=Math.min(raw,cap);QUAL.wantDpr=2;
+  DPR=Math.min(raw,cap);QUAL.wantDpr=DPR;
+  try{cv.style.imageRendering='pixelated';}catch(e){try{cv.style.imageRendering='crisp-edges';}catch(_){}}
 };}
-/* ---- Fog: half-res offscreen ---- */
-let FOG_LQ=false,FOG_BUF=null,FOG_BG=null,FOG_KEY='';
+/* ---- Fog half-res ---- */
+let FOG_LQ=true,FOG_BUF=null,FOG_BG=null,FOG_KEY='';
 function fogDrawFast(){
-  if(FOG.a<.02)return;const a=FOG.a,S=fogSprites();
-  const sc=.7,W=Math.max(1,Math.ceil(VW*sc)),H=Math.max(1,Math.ceil(VH*sc));
+  if(FOG.a<.02)return;const a=FOG.a;
+  // t149u perf: cheap full-screen haze only (no wisp sprites) — looks soft, costs almost nothing
+  if(perfOn()){ctx.fillStyle=`rgba(226,232,238,${a*.22})`;ctx.fillRect(0,0,VW,VH);return;}
+  const S=fogSprites(),sc=.65,W=Math.max(1,Math.ceil(VW*sc)),H=Math.max(1,Math.ceil(VH*sc));
   if(!FOG_BUF||FOG_BUF.width!==W||FOG_BUF.height!==H){FOG_BUF=document.createElement('canvas');FOG_BUF.width=W;FOG_BUF.height=H;FOG_BG=FOG_BUF.getContext('2d');}
-  const fr=Math.floor(gtime*12);
-  const key=W+'x'+H+'|'+Math.round(cam.x/6)+'|'+Math.round(cam.y/6)+'|'+fr+'|'+Math.round(a*16);
+  const fr=Math.floor(gtime*10);
+  const key=W+'x'+H+'|'+Math.round(cam.x/8)+'|'+Math.round(cam.y/8)+'|'+fr+'|'+Math.round(a*12);
   if(key!==FOG_KEY){FOG_KEY=key;const g=FOG_BG;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,H);
     g.fillStyle=`rgba(226,232,238,${a*.08})`;g.fillRect(0,0,W,H);
-    const layers=[[.55,.9,.55,9],[.8,1.25,.75,16],[1.1,1.7,.9,26]];
+    const layers=[[.55,.9,.55,9],[.85,1.35,.8,18]];
     layers.forEach(([par,ss,al,spd],li)=>{const w=320*ss*sc,h=110*ss*sc,ox=(-(cam.x*par)+gtime*spd)*sc,oy=(-(cam.y*par))*sc;
       g.globalAlpha=Math.min(1,a*al*.75);
-      const WW=w*.8,HH=h*.7,bx=((ox%WW)+WW)%WW-WW,by=((oy%HH)+HH)%HH-HH;
+      const WW=w*.85,HH=h*.75,bx=((ox%WW)+WW)%WW-WW,by=((oy%HH)+HH)%HH-HH;
       for(let gy=0;gy<=Math.ceil(H/HH)+1;gy++)for(let gx=0;gx<=Math.ceil(W/WW)+1;gx++){
-        const sx=bx+gx*WW+(gy%2)*WW*.4,sy=by+gy*HH+Math.sin(gtime*.3+gx+li)*6*sc;
+        const sx=bx+gx*WW+(gy%2)*WW*.4,sy=by+gy*HH+Math.sin(gtime*.3+gx+li)*5*sc;
         g.drawImage(S[(gx*7+gy*3+li)%4],Math.round(sx-w*.1),Math.round(sy),Math.round(w),Math.round(h));}
     });
     g.globalAlpha=1;}
   ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(FOG_BUF,0,0,VW,VH);ctx.imageSmoothingEnabled=false;ctx.restore();
 }
 drawFog=fogDrawFast;
-/* ---- HUD panel + button disc caches ---- */
+/* ---- HUD panel + button caches ---- */
 const PANEL_SKIN=new Map();
 function panelSkin(w,h,fillKey){
   const k=w+'x'+h+'|'+fillKey;let s=PANEL_SKIN.get(k);if(s)return s;
@@ -12586,30 +12601,82 @@ hdButton=function(x,y,r,down,o={}){
   if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+4.5,0,6.283);ctx.stroke();}
   ctx.globalAlpha=1;
 };
-/* ---- Cheaper HD wrap ---- */
+/* ---- HD: stamp cache; off in perf mode ---- */
 HDX.spr=true;
 {const _hg=hdGet;hdGet=function(src,mode){
-  if(!HDX.on||!src)return null;if(mode==='spr'&&!HDX.spr)return null;
+  if(!HDX.on||!src||perfOn())return null;if(mode==='spr'&&!HDX.spr)return null;
   if(src._hd)return src._hd;if(src._hdMiss)return null;
   if(!src.width||src.width>48){src._hdMiss=1;return null;}
   const c=_hg(src,mode);if(c)src._hd=c;else src._hdMiss=1;return c;
 };}
 {const prev=ctx.drawImage;
  ctx.drawImage=function(img,a,b,c,d){
+   if(perfOn())return prev.apply(this,arguments);
    if(arguments.length===5&&img&&img._hd)return prev.call(this,img._hd,a,b,c,d);
    if(arguments.length===5&&img&&!img._hdMiss&&img.width<=48&&img.height<=64&&c>=(img.width||0)*1.9&&d>=(img.height||0)*1.9&&!(typeof HD_NO!=='undefined'&&HD_NO.has(img))){
      const h=hdGet(img,'spr');if(h)return prev.call(this,h,a,b,c,d);
    }
    return prev.apply(this,arguments);
  };}
-function hdPrewarm(){
-  try{const ids=[T.G,T.K,T.P,T.B,T.BT,T.F,T.S,T.L,T.N,T.RK,T.SN,T.MD,T.SD];
-    let i=0;const step=()=>{let n=0;while(i<ids.length&&n<4){const id=ids[i++],arr=TSPR[id];if(arr)for(const s of arr)hdGet(s,'tile');n++;}if(i<ids.length)setTimeout(step,0);};
-    setTimeout(step,0);}catch(e){}
+/* ---- Water life: cull offscreen + skip jumps in perf; update every other frame ---- */
+let WLIFE_FR=0;
+{if(typeof drawWlife==='function'){const _dwl=drawWlife;drawWlife=function(){
+  if(perfOn()&&(++WLIFE_FR&1))return;   // every other frame in perf
+  // cull pads/reeds/fish to view before drawing by temporarily filtering
+  if(typeof WLIFE!=='undefined'&&WLIFE.pads){
+    const x0=cam.x-40,y0=cam.y-40,x1=cam.x+VW+40,y1=cam.y+VH+40;
+    const op=WLIFE.pads,or=WLIFE.reeds,of=WLIFE.fish,oj=WLIFE.jumps;
+    WLIFE.pads=op.filter(p=>p.x>x0&&p.x<x1&&p.y>y0&&p.y<y1);
+    WLIFE.reeds=or.filter(p=>p.x>x0&&p.x<x1&&p.y>y0&&p.y<y1);
+    WLIFE.fish=of.filter(p=>{const x=p.wx||p.x,y=p.wy||p.y;return x>x0&&x<x1&&y>y0&&y<y1;});
+    if(perfOn())WLIFE.jumps=[];   // no jump FX in perf
+    try{_dwl();}finally{WLIFE.pads=op;WLIFE.reeds=or;WLIFE.fish=of;WLIFE.jumps=oj;}
+  }else _dwl();
+};}
+ if(typeof updateWlife==='function'){const _uw=updateWlife;updateWlife=function(dt){
+   if(perfOn()){if((WLIFE_FR&1)===0)_uw(dt*.5);else WLIFE.t+=dt;} else _uw(dt);
+ };}}
+/* ---- Night lighting: in perf mode rebuild mask every 4 frames and skip per-lantern screen glows ---- */
+{const _dl=drawLighting;drawLighting=function(){
+  if(!perfOn())return _dl();
+  // simplified night: dark overlay with player+nearby cutouts only, no screen-blend lanterns / night FX
+  if(zoneOfPx(P.y)==='house')return;
+  const cr=inCryptPx(P.x,P.y);
+  if(!cr&&typeof drawGrade==='function')drawGrade(dayGrade());
+  LIGHT.tk+=((playerInTown()?1:0)-LIGHT.tk)*.07;
+  const dark=cr?.55:(NIGHT_DARK+(NIGHT_DARK_TOWN-NIGHT_DARK)*LIGHT.tk)*DAY.nightAmt;
+  if(dark<.02)return;
+  if(!LIGHT.cv||LIGHT.cv.width!==VW||LIGHT.cv.height!==VH){LIGHT.cv=document.createElement('canvas');LIGHT.cv.width=VW;LIGHT.cv.height=VH;LIGHT.g=LIGHT.cv.getContext('2d');LIGHT._fr=-1;}
+  const fr=Math.floor(gtime*15),camJump=Math.abs((LIGHT._cx||0)-cam.x)>10||Math.abs((LIGHT._cy||0)-cam.y)>10;
+  if(fr!==LIGHT._fr||camJump){LIGHT._fr=fr;LIGHT._cx=cam.x;LIGHT._cy=cam.y;
+    const g=LIGHT.g,L=collectLights(cr).slice(0,8);   // cap lights
+    g.globalCompositeOperation='source-over';g.clearRect(0,0,VW,VH);
+    g.fillStyle=cr?`rgba(5,3,20,${dark})`:`rgba(16,8,58,${dark})`;g.fillRect(0,0,VW,VH);
+    g.globalCompositeOperation='destination-out';
+    for(const l of L){const r=l.r*.9,aa=Math.min(1,l.a*.9),gr=g.createRadialGradient(l.x,l.y,0,l.x,l.y,r);
+      gr.addColorStop(0,`rgba(0,0,0,${aa})`);gr.addColorStop(.5,`rgba(0,0,0,${aa*.45})`);gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr;g.fillRect(l.x-r,l.y-r,r*2,r*2);}
+  }
+  ctx.drawImage(LIGHT.cv,0,0);
+};}
+/* ---- FPS overlay ---- */
+function drawFps(){
+  if(typeof SET==='undefined'||!SET.fps)return;
+  const fps=Math.round(QUAL.fps||0),ms=(1000/Math.max(1,QUAL.fps)).toFixed(1);
+  const label=fps+' FPS  '+ms+'ms  DPR'+DPR+'  '+(perfOn()?'PERF':'HQ')+'  '+cv.width+'x'+cv.height;
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(SL+6,VH-SB-22,Math.min(VW-SL-SR-12,ctx.measureText?220:220),16);
+  txt(label,SL+10,VH-SB-10,{size:10,col:fps>=50?'#7dffa0':fps>=30?'#ffe14d':'#ff6b6b',lw:2,out:'#000'});
 }
-setTimeout(hdPrewarm,0);
+{const _fr=typeof drawOverHud==='function'?null:null;
+ // hook into the end of the main render via the existing frame draw path in main.js — wrap after drawTouch
+ const hook=()=>{try{drawFps();}catch(e){};};
+ if(typeof drawTouch==='function'){const _dt=drawTouch;drawTouch=function(){const r=_dt.apply(this,arguments);hook();return r;};}
+ else if(typeof drawRunBtn==='function'){const _dr=drawRunBtn;drawRunBtn=function(){const r=_dr.apply(this,arguments);hook();return r;};}
+}
 {const _up=update;update=function(dt){qualTick(dt);return _up.apply(this,arguments);};}
-/* stubs so older tests that poke CH / chGet don't throw */
+/* apply once settings exist */
+setTimeout(()=>{try{if(typeof SET!=='undefined'){if(SET.perf===undefined)SET.perf=!!TOUCH;qualApply();}}catch(e){}},0);
+/* stubs */
 const CH={map:new Map(),n:8,px:256,live:false,zn:null};
 function chGet(){return null;}function chInvalidate(){}function chkKey(){return 0;}
 
@@ -12665,9 +12732,9 @@ function wlifeBuild(){
   for(let y=yA;y<yB;y++)for(let x=0;x<MW;x++){
     if(map[y][x]!==T.W&&map[y][x]!==T.PW)continue;
     const r=rnd();
-    if(r<.035)WLIFE.pads.push({x:x*TS+8+rnd()*16,y:y*TS+10+rnd()*12,s:.7+rnd()*.5});
-    else if(r<.06)WLIFE.reeds.push({x:x*TS+4+rnd()*20,y:y*TS+18,ph:rnd()*6.28,h:8+rnd()*8});
-    if(r>.97)WLIFE.fish.push({x:x*TS+16,y:y*TS+16,a:rnd()*6.28,spd:.4+rnd()*.5,r:10+rnd()*18});
+    if(r<(typeof perfOn==='function'&&perfOn()?.018:.035))WLIFE.pads.push({x:x*TS+8+rnd()*16,y:y*TS+10+rnd()*12,s:.7+rnd()*.5});
+    else if(r<(typeof perfOn==='function'&&perfOn()?.03:.06))WLIFE.reeds.push({x:x*TS+4+rnd()*20,y:y*TS+18,ph:rnd()*6.28,h:8+rnd()*8});
+    if(r>(typeof perfOn==='function'&&perfOn()?.985:.97))WLIFE.fish.push({x:x*TS+16,y:y*TS+16,a:rnd()*6.28,spd:.4+rnd()*.5,r:10+rnd()*18});
   }
 }
 function updateWlife(dt){
@@ -12721,10 +12788,9 @@ function buildSmithShop(){
   for(let y=iy0;y<=iy1;y++)for(let x=x0;x<=x1;x++){
     if(y===iy0||x===x0||x===x1)map[y][x]=T.B;else map[y][x]=T.F;
   }
-  const mx=(x0+x1)>>1;map[iy0][mx]=T.FRN;map[iy0+1][mx-1]=T.ANV;
-  // yard props south of the door so SMITHY.find still sees them
-  const put=(x,y,id)=>{if(y>=0&&y<MH&&x>=0&&x<MW){const t=map[y][x];if(t===T.G||t===T.L||t===T.K||t===T.P||t===id||t===T.F)map[y][x]=id;}};
-  put(x0-1,wy+1,T.FRN);put(tx-2,wy+1,T.ANV);
+  const mx=(x0+x1)>>1;map[iy0][mx]=T.FRN;map[iy0+1][mx-1]=T.ANV;   // anvil + furnace INSIDE against the back wall only
+  // clear any leftover yard ANV/FRN from older builds (they sat in the open near the waystone)
+  for(let y=wy;y<=wy+3&&y<MH;y++)for(let x=x0-3;x<=x1+3&&x<MW;x++)if(x>=0&&(map[y][x]===T.ANV||map[y][x]===T.FRN)&&(y>wy||x<x0||x>x1))map[y][x]=T.G;
   // Brum stands just inside the doorway
   n.x=(tx+.5)*TS;n.y=(wy+.55)*TS;if(n.hx!=null){n.hx=n.x;n.hy=n.y;}
   SMITH_SHOP.ready=true;SMITH_SHOP.door={tx,wy,x0,x1};
@@ -12753,5 +12819,16 @@ function buildTavern(){
   TAVERN.ready=true;
 }
 setTimeout(buildTavern,80);
+
+/* t149u: remove any leftover yard anvil/furnace sitting in open grass (older builds) */
+function clearStrayForge(){
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+    if(map[y][x]!==T.ANV&&map[y][x]!==T.FRN)continue;
+    // keep if surrounded by floor/walls (inside a building)
+    let inside=0;for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1]]){const t=map[y+dy]&&map[y+dy][x+dx];if(t===T.F||t===T.B||t===T.H||t===T.D||t===T.ANV||t===T.FRN)inside++;}
+    if(inside<2)map[y][x]=T.G;
+  }
+}
+setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
 
 </script></body></html>
