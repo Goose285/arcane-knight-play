@@ -4101,12 +4101,15 @@ function drawLighting(){
   if(dark<.02&&lamp<.03)return;
   const L=collectLights(cr);
   if(dark>=.02){
-    if(!LIGHT.cv||LIGHT.cv.width!==VW||LIGHT.cv.height!==VH){LIGHT.cv=document.createElement('canvas');LIGHT.cv.width=VW;LIGHT.cv.height=VH;LIGHT.g=LIGHT.cv.getContext('2d');}
-    const g=LIGHT.g;
-    g.globalCompositeOperation='source-over';g.clearRect(0,0,VW,VH);
-    g.fillStyle=cr?`rgba(5,3,20,${dark})`:`rgba(16,8,58,${dark})`;g.fillRect(0,0,VW,VH);   // deep blue-purple night
-    g.globalCompositeOperation='destination-out';
-    for(const l of L){const fl=lightFlick(l),r=l.r*(1+(fl-1)*.5),aa=Math.min(1,l.a*(1+(fl-1)*.6)),gr=g.createRadialGradient(l.x,l.y,0,l.x,l.y,r);gr.addColorStop(0,`rgba(0,0,0,${aa})`);gr.addColorStop(.35,`rgba(0,0,0,${aa*.72})`);gr.addColorStop(.7,`rgba(0,0,0,${aa*.28})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(l.x-r,l.y-r,r*2,r*2);}
+    if(!LIGHT.cv||LIGHT.cv.width!==VW||LIGHT.cv.height!==VH){LIGHT.cv=document.createElement('canvas');LIGHT.cv.width=VW;LIGHT.cv.height=VH;LIGHT.g=LIGHT.cv.getContext('2d');LIGHT._fr=-1;}
+    // t147u: rebuild the cutout mask every other frame (or when the camera jumps); the soft light glow still updates every frame
+    const fr=Math.floor(gtime*30),camJump=Math.abs((LIGHT._cx||0)-cam.x)>6||Math.abs((LIGHT._cy||0)-cam.y)>6;
+    if(fr!==LIGHT._fr||camJump){LIGHT._fr=fr;LIGHT._cx=cam.x;LIGHT._cy=cam.y;
+      const g=LIGHT.g;g.globalCompositeOperation='source-over';g.clearRect(0,0,VW,VH);
+      g.fillStyle=cr?`rgba(5,3,20,${dark})`:`rgba(16,8,58,${dark})`;g.fillRect(0,0,VW,VH);
+      g.globalCompositeOperation='destination-out';
+      for(const l of L){const fl=lightFlick(l),r=l.r*(1+(fl-1)*.5),aa=Math.min(1,l.a*(1+(fl-1)*.6)),gr=g.createRadialGradient(l.x,l.y,0,l.x,l.y,r);gr.addColorStop(0,`rgba(0,0,0,${aa})`);gr.addColorStop(.35,`rgba(0,0,0,${aa*.72})`);gr.addColorStop(.7,`rgba(0,0,0,${aa*.28})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(l.x-r,l.y-r,r*2,r*2);}
+    }
     ctx.drawImage(LIGHT.cv,0,0);
   }
   ctx.save();ctx.globalCompositeOperation='screen';   // 'screen' (not additive): overlapping lanterns / fire blend smoothly and can never blow out
@@ -12418,5 +12421,204 @@ if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){co
 {const _di=ctx.drawImage.bind(ctx);ctx.drawImage=function(img,a,b,c,d){
   if(arguments.length===5&&img&&img.getContext&&img.width<=48&&img.height<=64&&c>=img.width*1.9&&d>=img.height*1.9&&!HD_NO.has(img)){const h=hdGet(img,'spr');if(h)return _di(h,a,b,c,d);}
   return _di.apply(null,arguments);};}
+
+/* ---------- src/render/perf.js ---------- */
+/* =====================================================================
+   t147u PERFORMANCE. The t145 HD pass itself is cheap after warmup; the lag on iPhone landscape
+   PWA came from (1) DPR=3 canvases (~2.2M px), (2) drifting fog blitting ~60 large translucent
+   sprites every frame at that resolution, (3) ornate HUD rebuilding leather+gradients every frame,
+   (4) the HD drawImage wrap calling getContext on every blit. Fixes keep the same look:
+   - Cap devicePixelRatio at 2 (auto-drops to 1.5 / 1 if fps dips)
+   - Fog draws into a half-res offscreen buffer and is stretched; layers refresh every other frame
+   - Static ground tiles are cached in 8x8 chunk canvases (animated water/fire still per-tile)
+   - HUD panel skins + touch-button discs are cached by size
+   - HD wrap uses a stamped id instead of getContext; common tiles are prewarmed once
+   - QUAL auto: rolling fps → LQ steps that thin fog / drop DPR / skip HD sprites if needed
+   ===================================================================== */
+const QUAL={mode:'hi',fps:60,acc:0,n:0,t:0,cool:0,wantDpr:2};
+function qualTick(dt){
+  QUAL.acc+=dt;QUAL.n++;QUAL.t+=dt;
+  if(QUAL.t<.5)return;const fps=QUAL.n/QUAL.t;QUAL.fps=fps;QUAL.n=0;QUAL.t=0;QUAL.cool=Math.max(0,QUAL.cool-.5);
+  let next=QUAL.mode;
+  if(fps<38&&QUAL.cool<=0)next=QUAL.mode==='hi'?'mid':QUAL.mode==='mid'?'lo':'lo';
+  else if(fps>56&&QUAL.cool<=0&&QUAL.mode!=='hi')next=QUAL.mode==='lo'?'mid':'hi';
+  if(next!==QUAL.mode){QUAL.mode=next;QUAL.cool=3.5;qualApply();}}
+function qualApply(){
+  QUAL.wantDpr=QUAL.mode==='hi'?2:QUAL.mode==='mid'?1.5:1;
+  FOG_LQ=QUAL.mode!=='hi';HDX.on=QUAL.mode!=='lo';HDX.spr=QUAL.mode==='hi';
+  try{CH.map.clear();}catch(e){}
+  if(Math.abs((DPR||0)-QUAL.wantDpr)>.05)try{resize();}catch(e){}
+}
+/* ---- DPR cap (was Math.min(dpr,3); iPhone Pro = 3 → 2.2M px canvas) ---- */
+{const _rs=resize;resize=function(){
+  const raw=window.devicePixelRatio||1,cap=QUAL.wantDpr||2;
+  const _min=Math.min;const fake={value:Math.min(raw,cap)};
+  // temporarily report a capped DPR to the original resize
+  const desc=Object.getOwnPropertyDescriptor(window,'devicePixelRatio');
+  try{
+    Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>Math.min(raw,cap)});
+    _rs();
+  }finally{
+    if(desc)Object.defineProperty(window,'devicePixelRatio',desc);
+    else delete window.devicePixelRatio;
+  }
+  DPR=Math.min(raw,cap);
+};}
+/* ---- Fog: half-res offscreen, refresh every other frame ---- */
+let FOG_LQ=false,FOG_BUF=null,FOG_BG=null,FOG_FR=-1,FOG_KEY='';
+function fogDrawFast(){
+  if(FOG.a<.02)return;const a=FOG.a,S=fogSprites();
+  const sc=FOG_LQ?.55:.7,W=Math.max(1,Math.ceil(VW*sc)),H=Math.max(1,Math.ceil(VH*sc));
+  if(!FOG_BUF||FOG_BUF.width!==W||FOG_BUF.height!==H){FOG_BUF=document.createElement('canvas');FOG_BUF.width=W;FOG_BUF.height=H;FOG_BG=FOG_BUF.getContext('2d');}
+  const fr=Math.floor(gtime*(FOG_LQ?8:14));
+  const key=W+'x'+H+'|'+Math.round(cam.x/4)+'|'+Math.round(cam.y/4)+'|'+fr+'|'+Math.round(a*20);
+  if(key!==FOG_KEY){FOG_KEY=key;const g=FOG_BG;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,H);
+    g.fillStyle=`rgba(226,232,238,${a*.08})`;g.fillRect(0,0,W,H);
+    const layers=FOG_LQ?[[.7,1.1,.8,14],[1.0,1.55,.85,22]]:[[.55,.9,.55,9],[.8,1.25,.75,16],[1.1,1.7,.9,26]];
+    const sx0=sc,sy0=sc;
+    layers.forEach(([par,ss,al,spd],li)=>{const w=320*ss*sx0,h=110*ss*sy0,ox=(-(cam.x*par)+gtime*spd)*sx0,oy=(-(cam.y*par))*sy0;
+      g.globalAlpha=Math.min(1,a*al*.75);
+      const WW=w*.8,HH=h*.7,bx=((ox%WW)+WW)%WW-WW,by=((oy%HH)+HH)%HH-HH;
+      const step=FOG_LQ?1.15:1;
+      for(let gy=0;gy<=Math.ceil(H/HH)+1;gy+=step)for(let gx=0;gx<=Math.ceil(W/WW)+1;gx+=step){
+        const sx=bx+gx*WW+(gy%2)*WW*.4,sy=by+gy*HH+Math.sin(gtime*.3+gx+li)*6*sy0;
+        g.drawImage(S[(gx*7+gy*3+li)%4],Math.round(sx-w*.1),Math.round(sy),Math.round(w),Math.round(h));}
+    });
+    g.globalAlpha=1;}
+  ctx.save();ctx.globalAlpha=1;ctx.imageSmoothingEnabled=true;ctx.drawImage(FOG_BUF,0,0,VW,VH);ctx.imageSmoothingEnabled=false;ctx.restore();
+}
+drawFog=fogDrawFast;
+/* ---- Chunked static tile cache (8x8 tiles → one blit) ---- */
+const CH={n:8,px:8*32,map:new Map(),anim:null,ver:0,zn:null};
+function chAnim(){if(CH.anim)return CH.anim;CH.anim=new Set([T.W,T.U,T.PW,T.PR,T.FR,T.BWK]);if(typeof TREE_IDS!=='undefined')TREE_IDS.forEach(t=>CH.anim.add(t));return CH.anim;}
+function chkKey(cx,cy){return (CH.zn||'ow')+'|'+cy*10000+cx;}
+function chBuild(cx,cy){
+  const c=document.createElement('canvas');c.width=CH.px;c.height=CH.px;const g=c.getContext('2d');g.imageSmoothingEnabled=false;
+  const x0=cx*CH.n,y0=cy*CH.n,A=chAnim();
+  for(let ty=0;ty<CH.n;ty++)for(let tx=0;tx<CH.n;tx++){
+    const x=x0+tx,y=y0+ty;if(y<0||y>=MH||x<0||x>=MW)continue;const id=map[y][x];
+    if(A.has(id))continue;                                                                    // animated / trees drawn live
+    if(typeof BIGTREE_IDS!=='undefined'&&BIGTREE_IDS.has(id))continue;
+    const s=tileSprite(id,x,y,0);if(!s)continue;
+    g.drawImage(s,tx*TS,ty*TS,TS,TS);
+  }
+  return {c,cx,cy,dirty:false};
+}
+function chGet(cx,cy){const k=chkKey(cx,cy);let h=CH.map.get(k);if(!h){h=chBuild(cx,cy);CH.map.set(k,h);}return h;}
+function chInvalidate(tx,ty){if(tx==null){CH.map.clear();return;}CH.map.delete(chkKey(Math.floor(tx/CH.n),Math.floor(ty/CH.n)));}
+{const _dw=drawWorld;drawWorld=function(){
+  const zn=zoneOfPx(P.y);if(zn!==CH.zn){CH.zn=zn;CH.map.clear();}   // zone-aware: dungeon dark fill vs overworld
+  const x0=Math.floor(cam.x/TS),y0=Math.floor(cam.y/TS),x1=x0+Math.ceil(VW/TS)+1,y1=y0+Math.ceil(VH/TS)+1;
+  const cx0=Math.floor(x0/CH.n),cy0=Math.floor(y0/CH.n),cx1=Math.floor(x1/CH.n),cy1=Math.floor(y1/CH.n);
+  for(let cy=cy0;cy<=cy1;cy++)for(let cx=cx0;cx<=cx1;cx++){
+    if(cy<0||cx<0)continue;const h=chGet(cx,cy);
+    ctx.drawImage(h.c,cx*CH.px-cam.x,cy*CH.px-cam.y);
+  }
+  CH.live=true;_dw();CH.live=false;
+};}
+{const _tsW=null;
+ // wrap the world tile loop's drawImage of tiles: when CH.live, skip static tiles (already in chunk)
+ const _di0=null;}
+/* The original drawWorld iterates every tile. Mark static ones as already drawn by patching tileSprite
+   to return a 1x1 empty when CH.live and the tile is static — cheapest way without rewriting world.js. */
+const CH_EMPTY=(()=>{const c=document.createElement('canvas');c.width=1;c.height=1;return c;})();
+{const _ts=tileSprite;tileSprite=function(id,x,y,time){
+  if(CH.live&&chAnim().has(id)===false&&!(typeof BIGTREE_IDS!=='undefined'&&BIGTREE_IDS.has(id)))return CH_EMPTY;
+  return _ts.apply(this,arguments);
+};}
+/* ---- HUD panel + button disc caches ---- */
+const PANEL_SKIN=new Map();
+function panelSkin(w,h,fillKey){
+  const k=w+'x'+h+'|'+fillKey;let s=PANEL_SKIN.get(k);if(s)return s;
+  const c=document.createElement('canvas');c.width=w+4;c.height=h+6;const g=c.getContext('2d'),ox=0,oy=0;
+  // bake using a temporary hijack of ctx
+  const prev=ctx;window._bakCtx=true;
+  // draw into c directly by temporarily swapping
+  const _ctx=ctx; // keep reference
+  // manual bake mirroring panel()
+  g.fillStyle='rgba(0,0,0,.45)';g.fillRect(ox+2,oy+4,w,h);
+  // leather via satPattern
+  const pat=satPattern();
+  g.fillStyle='#2a160a';g.fillRect(ox+3,oy,w-6,h);g.fillRect(ox,oy+3,w,h-6);g.fillRect(ox+1,oy+1,w-2,h-2);
+  g.save();g.beginPath();g.rect(ox+2,oy+2,w-4,h-4);g.clip();g.fillStyle=pat;g.fillRect(ox,oy,w,h);g.restore();
+  g.fillStyle='#a8703f';g.fillRect(ox+3,oy+2,w-6,2);g.fillRect(ox+2,oy+3,2,h-6);
+  g.fillStyle='#5e3a1c';g.fillRect(ox+3,oy+h-4,w-6,2);g.fillRect(ox+w-4,oy+3,2,h-6);
+  g.fillStyle='#4a3208';g.fillRect(ox+4,oy+4,w-8,h-8);
+  g.fillStyle='#e0b44a';g.fillRect(ox+5,oy+5,w-10,h-10);
+  g.fillStyle='#fff0a0';g.fillRect(ox+5,oy+5,w-10,1);g.fillRect(ox+5,oy+5,1,h-10);
+  if(fillKey==='def'){const gr=g.createLinearGradient(0,oy+7,0,oy+h-7);gr.addColorStop(0,'#3e2617');gr.addColorStop(1,'#22140b');g.fillStyle=gr;}
+  else g.fillStyle=fillKey;
+  g.fillRect(ox+7,oy+7,w-14,h-14);
+  g.fillStyle='rgba(0,0,0,.4)';g.fillRect(ox+7,oy+7,w-14,2);g.fillRect(ox+7,oy+7,2,h-14);
+  for(const [qx,qy] of [[ox+3,oy+3],[ox+w-4,oy+3],[ox+3,oy+h-4],[ox+w-4,oy+h-4]]){g.fillStyle='#4a3208';g.fillRect(qx-2,qy-2,5,5);g.fillStyle='#e0b44a';g.fillRect(qx-1,qy-1,3,3);g.fillStyle='#fff0a0';g.fillRect(qx-1,qy-1,1,1);}
+  PANEL_SKIN.set(k,c);return c;
+}
+{const _panel=panel;panel=function(x,y,w,h,o={}){
+  if(o.legacy)return _panel(x,y,w,h,o);
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
+  const custom=o.fill&&o.fill!=='#1a1630',fk=custom?o.fill:'def';
+  ctx.drawImage(panelSkin(w,h,fk),x,y);
+  if(o.border&&o.border!=='#e8e0c8'){ctx.fillStyle=o.border;ctx.fillRect(x+9,y+h-6,w-18,2);}
+};}
+const BTN_CACHE=new Map();
+function btnSkin(r,tintKey){
+  const k=r+'|'+tintKey;let s=BTN_CACHE.get(k);if(s)return s;
+  const c=document.createElement('canvas'),pad=8,sz=r*2+pad*2;c.width=sz;c.height=sz+4;const g=c.getContext('2d'),cx=pad+r,cy=pad+r;
+  g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.arc(cx+2,cy+4,r+3,0,6.283);g.fill();
+  g.fillStyle='#1c0e06';g.beginPath();g.arc(cx,cy,r+3,0,6.283);g.fill();
+  const gr=g.createLinearGradient(cx-r,cy-r,cx+r,cy+r);gr.addColorStop(0,'#fff0a0');gr.addColorStop(.45,'#e0b44a');gr.addColorStop(1,'#9a7418');
+  g.fillStyle=gr;g.beginPath();g.arc(cx,cy,r+1,0,6.283);g.fill();
+  g.save();g.beginPath();g.arc(cx,cy,r-3,0,6.283);g.clip();
+  g.fillStyle=satPattern();g.fillRect(cx-r,cy-r,r*2,r*2);
+  g.fillStyle=tintKey||'rgba(20,8,2,.35)';g.fillRect(cx-r,cy-r,r*2,r*2);
+  const sh=g.createRadialGradient(cx-r*.3,cy-r*.4,1,cx,cy,r);sh.addColorStop(0,'rgba(255,230,180,.28)');sh.addColorStop(1,'rgba(0,0,0,.35)');g.fillStyle=sh;g.fillRect(cx-r,cy-r,r*2,r*2);
+  g.restore();g.strokeStyle='#2a160a';g.lineWidth=1.5;g.beginPath();g.arc(cx,cy,r-3,0,6.283);g.stroke();
+  BTN_CACHE.set(k,c);return c;
+}
+hdButton=function(x,y,r,down,o={}){
+  ctx.globalAlpha=o.alpha==null?1:o.alpha;
+  const tint=o.tint||(down?'rgba(255,220,140,.25)':'rgba(20,8,2,.35)');
+  const skin=btnSkin(r,tint);ctx.drawImage(skin,Math.round(x-r-8),Math.round(y-r-8));
+  if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+4.5,0,6.283);ctx.stroke();}
+  ctx.globalAlpha=1;
+};
+/* ---- Cheaper HD wrap: stamp canvases, skip getContext ---- */
+HDX.spr=true;HDX._id=1;
+{const _hg=hdGet;hdGet=function(src,mode){
+  if(!HDX.on||!src)return null;if(mode==='spr'&&!HDX.spr)return null;
+  if(src._hd)return src._hd;if(src._hdMiss)return null;
+  if(!src.width||src.width>48){src._hdMiss=1;return null;}
+  const c=_hg(src,mode);if(c)src._hd=c;else src._hdMiss=1;return c;
+};}
+// replace the drawImage wrap with a cheaper stamp check
+{const _di=CanvasRenderingContext2D.prototype.drawImage;
+ // only override our game ctx (already wrapped once in hd.js); re-wrap on top
+ const prev=ctx.drawImage;
+ ctx.drawImage=function(img,a,b,c,d){
+   if(img===CH_EMPTY)return;
+   if(arguments.length===5&&img&&img._hd)return prev.call(this,img._hd,a,b,c,d);
+   if(arguments.length===5&&img&&!img._hdMiss&&img.width<=48&&img.height<=64&&c>=(img.width||0)*1.9&&d>=(img.height||0)*1.9&&!HD_NO.has(img)){
+     const h=hdGet(img,'spr');if(h)return prev.call(this,h,a,b,c,d);
+   }
+   return prev.apply(this,arguments);
+ };}
+/* ---- Prewarm common tile HD at boot (next idle frames) ---- */
+function hdPrewarm(){
+  try{
+    const ids=[T.G,T.K,T.P,T.B,T.BT,T.F,T.S,T.L,T.N,T.RK,T.SN,T.MD,T.SD,T.MR,T.SR];
+    let i=0;const step=()=>{let n=0;while(i<ids.length&&n<4){const id=ids[i++],arr=TSPR[id];if(arr)for(const s of arr)hdGet(s,'tile');n++;}
+      if(i<ids.length)setTimeout(step,0);};
+    setTimeout(step,0);
+    // also warm a few path tiles around spawn
+    setTimeout(()=>{for(let y=SPAWN.y/TS-4|0;y<(SPAWN.y/TS+8|0);y++)for(let x=SPAWN.x/TS-6|0;x<(SPAWN.x/TS+6|0);x++){
+      if(y>=0&&x>=0&&y<MH&&x<MW){const id=map[y][x];if(id===T.P||id===T.G||id===T.K)try{tileSprite(id,x,y,0);}catch(e){}}}
+    },100);
+  }catch(e){}
+}
+setTimeout(hdPrewarm,0);
+/* ---- Hook quality into the frame loop ---- */
+{const _up=update;update=function(dt){qualTick(dt);return _up.apply(this,arguments);};}
+/* invalidate chunks when the editor or world-edits change tiles */
+if(typeof setTile==='function'){const _st=setTile;setTile=function(x,y,id){const r=_st.apply(this,arguments);chInvalidate(x,y);return r;};}
 
 </script></body></html>
