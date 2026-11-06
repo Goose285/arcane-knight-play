@@ -3724,7 +3724,7 @@ function startFishing(spot){
   P.aim=Math.atan2(c.y-(P.y-10),c.x-P.x);P.moving=false;P.anim=0;
   FISH.on=true;FISH.spot=spot;FISH.ph='cast';FISH.t=0;FISH.tap=false;FISH.fx.length=0;FISH.flash=null;FISH.fid=null;FISH.sh=null;FISH.yank=0;FISH.log=[];FISH.session=0;WCH.on=false;WCH.t=0;sfx('whoosh');return true;
 }
-const fishPool=spot=>{const lv=fishLv();return FISHES.filter(f=>f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);};
+let fishPool=spot=>{const lv=fishLv();return FISHES.filter(f=>f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);};
 const fishIsRareBite=f=>f.w<=4||f.rar>=4;   // the shy / precious fish only come on a Rare bite
 function fishWeighted(pool,spot,rod){
   if(!pool.length)return FISHES[0];
@@ -7693,6 +7693,208 @@ function rodRow(i){
       txt(r.n,x0+46,y+15,{size:10,col:r.col,lw:2});txt(r.desc,x0+46,y+28,{size:7,col:'#b9b4d8',bold:false,lw:2});
       txt(own?(eq?'EQUIPPED':'owned'):pr+' G',x0+46,y+42,{size:8,col:own?(eq?'#7dffa0':'#b9b4d8'):P.gold>=pr?'#ffd23f':'#ff9a9a',lw:2});
       uiButton(x0+W-74,y+10,66,30,own?'OWNED':'BUY',can,()=>{UI.sel=si;go();},{tag:'rod:'+r.id,clip:true,size:9,sel:si});}};
+}
+
+/* ---------- src/player/fish-plus.js ---------- */
+/* =====================================================================
+   t153u FISHING FEATURES (no reeling minigame, no seasons):
+   spot mastery ★, dawn/dusk/night catches, aquarium/trophy shelf,
+   cooking meals (buffs), tackle box (bait/bobber), weekly biggest-catch.
+   ===================================================================== */
+Object.assign(FSH,{spots:{},bait:null,bobber:null,tank:[],week:{id:'',best:0,fish:'',name:''},meals:0});
+const FISH_BAITS=[
+  {id:'worm',n:'River Worms',gold:8,fam:'river',bias:1.35,desc:'Favours river fish.'},
+  {id:'dough',n:'Dough Ball',gold:12,fam:'pond',bias:1.4,desc:'Pond & still-water bait.'},
+  {id:'glow',n:'Glow Grub',gold:28,fam:'night',bias:1.6,desc:'Lures night glowfish.'},
+  {id:'spark',n:'Sparkfly Lure',gold:45,fam:'legend',bias:1.5,desc:'Helps legendary bites at dawn/dusk.'},
+];
+const FISH_BOBBERS=[
+  {id:'cork',n:'Cork Bobber',gold:10,luck:.05,desc:'A touch more luck.'},
+  {id:'quill',n:'Quill Bobber',gold:22,luck:.12,desc:'Steady luck bump.'},
+  {id:'crystal',n:'Crystal Bobber',gold:55,luck:.22,desc:'Rare fish notice you.'},
+];
+const FISH_BAIT_BY={};FISH_BAITS.forEach(b=>FISH_BAIT_BY[b.id]=b);
+const FISH_BOB_BY={};FISH_BOBBERS.forEach(b=>FISH_BOB_BY[b.id]=b);
+/* legendary / night-only tags on fish data */
+FISHES.forEach(f=>{
+  if(f.id==='salmon'||f.id==='koi'||f.id==='goldfin'||f.id==='myth')f.tod='dawn';
+  if(f.id==='gill'||f.id==='levi')f.tod='night';
+});
+if(!FISH_BY.glowfish){const g={id:'glowfish',n:'Night Glowfish',tier:1,lv:5,w:3,price:90,heal:.3,xp:40,dif:1.7,rar:3,col:'#7dffd0',tod:'night'};FISHES.push(g);FISH_BY.glowfish=g;}
+if(!FISH_BY.duskfin){const g={id:'duskfin',n:'Duskfin Mirage',tier:2,lv:10,w:2,price:180,heal:.4,xp:70,dif:2.0,rar:4,col:'#ff9ad0',tod:'dusk'};FISHES.push(g);FISH_BY.duskfin=g;}
+
+function fishTimeBucket(){
+  // DAY.t ~ 0..1 day cycle; dawn ~0.2-0.3, dusk ~0.7-0.8, night when DAY.nightAmt high
+  const t=(typeof DAY!=='undefined'&&DAY.t!=null)?DAY.t:0.5;
+  const night=(typeof DAY!=='undefined'&&DAY.nightAmt>0.45);
+  if(night)return 'night';
+  if(t>=0.18&&t<=0.32)return 'dawn';
+  if(t>=0.68&&t<=0.82)return 'dusk';
+  return 'day';
+}
+
+function spotStars(id){const s=FSH.spots[id];if(!s)return 0;const c=s.caught|0;return c>=80?5:c>=40?4:c>=20?3:c>=8?2:c>=3?1:0;}
+const FISH_COSMETIC={}; // spotId -> unlocked cosmetic id
+function spotMasterNote(spot){
+  const st=spotStars(spot.id);
+  if(st>=5)return '★★★★★ Mastery — rare cosmetics unlocked here';
+  if(st>=1)return '★'.repeat(st)+'☆'.repeat(5-st)+'  ('+(FSH.spots[spot.id].caught|0)+' caught)';
+  return '☆☆☆☆☆  (catch 3 here to earn a star)';
+}
+
+/* ---- meal buffs ---- */
+const MEAL_BUFF={luck:0,xp:0,def:0,label:'',t:0};
+function applyMealBuff(kind,dur,label){
+  MEAL_BUFF.luck=MEAL_BUFF.xp=MEAL_BUFF.def=0;MEAL_BUFF.t=dur;MEAL_BUFF.label=label||kind;
+  if(kind==='luck')MEAL_BUFF.luck=.25;else if(kind==='xp')MEAL_BUFF.xp=.3;else if(kind==='def')MEAL_BUFF.def=.15;
+  toast((label||'Meal')+'! Buff '+Math.round(dur)+'s',2.6,'#ffe14d');sfx('heal');
+}
+function mealLuck(){return MEAL_BUFF.t>0?MEAL_BUFF.luck:0;}
+function mealXpMul(){return MEAL_BUFF.t>0?1+MEAL_BUFF.xp:1;}
+function mealDefMul(){return MEAL_BUFF.t>0?1-MEAL_BUFF.def:1;}
+{function wireMealHooks(){
+  if(typeof statusTick==='function'&&!statusTick._meal){const _st=statusTick;statusTick=function(dt){_st(dt);if(MEAL_BUFF.t>0){MEAL_BUFF.t=Math.max(0,MEAL_BUFF.t-dt);if(MEAL_BUFF.t<=0){MEAL_BUFF.luck=MEAL_BUFF.xp=MEAL_BUFF.def=0;MEAL_BUFF.label='';}}};statusTick._meal=1;}
+  if(typeof damagePlayer==='function'&&!damagePlayer._meal){const _dp=damagePlayer;damagePlayer=function(d,src){return _dp.call(this,Math.max(1,Math.round(d*mealDefMul())),src);};damagePlayer._meal=1;}
+ }
+ wireMealHooks();setTimeout(wireMealHooks,0);setTimeout(wireMealHooks,250);}
+
+const COOK_RECIPES=[
+  {id:'river_stew',n:'River Stew',need:['minnow','carp'],buff:'luck',dur:120,gold:0},
+  {id:'xp_skewer',n:'XP Skewer',need:['trout','pike'],buff:'xp',dur:90,gold:0},
+  {id:'iron_chowder',n:'Ironjaw Chowder',need:['sturgeon'],buff:'def',dur:100,gold:0},
+  {id:'glow_bisque',n:'Glow Bisque',need:['glowfish','gill'],buff:'luck',dur:150,gold:0},
+];
+function canCook(rec){return rec.need.every(id=>(FSH.fish[id]|0)>0);}
+function cookMeal(recId){
+  const rec=COOK_RECIPES.find(r=>r.id===recId);if(!rec)return false;
+  if(!canCook(rec)){toast('Missing fish for '+rec.n,2,'#ffb0a0');sfx('clang');return false;}
+  rec.need.forEach(id=>{FSH.fish[id]--;if(FSH.fish[id]<=0)delete FSH.fish[id];});
+  FSH.meals=(FSH.meals|0)+1;applyMealBuff(rec.buff,rec.dur,rec.n);return true;
+}
+
+/* ---- aquarium / trophy shelf (house) ---- */
+const FISH_TANK_MAX=8;
+function tankAdd(fid){
+  const f=FISH_BY[fid];if(!f||f.junk)return false;
+  if(FSH.tank.includes(fid)){toast('Already on the trophy shelf.',1.8,'#cfd0ff');return false;}
+  if(FSH.tank.length>=FISH_TANK_MAX){toast('Trophy shelf full (8).',2,'#ffb0a0');return false;}
+  if((FSH.fish[fid]|0)<1){toast('You do not have that fish.',2,'#ffb0a0');return false;}
+  FSH.fish[fid]--;if(FSH.fish[fid]<=0)delete FSH.fish[fid];
+  FSH.tank.push(fid);toast('Displayed '+f.n+' in your house!',2.6,f.col||'#7df9ff');sfx('level');return true;
+}
+function drawFishTank(){
+  if(zoneOfPx(P.y)!=='house'||!FSH.tank.length)return;
+  // shelf along the north wall of the main room
+  const slots=typeof HOUSE_SLOTS!=='undefined'?HOUSE_SLOTS:null;
+  const baseX=(typeof HOUSE_ROOM!=='undefined'?HOUSE_ROOM.x0+1:26)*TS;
+  const baseY=(typeof HOUSE_Y0!=='undefined'?HOUSE_Y0+4:0)*TS;
+  FSH.tank.forEach((id,i)=>{
+    const f=FISH_BY[id];if(!f)return;
+    const x=baseX+(i%4)*36-cam.x,y=baseY+Math.floor(i/4)*28-cam.y;
+    ctx.fillStyle='rgba(20,40,70,.55)';ctx.fillRect(x,y,30,22);
+    ctx.strokeStyle='#7df9ff';ctx.strokeRect(x+.5,y+.5,29,21);
+    try{draw(fishTinted(f.col||'#cfe3ff'),x+7,y+3,1);}catch(e){ctx.fillStyle=f.col||'#cff';ctx.fillRect(x+10,y+8,10,4);}
+  });
+}
+{function wireTankDraw(){if(typeof drawWorld!=='function'||drawWorld._tank)return;const _dw=drawWorld;drawWorld=function(){_dw();try{drawFishTank();}catch(e){}};drawWorld._tank=1;}
+ wireTankDraw();setTimeout(wireTankDraw,0);setTimeout(wireTankDraw,250);}
+
+/* ---- weekly contest (local) ---- */
+function fishWeekId(){try{return weekNum()+'';}catch(e){return Math.floor(Date.now()/604800000)+'';}}
+function fishWeekEnsure(){const id=fishWeekId();if(FSH.week.id!==id)FSH.week={id,best:0,fish:'',name:''};}
+function fishWeekSubmit(f,weight){
+  fishWeekEnsure();const w=weight||(10+Math.random()*40*(1+(f.rar|0)));
+  if(w>FSH.week.best){FSH.week.best=Math.round(w*10)/10;FSH.week.fish=f.id;FSH.week.name=f.n;
+    toast('Weekly best! '+FSH.week.best+' lb '+f.n,2.8,'#ffe14d');}
+  return w;
+}
+
+/* ---- tackle purchase (Tobin / Brum) ---- */
+function buyBait(id){const b=FISH_BAIT_BY[id];if(!b)return false;if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.bait=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
+function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.bobber=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
+
+/* ---- wrap catch pipeline ---- */
+{const _pool=fishPool;fishPool=function(spot){
+  let pool=_pool(spot);const tod=fishTimeBucket();
+  // include time-gated fish when in window
+  FISHES.forEach(f=>{
+    if(f.tod==='night'&&tod==='night'&&f.lv<=fishLv()&&f.tier<=spot.tier+1&&!pool.includes(f))pool=pool.concat([f]);
+    if((f.tod==='dawn'||f.tod==='dusk')&&tod===f.tod&&f.lv<=fishLv()&&f.tier<=spot.tier+1&&!pool.includes(f))pool=pool.concat([f]);
+  });
+  // mastery 5★ unlocks a rare cosmetic catch bias (myth/goldfin weight bump via later luck)
+  return pool;
+};}
+{const _aw=fishAward;fishAward=function(f,rare){
+  const spot=FISH.spot;_aw(f,rare);
+  if(spot&&spot.id){const s=FSH.spots[spot.id]||(FSH.spots[spot.id]={caught:0});s.caught++;
+    const st=spotStars(spot.id);if(st>=1&&s.caught===[3,8,20,40,80][st-1]){toast(spot.name+' ★'+st+'!',2.4,'#ffe14d');if(st>=5&&!FISH_COSMETIC[spot.id]){FISH_COSMETIC[spot.id]='lure_'+spot.id;FSH.cosmetics=FSH.cosmetics||{};FSH.cosmetics[spot.id]=1;toast('Cosmetic lure unlocked for '+spot.name+'!',3,'#c58aff');sfx('level');}}}
+  if(f&&!f.junk)fishWeekSubmit(f);
+  // auto-offer tank for rar>=3
+  if(f&&!f.junk&&(f.rar|0)>=3&&FSH.tank.length<FISH_TANK_MAX&&!FSH.tank.includes(f.id)){
+    /* soft hint */ if(Math.random()<.35)toast('Rare catch! Display it on your house trophy shelf from the Fishing menu.',3.2,'#c58aff');
+  }
+};}
+{const _w=fishWeighted;fishWeighted=function(pool,spot,rod){
+  const bait=FSH.bait&&FISH_BAIT_BY[FSH.bait],bob=FSH.bobber&&FISH_BOB_BY[FSH.bobber];
+  const luckExtra=mealLuck()+(bob?bob.luck:0)+(spotStars(spot.id)>=5?.15:0);
+  const rod2={luck:(rod.luck||0)+luckExtra};
+  let p=pool.slice();
+  if(bait){
+    if(bait.fam==='night')p=p.map(f=>f); // weight handled below
+    p=p.map(f=>{
+      let m=1;
+      if(bait.fam==='river'&&(f.id==='trout'||f.id==='pike'||f.id==='salmon'||f.id==='minnow'))m=bait.bias;
+      if(bait.fam==='pond'&&(f.id==='carp'||f.id==='bass'||f.id==='koi'||f.id==='gill'))m=bait.bias;
+      if(bait.fam==='night'&&(f.tod==='night'||f.id==='glowfish'||f.id==='gill'))m=bait.bias;
+      if(bait.fam==='legend'&&(f.rar|0)>=3)m=bait.bias;
+      return Object.assign({},f,{w:Math.max(.5,f.w*m)});
+    });
+  }
+  return _w(p,spot,rod2);
+};}
+{const _xp=addFishXp;addFishXp=function(n){return _xp(Math.round(n*mealXpMul()));};}
+
+/* ---- save hooks ---- */
+{const _pf=packFish;packFish=function(){const o=_pf();o.spots=FSH.spots;o.bait=FSH.bait;o.bobber=FSH.bobber;o.tank=FSH.tank.slice();o.week=FSH.week;o.meals=FSH.meals|0;o.cosmetics=FSH.cosmetics||{};return o;};
+ const _uf=unpackFish;unpackFish=function(s){_uf(s);if(!s||typeof s!=='object')return;
+  FSH.spots=(s.spots&&typeof s.spots==='object')?s.spots:{};FSH.bait=s.bait||null;FSH.bobber=s.bobber||null;
+  FSH.tank=Array.isArray(s.tank)?s.tank.filter(id=>FISH_BY[id]).slice(0,FISH_TANK_MAX):[];
+  FSH.week=(s.week&&typeof s.week==='object')?s.week:{id:'',best:0,fish:'',name:''};FSH.meals=s.meals|0;FSH.cosmetics=(s.cosmetics&&typeof s.cosmetics==='object')?s.cosmetics:{};Object.assign(FISH_COSMETIC,FSH.cosmetics);fishWeekEnsure();};
+ const _rf=resetFish;resetFish=function(){_rf();FSH.spots={};FSH.bait=null;FSH.bobber=null;FSH.tank=[];FSH.week={id:'',best:0,fish:'',name:''};FSH.meals=0;FSH.cosmetics={};for(const k in FISH_COSMETIC)delete FISH_COSMETIC[k];};}
+
+/* ---- fishing screen extras (rows) ---- */
+function fishActRow(label,on,go){
+  return {sel:true,h:36,act:go,tap:go,draw(x0,y,W,h,isSel,si){
+    ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+    if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
+    txt(label,x0+10,y+22,{size:9,col:on?'#e8e0c8':'#7a7080',lw:2});
+    uiButton(x0+W-74,y+4,66,28,on?'GO':'-',on,()=>{UI.sel=si;go();},{tag:'fa',clip:true,size:9,sel:si});}};
+}
+{const patch=()=>{
+  if(typeof UI_MODES==='undefined'||!UI_MODES.fish)return;
+  const prev=UI_MODES.fish.rows;if(!prev||prev._t153)return;
+  UI_MODES.fish.rows=function(){
+    const r=prev.apply(this,arguments);
+    r.push({t:'head',s:'SPOT MASTERY'});
+    FISH_SPOTS.forEach(s=>{const st=spotStars(s.id);r.push({t:'head',s:'  '+s.name+'  '+('★'.repeat(st)+'☆'.repeat(5-st))+'  '+(FSH.spots[s.id]?FSH.spots[s.id].caught:0)+' caught'});});
+    r.push({t:'head',s:'TACKLE BOX  (buy & equip)'});
+    FISH_BAITS.forEach(b=>r.push(fishActRow((FSH.bait===b.id?'[ON] ':'')+b.n+'  '+b.gold+'G  -  '+b.desc,P.gold>=b.gold||FSH.bait===b.id,()=>buyBait(b.id))));
+    FISH_BOBBERS.forEach(b=>r.push(fishActRow((FSH.bobber===b.id?'[ON] ':'')+b.n+'  '+b.gold+'G  -  '+b.desc,P.gold>=b.gold||FSH.bobber===b.id,()=>buyBobber(b.id))));
+    r.push({t:'head',s:'COOK MEALS  (buff luck / XP / defense)'});
+    COOK_RECIPES.forEach(c=>r.push(fishActRow(c.n+'  ('+c.need.join('+')+') → '+c.buff+' '+c.dur+'s',canCook(c),()=>cookMeal(c.id))));
+    r.push({t:'head',s:'TROPHY SHELF  ('+FSH.tank.length+'/'+FISH_TANK_MAX+') — shown in your house'});
+    Object.keys(FSH.fish).forEach(id=>{const f=FISH_BY[id];if(!f||f.junk||(f.rar|0)<2)return;
+      r.push(fishActRow('Display '+f.n,true,()=>tankAdd(id)));});
+    if(FSH.tank.length)r.push({t:'head',s:'  On shelf: '+FSH.tank.map(id=>FISH_BY[id]?FISH_BY[id].n:id).join(', ')});
+    fishWeekEnsure();
+    r.push({t:'head',s:'WEEKLY CONTEST'});
+    r.push({t:'head',s:FSH.week.best?('  Best this week: '+FSH.week.best+' lb  '+FSH.week.name):'  No entry yet — land a fish!'});
+    if(MEAL_BUFF.t>0)r.push({t:'head',s:'  Active meal: '+MEAL_BUFF.label+' ('+Math.ceil(MEAL_BUFF.t)+'s)'});
+    return r;
+  };
+  UI_MODES.fish.rows._t153=1;
+ };
+ setTimeout(patch,0);setTimeout(patch,300);
 }
 
 /* ---------- src/ui/travel-screen.js ---------- */
@@ -12827,7 +13029,7 @@ function drawWlife(){
  const _up=update;update=function(dt){try{updateWlife(dt);}catch(e){}return _up.apply(this,arguments);};}
 const SMITH_SHOP={ready:false};
 function buildSmithShop(){
-  if(SMITH_SHOP.ready)return;const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return;
+  if(SMITH_SHOP.ready||SMITH_SHOP.west)return;const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return;
   // find the door wall from Brum's ORIGINAL yard position (he stands south of the facade)
   let tx=Math.floor(n.x/TS),ty=Math.floor(n.y/TS),wy=null;
   for(let k=0;k<=5;k++){for(const dy of [-k,k?k:null]){if(dy==null)continue;const y=ty+dy;if(y<1||y>=MH)continue;
@@ -12850,7 +13052,7 @@ function buildSmithShop(){
 setTimeout(buildSmithShop,50);setTimeout(buildSmithShop,400);
 const TAVERN={ready:false};
 function buildTavern(){
-  if(TAVERN.ready)return;
+  if(TAVERN.ready||TAVERN.west)return;
   const x0=27,y0=31,w=5,h=4;if(y0+h>=MH||x0+w>=MW)return;
   for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++){
     if(y===y0)map[y][x]=T.R;
@@ -12882,5 +13084,164 @@ function clearStrayForge(){
   }
 }
 setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
+
+/* ---------- src/world/t153.js ---------- */
+/* =====================================================================
+   t153u: expand Oakvale WEST + real Blacksmith & Tavern buildings;
+   fishing extras live in player/fish-plus.js.
+   ===================================================================== */
+(function t153Town(){
+  // claim buildings so t148 carved-cottage builders skip
+  try{if(typeof SMITH_SHOP!=='undefined')SMITH_SHOP.west=true;if(typeof TAVERN!=='undefined')TAVERN.west=true;}catch(e){}
+
+  const TSZ=()=>typeof TS==='number'?TS:32;
+  function ty(y){return (typeof OY==='number'?OY:0)+y;}
+  function tx(x){return (typeof OX==='number'?OX:0)+x;}
+  function put(x,y,id){const X=tx(x),Y=ty(y);if(Y>=0&&Y<MH&&X>=0&&X<MW)map[Y][X]=id;}
+  function get(x,y){const X=tx(x),Y=ty(y);return (Y>=0&&Y<MH&&X>=0&&X<MW)?map[Y][X]:-1;}
+  function fill(x0,y0,x1,y1,id){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)put(x,y,id);}
+  function rectBldg(x0,y0,w,h,doorOff){
+    // roof row, walls, floor, door on south facade
+    for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++){
+      if(y===y0)put(x,y,T.R);
+      else if(y===y0+h-1)put(x,y,(x===x0+doorOff)?T.D:T.H);
+      else if(x===x0||x===x0+w-1)put(x,y,T.H);
+      else put(x,y,T.F);
+    }
+    // path south of door
+    const dx=x0+doorOff;for(let k=0;k<2;k++){const t=get(dx,y0+h+k);if(t===T.G||t===T.L||t===T.K||t===T.PLB)put(dx,y0+h+k,T.P);}
+    return {x0,y0,w,h,door:{tx:tx(x0+doorOff),wy:ty(y0+h-1),lx:x0+doorOff,ly:y0+h-1}};
+  }
+
+  const STATE={ready:false};
+  function expandWest(){
+    // grow town AABB west by ~8 tiles and clear soft land for the new quarter
+    const pad=8;
+    TOWN.x0=Math.min(TOWN.x0,(tx(3)-pad)*TSZ());
+    // clear / soft-fill the western strip into village grass + path spine
+    const xL=0,xR=8,yT=31,yB=44;
+    for(let y=yT;y<=yB;y++)for(let x=xL;x<=xR;x++){
+      const t=get(x,y);
+      if(t===T.T||t===T.K||t===T.G||t===T.L||t===-1||t===T.PLB)put(x,y,T.G);
+    }
+    // west road from gate line up to the new shops
+    for(let y=33;y<=43;y++)put(4,y,T.P);
+    for(let x=1;x<=7;x++)put(x,37,T.P);
+    for(let x=1;x<=7;x++)put(x,42,T.P);
+    // lamps + planters along the new road
+    for(const [x,y] of [[2,36],[6,36],[2,41],[6,41],[3,33],[5,33]]){
+      if(get(x,y)===T.G||get(x,y)===T.P)put(x,y,T.Z);
+    }
+    if(typeof T.PLB!=='undefined'){
+      for(const [x,y] of [[1,35],[7,35],[1,40],[7,40],[3,38],[5,38]])if(get(x,y)===T.G)put(x,y,T.PLB);
+    }
+  }
+
+  function undoCarvedSmith(){
+    // t148 carved Brum's old cottage into a shop; restore a plain house if we find that pattern
+    try{
+      const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return;
+      // if SMITH_SHOP was the carved one (door near original yard), restore floors north of old door to house tiles
+      if(SMITH_SHOP&&SMITH_SHOP.door&&SMITH_SHOP.door.x0!=null&&!SMITH_SHOP.west){
+        const {x0,x1,wy}=SMITH_SHOP.door;
+        for(let y=wy-4;y<wy;y++)for(let x=x0;x<=x1;x++){
+          if(y<0||y>=MH||x<0||x>=MW)continue;
+          if(map[y][x]===T.F||map[y][x]===T.ANV||map[y][x]===T.FRN||map[y][x]===T.B){
+            map[y][x]=(y===wy-4)?T.R:(x===x0||x===x1)?T.H:T.F;
+          }
+        }
+        // clear leftover ANV/FRN in open grass
+        if(typeof clearStrayForge==='function')clearStrayForge();
+      }
+    }catch(e){}
+  }
+
+  function buildWestSmith(){
+    // Distinct forge: 6x5, chimney, slate roof, interior racks
+    const b=rectBldg(1,33,6,5,3);
+    // chimney stack on roof
+    put(2,32,T.BT);put(2,33,T.BT);
+    // interior: furnace back-left, anvil, weapon racks (use BT as rack posts), floor details
+    put(2,34,T.FRN);put(3,35,T.ANV);put(5,34,T.BT);put(5,35,T.BT);
+    // Brum inside, slightly north of door
+    const n=NPCS.find(q=>q.name==='Blacksmith Brum');
+    if(n){n.x=(tx(4)+.5)*TSZ();n.y=(ty(36)+.55)*TSZ();n.hx=n.x;n.hy=n.y;n.smith=true;
+      n.lines=['Heat and hammer - that is the Brum way.','Need a rod for the river, or a sharper card? The forge is open.','Stay clear of the furnace - she bites hotter than any goblin.'];}
+    // sign outside
+    if(!NPCS.some(q=>q.name==="Brum's Forge Sign")){
+      NPCS.push({name:"Brum's Forge Sign",x:(tx(7)+.2)*TSZ(),y:(ty(38)+.3)*TSZ(),spr:'sign',sign:true,
+        lines:["BRUM'S FORGE","Open morning to dusk. Rods, cards, and honest steel."]});
+    }
+    SMITH_SHOP.ready=true;SMITH_SHOP.west=true;SMITH_SHOP.door={tx:b.door.tx,wy:b.door.wy,x0:tx(b.x0),x1:tx(b.x0+b.w-1)};
+    return b;
+  }
+
+  function buildWestTavern(){
+    // Oakvale Tap: 7x5, warm hearth, bar, tables
+    const b=rectBldg(1,39,7,5,3);
+    // hearth / lanterns
+    put(2,40,T.Z);put(6,40,T.Z);put(4,40,T.BT); // bar back
+    // Mara inside behind the bar
+    let mara=NPCS.find(q=>q.name==='Mara the Tapster');
+    if(!mara){
+      mara={name:'Mara the Tapster',spr:'inn',tavern:true,lines:[]};
+      NPCS.push(mara);
+    }
+    mara.inn=false; // do NOT reuse inn sleep dialog
+    mara.tavern=true;mara.oakTap=true;
+    mara.x=(tx(4)+.5)*TSZ();mara.y=(ty(41)+.4)*TSZ();mara.hx=mara.x;mara.hy=mara.y;
+    mara.lines=['Welcome to the Oakvale Tap - stew on the fire, rumors on the house.',
+      'Try the River Stew - it puts a shine of luck on your next casts.',
+      'Dawn and dusk, the big ones bite. Night brings the glowfish.',
+      'Pull up a stool. First bowl is honest gold - not free, mind.'];
+    // remove duplicate inn:true so openDlg does not route to Rosa's inn
+    delete mara.inn;
+    // sign
+    let sig=NPCS.find(q=>q.name==='Tavern Sign'||q.name==='Oakvale Tap Sign');
+    if(!sig){sig={name:'Oakvale Tap Sign',spr:'sign',sign:true,lines:[]};NPCS.push(sig);}
+    sig.name='Oakvale Tap Sign';sig.x=(tx(8)+.1)*TSZ();sig.y=(ty(44)+.2)*TSZ();
+    sig.lines=['THE OAKVALE TAP','Hot stew, cold ale, warm rumors. Noon till late.'];
+    TAVERN.ready=true;TAVERN.west=true;TAVERN.door={tx:b.door.tx,wy:b.door.wy,x0:tx(b.x0),x1:tx(b.x0+b.w-1)};
+    TAVERN.stew={gold:18,name:'River Stew',buff:'luck',dur:120,msg:'The stew warms you - fishing luck up for a while!'};
+    return b;
+  }
+
+  function openTavern(npc){
+    const stew=TAVERN.stew||{gold:18,name:'River Stew',buff:'luck',dur:120};
+    DLG={name:'MARA THE TAPSTER',lines:npc.lines||['Welcome to the Oakvale Tap!'],i:0,c:0,
+      yes:'BUY STEW  '+stew.gold+'G',no:'JUST CHAT',
+      choice(){
+        if(P.gold<stew.gold){toast('Need '+stew.gold+' gold for a bowl.',2,'#ffb0a0');sfx('clang');return;}
+        P.gold-=stew.gold;sfx('coin');sfx('heal');
+        if(typeof applyMealBuff==='function')applyMealBuff(stew.buff,stew.dur,stew.name);
+        else toast(stew.msg||'Delicious!',2.4,'#ffe14d');
+      },
+      noAct(){DLG=null;}};
+  }
+
+  // Hook dialog: tavern NPCs open stew menu (not inn)
+  {const _od=openDlg;openDlg=function(npc){
+    if(npc&&(npc.oakTap||(npc.tavern&&npc.name&&/Mara/.test(npc.name)))){openTavern(npc);return;}
+    return _od.apply(this,arguments);
+  };}
+
+  function run(){
+    if(STATE.ready||typeof map==='undefined'||!map||!map.length||typeof TOWN==='undefined')return;
+    if(typeof T==='undefined'||T.ANV==null)return;
+    try{
+      expandWest();
+      undoCarvedSmith();
+      // allow rebuild
+      if(typeof SMITH_SHOP!=='undefined')SMITH_SHOP.ready=false;
+      if(typeof TAVERN!=='undefined')TAVERN.ready=false;
+      buildWestSmith();
+      buildWestTavern();
+      if(typeof clearStrayForge==='function')clearStrayForge();
+      STATE.ready=true;
+    }catch(e){try{console.error('t153 town',e);}catch(_){}}
+  }
+  setTimeout(run,90);setTimeout(run,450);setTimeout(run,1200);
+  window.__t153Town=run;
+})();
 
 </script></body></html>
