@@ -10010,7 +10010,7 @@ const PM_DRAW={
         if(it.eq){ctx.fillStyle='#3f8f3a';ctx.fillRect(sx+4,sy+4,10,10);txt('E',sx+9,sy+12,{size:8,align:'center',col:'#fff',lw:0,out:false});}}}
     const sel=PM.sel!=null&&items[PM.sel];
     if(sel){pmText(sel.name+'  -  '+(sel.sub||''),gx0,y+h-2,{size:9});}
-    else if(!items.length)pmText(PM.cat==='potions'?'No potions yet - heal with your Heal card, the Inn or your bed.':'Nothing here yet.',gx0,y+h-2,{size:9,col:PMC.ink2});
+    else if(!items.length){const tip=PM.cat==='potions'?'No potions yet - heal with your Heal card, the Inn or your bed.':'Nothing here yet.';const lines=wrapText(tip,Math.max(80,gw-8),'bold '+scaleText(9)+'px "Courier New",monospace').slice(0,2);lines.forEach((l,i)=>pmText(l,gx0,y+h-14-(lines.length-1-i)*11,{size:9,col:PMC.ink2}));}
     if(PM.cat==='items')pmPill(x,y+h-24,sw,22,'EQUIPMENT','sword',()=>openGear(),'gear',{size:9});
   },
   journal(x,y,w,h){
@@ -12207,11 +12207,8 @@ function resize(){rotateCheck();
   const {cw,ch}=viewSize();VIEW_LAST=cw+'x'+ch+'@'+(window.devicePixelRatio||1);
   const dw=Math.max(1,Math.floor(cw*DPR)),dh=Math.max(1,Math.floor(ch*DPR));
   S=Math.max(1,Math.round(Math.min(dw,dh)/400));
-  // t149u: keep the game view around ~400px wide so tile fill cost stays bounded (pixel art upscales via S / CSS)
-  if(DPR<=1&&typeof SET!=='undefined'&&SET.perf!==false)S=Math.max(2,S);
-  while(!EDS&&Math.floor(dw/(S+1))>=420)S++;
   if(EDS)S=EDS;
-  // t148u: was S++ inside the house; that shrank VW/VH so fixed-size HUD panels looked enlarged. Room fill is handled by camera alone.
+  // t148u/t150u: never bump S to shrink VW — HUD sizes are in virtual px; a smaller VW makes every panel collide (house zoom + t149 VW≤420 bug).
   VW=Math.max(240,Math.floor(dw/S));VH=Math.max(240,Math.floor(dh/S));
   cv.width=VW*S;cv.height=VH*S;
   cv.style.width=(VW*S/DPR)+'px';cv.style.height=(VH*S/DPR)+'px';
@@ -12500,12 +12497,12 @@ if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){co
 
 /* ---------- src/render/perf.js ---------- */
 /* =====================================================================
-   t147–t149 PERFORMANCE
-   t149u root cause on real iPhones: canvas backing store at DPR 2–3 with S=2–3
-   fills ~1–2M pixels every frame. Pixel art does not need that. Performance mode
-   (default ON for touch) draws at DPR=1 and CSS-upscales with image-rendering:pixelated.
-   Also: HD off in perf mode, fog half-res, HUD skins cached, water-life culled,
-   FPS overlay, no auto-quality resize thrash.
+   t147–t150 PERFORMANCE
+   Real iPhones: canvas at DPR 2–3 fills ~1–2M px/frame. Perf mode (default ON)
+   forces DPR=1 + CSS image-rendering:pixelated — draw quality only.
+   t150u: NEVER change VW/VH/S/HUD metrics here (t149 VW≤420 / S≥2 made the
+   leather HUD collide: RUN on hero bars, oversized dialogue/minimap). Keep
+   cheap fog, light night lights, HD off, water-life cull, FPS overlay.
    ===================================================================== */
 const QUAL={mode:'perf',fps:60,acc:0,n:0,t:0,wantDpr:1,locked:true};
 function qualTick(dt){
