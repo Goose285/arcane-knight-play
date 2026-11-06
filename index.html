@@ -2189,10 +2189,10 @@ const inChapel=(tx,ty)=>tx>=CHAPEL.x0&&tx<=CHAPEL.x1&&ty>=CHAPEL.y0&&ty<=CHAPEL.
 const FISH_SPOTS=[
   {id:'oak1', name:'Oakvale River',    tx:25,ty:44,lv:1,tier:0,bank:[24,44]},
   {id:'oak2', name:'Oakvale River',    tx:25,ty:41,lv:1,tier:0,bank:[24,41]},
-  {id:'mead', name:'Greenmeadow River',tx:25,ty:22,lv:2,tier:1,bank:[24,22]},
-  {id:'wood', name:'Whisperwood Pond', tx:46,ty:36,lv:3,tier:1,bank:[45,36],pond:{x:46,y:36,w:2,h:2}},
-  {id:'bog',  name:'Mirewood Pool',    tx:21,ty:ZONE_Y0.swamp+24, lv:5,tier:2,bank:[21,ZONE_Y0.swamp+23],pond:{x:20,y:ZONE_Y0.swamp+24,w:3,h:2}},
-  {id:'oasis',name:'Sundered Oasis',   tx:45,ty:ZONE_Y0.desert+24,lv:7,tier:3,bank:[45,ZONE_Y0.desert+23],pond:{x:44,y:ZONE_Y0.desert+24,w:3,h:2}},
+  {id:'mead', name:'Greenmeadow River',tx:25,ty:22,lv:4,tier:1,bank:[24,22]},
+  {id:'wood', name:'Whisperwood Pond', tx:46,ty:36,lv:8,tier:1,bank:[45,36],pond:{x:46,y:36,w:2,h:2}},
+  {id:'bog',  name:'Mirewood Pool',    tx:21,ty:ZONE_Y0.swamp+24, lv:15,tier:2,bank:[21,ZONE_Y0.swamp+23],pond:{x:20,y:ZONE_Y0.swamp+24,w:3,h:2}},
+  {id:'oasis',name:'Sundered Oasis',   tx:45,ty:ZONE_Y0.desert+24,lv:30,tier:3,bank:[45,ZONE_Y0.desert+23],pond:{x:44,y:ZONE_Y0.desert+24,w:3,h:2}},
 ];
 /* region names drawn on the World Map (tile of the label; shifted with the world when it grows) */
 const REGION_LABELS=[{name:'OAKVALE',tx:13,ty:40},{name:'GREENMEADOW',tx:8,ty:22},{name:'WHISPERWOOD',tx:44,ty:27},{name:'CASTLE DRACORYN',tx:32,ty:6}];
@@ -2956,8 +2956,8 @@ function findGoblinCamp(){
   return best||{tx:50,ty:24};
 }
 function populate(){
-  const meadow=(x,y)=>x>=3&&x<=24&&y>=14&&y<=24;   // (the village starts at y29: keep monsters well clear of its gates)
-  spawnSpots(4,meadow,5).forEach(([x,y])=>addEnemy('slime',x,y));   // all the open-world slimes live in the meadow just north of Oakvale (the slime quests point there), none in the east forest
+  const meadow=(x,y)=>x>=3&&x<=22&&y>=6&&y<=16;   // t148u: pushed further north of the gate so guards cannot snipe the tutorial fight
+  spawnSpots(4,meadow,5).forEach(([x,y])=>{addEnemy('slime',x,y);const e=enemies[enemies.length-1];e.tutSlime=true;});   // tutSlime: guards leave these alone until the slime quest is done
   const f=(x,y)=>regions.forest(x,y);
   spawnSpots(4,f,5).forEach(([x,y])=>addEnemy('knight',x,y));
   spawnSpots(2,f,5).forEach(([x,y])=>addEnemy('goblin',x,y));
@@ -3283,6 +3283,7 @@ const TUT_STEPS=[
 /* ---------- src/ui/dialog.js ---------- */
 let DLG=null;
 function openDlg(npc){
+  try{if(typeof releaseAllTouch==='function')releaseAllTouch();}catch(e){}
   sfx('talk');
   if(typeof rtShopClosed==='function'&&rtShopClosed(npc)){rtClosedDlg(npc);return;}
   if(npc.guide){openGuide();return;}
@@ -3594,8 +3595,8 @@ const LIGHT_BY={};LIGHTS.forEach(l=>{LIGHT_BY[l.id]=l;});
 /* =====================================================================
    FISHING DATA: fish, rods, levels. Catches sell for gold, can be cooked & eaten to heal, and drop Silver Scales for crafting.
    ===================================================================== */
-const FISH_MAX_LV=10;
-const fishNeed=l=>30+25*(l-1);                     // xp to go from level l to l+1
+const FISH_MAX_LV=70;   // t148u: fishing is its own skill, capped at 70
+const fishNeed=l=>Math.round(28+10*(l-1)+.12*(l-1)*(l-1));   // t148u: gentle early, steeper later toward 70
 const FISHES=[
   {id:'minnow',n:'Silverscale Minnow',tier:0,lv:1,w:10,price:6,  heal:.06,xp:6, dif:.8, rar:0,col:'#cfe3ff'},
   {id:'carp',  n:'Mudfin Carp',       tier:0,lv:1,w:8, price:11, heal:.10,xp:9, dif:1.0,rar:0,col:'#b08a5a'},
@@ -3606,6 +3607,12 @@ const FISHES=[
   {id:'gill',  n:'Glowgill',          tier:2,lv:6,w:4, price:105,heal:.36,xp:48,dif:1.75,rar:3,col:'#7dffd0'},
   {id:'perch', n:'Sunscale Perch',    tier:3,lv:7,w:8, price:130,heal:.42,xp:60,dif:1.9, rar:3,col:'#ffd23f'},
   {id:'koi',   n:'Mirage Koi',        tier:3,lv:8,w:3, price:210,heal:.55,xp:90,dif:2.1, rar:4,col:'#ff8a5a'},
+  {id:'salmon',n:'Dawn Salmon',       tier:3,lv:12,w:5,price:160,heal:.45,xp:70,dif:2.0, rar:3,col:'#ff9a7a'},
+  {id:'catfish',n:'Whisker Catfish',  tier:3,lv:18,w:6,price:190,heal:.48,xp:85,dif:2.15,rar:3,col:'#8a7a5a'},
+  {id:'sturgeon',n:'Ironjaw Sturgeon',tier:4,lv:28,w:3,price:320,heal:.6,xp:120,dif:2.3, rar:4,col:'#b0c0d0'},
+  {id:'goldfin',n:'Royal Goldfin',    tier:4,lv:40,w:2,price:480,heal:.7,xp:160,dif:2.5, rar:4,col:'#ffd23f'},
+  {id:'levi',  n:'Leviathan Fry',     tier:4,lv:55,w:1,price:900,heal:.85,xp:260,dif:2.8, rar:4,col:'#7df9ff'},
+  {id:'myth',  n:'Mythfin',           tier:4,lv:68,w:1,price:1400,heal:1,xp:400,dif:3.0, rar:4,col:'#ffe14d'},
 ];
 const FISH_RARITY=[{n:'Common',col:'#cfd6e6'},{n:'Uncommon',col:'#7dff8a'},{n:'Rare',col:'#6ab8ff'},{n:'Epic',col:'#c58aff'},{n:'Legendary',col:'#ffb43a'}];
 const FISH_JUNK=[
@@ -3695,7 +3702,12 @@ function fishXpInto(){let l=1,x=FSH.xp;while(l<FISH_MAX_LV&&x>=fishNeed(l)){x-=f
 const fishCount=()=>Object.values(FSH.fish).reduce((a,b)=>a+b,0);
 const rodPrice=r=>storyGold(r.price);
 function buyRod(i){const r=RODS[i];if(!r||i<=FSH.rod)return false;const p=rodPrice(r);if(P.gold<p)return false;P.gold-=p;FSH.rod=i;return true;}
-function addFishXp(n){const l0=fishLv();FSH.xp+=n;const l1=fishLv();if(l1>l0){toast('FISHING LEVEL '+l1+'!'+(FISH_SPOTS.some(s=>s.lv===l1)?'  New fishing spot unlocked':'')+(FISHES.some(f=>f.lv===l1)?'  New fish':''),3.4,'#7df9ff');sfx('level');}}
+function addFishXp(n){const l0=fishLv();FSH.xp+=n;const l1=fishLv();if(l1>l0){
+  // t148u: banner-style popup (same as area-enter), plus a short toast for unlocks
+  areaCur='FISHING  Lv '+l1;areaT=3.2;sfx('level');
+  const extra=[];if(FISH_SPOTS.some(s=>s.lv===l1))extra.push('new spot');if(FISHES.some(f=>f.lv===l1))extra.push('new fish');
+  if(extra.length)toast('Unlocked: '+extra.join(' + '),2.8,'#7dffb0');
+}}
 const spotCenter=s=>s.pond?{x:(s.pond.x+s.pond.w/2)*TS,y:(s.pond.y+s.pond.h/2)*TS}:{x:s.tx*TS+TS/2,y:s.ty*TS+TS/2};
 const FISH_REACH=66;
 const spotDist=s=>{const c=spotCenter(s);return Math.hypot(c.x-P.x,c.y-(P.y-10));};
@@ -6476,7 +6488,7 @@ function updateBattle(dt){
   switch(B.phase){
     case 'alert':
       B.dim=Math.min(1,B.t/.4);
-      if(B.t>.8){B.phase='fight';B.t=0;setBanner(B.ens.some(e=>e.def.boss)?'WARNING!':(B.ens.length>1?'GROUP BATTLE!':'BATTLE START!'),1.0,B.ens.some(e=>e.def.boss)?'#ff6b6b':'#ffe14d');dealHand();sfx('start');}
+      if(B.t>(B.ens.some(e=>e.def.boss)?.8:.35)){B.phase='fight';B.t=0;setBanner(B.ens.some(e=>e.def.boss)?'WARNING!':(B.ens.length>1?'GROUP BATTLE!':'BATTLE START!'),1.0,B.ens.some(e=>e.def.boss)?'#ff6b6b':'#ffe14d');dealHand();sfx('start');}   // t148u: shorter alert for normal fights so input unlocks faster
       break;
     case 'fight':
       B.dim=B.cleared?Math.max(0,B.dim-dt*1.6):1;
@@ -7280,14 +7292,14 @@ function drawUI(){
     if(r.draw){if(r.sel)UI.rects.push({x:x0,y,w:W,h,act:()=>{},clip:true,sel:si});   // tapping a row only highlights it; the right-hand button does the action
     r.draw(x0,y,W,h,isSel,si);continue;}
     if(r.t==='combo'){
-      ctx.fillStyle='#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=r.c.col;ctx.fillRect(x0,y,3,h);
+      ctx.fillStyle='#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=r.c.col;ctx.fillRect(x0,y,3,h);
       const A=CARD[r.c.a],B2=CARD[r.c.b];
       draw(SP.ic[A.id],x0+8,y+7,1.5);txt('+',x0+34,y+23,{size:12,col:'#fff'});draw(SP.ic[B2.id],x0+44,y+7,1.5);
       txt('= '+r.c.name,x0+74,y+15,{size:10,col:r.c.col,lw:2});txt(r.c.desc,x0+74,y+29,{size:8,col:'#b9b4d8',bold:false});
       continue;
     }
     const c=r.t==='shot'?null:CARD[r.id],rc=c?RAR[c.rar]:null;
-    ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);
+    ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
     ctx.fillStyle=rc?rc.col:'#ffd23f';ctx.fillRect(x0,y,3,h);
     if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
     UI.rects.push({x:x0,y,w:W,h,act:()=>{},clip:true,sel:si});
@@ -7338,7 +7350,7 @@ function slotRow(slot){
   const it=GEAR.eq[slot];
   return {sel:true,h:46,act(){if(!it){uiMsg('Nothing equipped');return;}if(unequipGear(slot)){sfx('select');saveGame('gear');}else uiMsg('Backpack is full');},
     draw(x0,y,W,h,isSel,si){
-      ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=it?GEAR_RAR[it.rar].col:'#4a4470';ctx.fillRect(x0,y,3,h);
+      ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=it?GEAR_RAR[it.rar].col:'#4a4470';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       gearIconBox(x0+7,y+7,it);
       txt(GEAR_SLOT_NAME[slot],x0+48,y+13,{size:8,col:'#9aa0ff',lw:2});
@@ -7359,7 +7371,7 @@ function itemRow(it){
   const doEq=()=>{if(equipGear(it)){sfx('select');uiMsg('Equipped '+it.name,false);saveGame('gear');}};
   return {sel:true,h:56,act:doEq,tap:doEq,
     draw(x0,y,W,h,isSel,si){
-      ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=col;ctx.fillRect(x0,y,3,h);
+      ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       gearIconBox(x0+7,y+12,it);
       txt(it.name,x0+48,y+14,{size:10,col,lw:2});
@@ -7435,50 +7447,85 @@ function drawGearOnPlayer(spr,px,py){
 }
 
 /* ---------- src/ui/quest-screen.js ---------- */
-/* QUEST LOG (pause menu -> QUESTS). Read-only list: ready / active / available / completed. */
-function openQuests(){openUIMode('quests');}
-function trackBtn(x0,y,W,id,si){
-  const on=TRK.id===id;
-  uiButton(x0+W-70,y+4,64,22,on?'TRACKING':'TRACK',!on,()=>{UI.sel=si;if(!on){trackQuest(id);uiMsg('Tracking on your HUD',false);}},{tag:'track:'+id,clip:true,size:8,sel:si});
+/* QUEST LOG (t148u): OSRS-style list with MAIN QUESTS and SIDE QUESTS sections.
+   Colours: not started = red, in progress = yellow, done = green. Tap a quest for a short
+   description + story blurb; TRACK pins it to the HUD. */
+function openQuests(){openUIMode('quests');QUESTR.sel=null;}
+const QUESTR={sel:null};
+function qStatusKind(id){
+  const s=questStatus(id);
+  if(s==='done')return 'done';
+  if(s==='active'||s==='ready')return 'prog';
+  return 'new';   // avail / locked
 }
-function questRow(q,kind){
-  const h=kind==='done'?30:kind==='avail'?44:62,id='q:'+q.id,trk=kind==='active'||kind==='ready';
-  const go=()=>{if(trk&&TRK.id!==id){trackQuest(id);uiMsg('Tracking '+q.name,false);}};
-  return {h,sel:trk,act:go,tap:go,draw(x0,y,W,hh,isSel,si){
-    const prog=questProgress(q),need=questNeed(q);
-    const col=kind==='ready'?'#7dffa0':kind==='active'?'#ffe14d':kind==='avail'?'#9ad0ff':'#6a6690';
-    ctx.fillStyle=kind==='done'?'#100e20':isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,3,hh);
-    if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,hh-2);}
-    txt(q.name,x0+10,y+15,{size:11,col:kind==='done'?'#8a86b8':'#fff',lw:2});
-    if(kind==='done'){txt('DONE',x0+W-8,y+15,{size:9,align:'right',col:'#6a6690',lw:2});return;}
-    if(trk)trackBtn(x0,y,W,id,si);
-    txt(kind==='avail'?'Talk to '+q.giver+' to begin':kind==='ready'?'READY - return to '+q.giver:questGoalText(q)+'  ('+q.giver+')',x0+10,y+29,{size:9,col:kind==='ready'?'#7dffa0':'#cfd0ff',bold:false});
-    if(kind==='avail'){txt('Reward: '+questRewardText(q.reward),x0+10,y+40,{size:8,col:'#ffd23f',bold:false});return;}
-    const bw=W-20;ctx.fillStyle='#0b0918';ctx.fillRect(x0+10,y+36,bw,8);ctx.fillStyle=col;ctx.fillRect(x0+10,y+36,Math.round(bw*prog/need),8);
-    txt(prog+'/'+need,x0+W-10,y+43,{size:8,align:'right',col:'#fff',lw:2});
-    txt('Reward: '+questRewardText(q.reward),x0+10,y+57,{size:8,col:'#ffd23f',bold:false});
+function qCol(kind){return kind==='done'?'#5dcf6a':kind==='prog'?'#ffe14d':'#e8504a';}
+function qLabel(kind,s){return kind==='done'?'Completed':s==='ready'?'Ready to hand in':kind==='prog'?'In progress':'Not started';}
+function questStory(q){
+  if(q.story)return q.story;
+  if(q.offer&&q.offer.length)return q.offer[0];
+  if(q.prog&&q.prog.length)return q.prog[0];
+  return 'Speak with '+q.giver+' to learn more.';
+}
+function questDetail(q){
+  const st=questStatus(q.id),kind=qStatusKind(q.id),col=qCol(kind);
+  return {h:170,sel:false,draw(x0,y,W,hh){
+    panel(x0,y,W,hh,{fill:'#1c120c'});
+    txt(q.name,x0+12,y+18,{size:13,col:'#fff3d0',lw:3,out:'#1c0e06'});
+    txt(qLabel(kind,st),x0+W-12,y+18,{size:10,align:'right',col,lw:2});
+    txt('Giver: '+q.giver,x0+12,y+34,{size:9,col:'#e8d4a8',lw:2});
+    const lines=wrapText(questStory(q),W-24,'bold '+scaleText(10)+'px "Courier New",monospace').slice(0,3);
+    lines.forEach((l,i)=>txt(l,x0+12,y+52+i*14,{size:10,col:'#cfd0ff',bold:false,out:false}));
+    const goal=typeof questGoalText==='function'?questGoalText(q):(q.obj&&q.obj.k)||'';
+    txt('Objective: '+goal,x0+12,y+100,{size:9,col:'#ffe9a0',lw:2});
+    if(st==='active'||st==='ready'){
+      const prog=questProgress(q),need=questNeed(q),bw=W-24;
+      ctx.fillStyle='#140c08';ctx.fillRect(x0+12,y+110,bw,8);ctx.fillStyle=col;ctx.fillRect(x0+12,y+110,Math.round(bw*prog/Math.max(1,need)),8);
+      txt(prog+'/'+need,x0+W-12,y+117,{size:8,align:'right',col:'#fff',lw:2});
+    }
+    txt('Reward: '+questRewardText(q.reward),x0+12,y+136,{size:9,col:'#ffd23f',lw:2});
+    const id='q:'+q.id,on=TRK.id===id;
+    uiButton(x0+W-150,y+hh-28,64,22,on?'TRACKING':'TRACK',!on,()=>{if(!on){trackQuest(id);uiMsg('Tracking on your HUD',false);}},{tag:'track:'+id,clip:true,size:8});
+    uiButton(x0+W-78,y+hh-28,66,22,'CLOSE',true,()=>{QUESTR.sel=null;},{tag:'qclose',clip:true,size:8});
   }};
 }
-/* the main story chapter and today's dailies can be tracked too */
-function trackRow(en){
-  const col=en.kind==='story'?'#c9a3ff':'#ffd23f',go=()=>{if(TRK.id!==en.id){trackQuest(en.id);uiMsg('Tracking '+en.name,false);}};
-  return {h:50,sel:true,act:go,tap:go,draw(x0,y,W,hh,isSel,si){
-    ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,3,hh);
-    if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,hh-2);}
-    txt(en.name,x0+10,y+15,{size:10,col:'#fff',lw:2});trackBtn(x0,y,W,en.id,si);
-    txt(en.obj.length>46?en.obj.slice(0,45)+'..':en.obj,x0+10,y+30,{size:8,col:'#cfd0ff',bold:false});
-    const bw=W-20;ctx.fillStyle='#0b0918';ctx.fillRect(x0+10,y+37,bw,7);ctx.fillStyle=en.ready?'#7dffa0':col;ctx.fillRect(x0+10,y+37,Math.round(bw*clamp(en.prog/en.need,0,1)),7);
-    txt(en.kind==='story'?`Step ${en.step}/${en.steps}`:en.prog+'/'+en.need,x0+W-10,y+46,{size:7,align:'right',col:'#fff',lw:2});
+function questListRow(q){
+  const st=questStatus(q.id),kind=qStatusKind(q.id),col=qCol(kind),main=typeof isMainQuest==='function'&&isMainQuest(q);
+  return {h:28,sel:true,act:()=>{QUESTR.sel=q.id;},tap:()=>{QUESTR.sel=q.id;},draw(x0,y,W,hh,isSel){
+    ctx.fillStyle=isSel||QUESTR.sel===q.id?'#2a1a10':'#171008';ctx.fillRect(x0,y,W,hh);
+    ctx.fillStyle=col;ctx.fillRect(x0,y,4,hh);
+    // OSRS-ish bullet
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x0+14,y+hh/2,4,0,6.283);ctx.fill();
+    txt(q.name,x0+24,y+18,{size:11,col:kind==='done'?'#8a9a7a':'#fff3d0',lw:2});
+    txt(qLabel(kind,st),x0+W-10,y+18,{size:9,align:'right',col,lw:2});
   }};
 }
-UI_MODES.quests={title:()=>'QUEST LOG',sub:()=>[`${QUESTS.filter(q=>questStatus(q.id)==='done').length}/${QUESTS.length} completed`,'#9ad0ff'],rows(){
-  const r=[],by=k=>QUESTS.filter(q=>questStatus(q.id)===k);
-  const sec=(t,k,list)=>{if(!list.length)return;r.push({t:'head',s:t});list.forEach(q=>r.push(questRow(q,k)));};
-  sec('READY TO HAND IN','ready',by('ready'));sec('ACTIVE','active',by('active'));
-  const ex=trkEntries().filter(e=>e.kind!=='quest');if(ex.length){r.push({t:'head',s:'STORY & DAILY  (tap TRACK to follow)'});ex.forEach(e=>r.push(trackRow(e)));}
-  sec('AVAILABLE','avail',by('avail'));sec('COMPLETED','done',by('done'));
-  if(!r.length)r.push({t:'head',s:'  No quests yet - talk to the villagers!'});
-  return r;}};
+UI_MODES.quests={title:()=>'QUEST LIST',sub:()=>{
+  const done=QUESTS.filter(q=>questStatus(q.id)==='done').length;
+  return [done+' / '+QUESTS.length+' completed   (tap a quest for its story)','#e8d4a8'];
+},rows(){
+  const r=[];
+  if(QUESTR.sel){const q=QUESTS.find(q=>q.id===QUESTR.sel);if(q){r.push(questDetail(q));return r;}}
+  const main=QUESTS.filter(q=>typeof isMainQuest==='function'&&isMainQuest(q));
+  const side=QUESTS.filter(q=>!(typeof isMainQuest==='function'&&isMainQuest(q)));
+  const order=arr=>{const a=arr.slice();a.sort((x,y)=>{const kx=qStatusKind(x.id),ky=qStatusKind(y.id),o={prog:0,new:1,done:2};return (o[kx]-o[ky])||x.name.localeCompare(y.name);});return a;};
+  r.push({t:'head',s:'MAIN QUESTS'});
+  order(main).forEach(q=>r.push(questListRow(q)));
+  if(!main.length)r.push({t:'head',s:'  (none yet)'});
+  r.push({t:'head',s:'SIDE QUESTS'});
+  order(side).forEach(q=>r.push(questListRow(q)));
+  // story chapter + dailies as trackable extras under side
+  const ex=typeof trkEntries==='function'?trkEntries().filter(e=>e.kind==='story'||e.kind==='daily'):[];
+  if(ex.length){r.push({t:'head',s:'STORY & DAILY'});ex.forEach(e=>{
+    const col=e.kind==='story'?'#c9a3ff':'#ffd23f';
+    r.push({h:28,sel:true,act:()=>{trackQuest(e.id);uiMsg('Tracking '+e.name,false);},tap:()=>{trackQuest(e.id);uiMsg('Tracking '+e.name,false);},draw(x0,y,W,hh,isSel){
+      ctx.fillStyle=isSel?'#2a1a10':'#171008';ctx.fillRect(x0,y,W,hh);ctx.fillStyle=col;ctx.fillRect(x0,y,4,hh);
+      ctx.beginPath();ctx.arc(x0+14,y+hh/2,4,0,6.283);ctx.fillStyle=col;ctx.fill();
+      txt(e.name,x0+24,y+18,{size:11,col:'#fff3d0',lw:2});
+      txt(e.ready?'Ready':'In progress',x0+W-10,y+18,{size:9,align:'right',col:e.ready?'#5dcf6a':'#ffe14d',lw:2});
+    }});
+  });}
+  return r;
+}};
 
 /* ---------- src/ui/skill-screen.js ---------- */
 /* =====================================================================
@@ -7490,7 +7537,7 @@ function skillRow(n){
   const buy=()=>{UI.sel=0;if(buySkill(n.id)){uiMsg(n.name+' rank '+skillRank(n.id),false);saveGame('skill');}else{uiMsg(why||'Cannot learn',true);sfx('clang');}};
   return {sel:true,h:52,act:buy,tap:buy,
     draw(x0,y,W,h,isSel,si){
-      ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=n.col;ctx.fillRect(x0,y,3,h);
+      ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=n.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       txt(n.name,x0+10,y+14,{size:11,col:n.col,lw:2});
       for(let i=0;i<n.max;i++){ctx.fillStyle=i<r?n.col:'#2c2850';ctx.fillRect(x0+10+i*14,y+20,11,8);ctx.strokeStyle='#6a66a0';ctx.lineWidth=1;ctx.strokeRect(x0+10.5+i*14,y+20.5,10,7);}
@@ -7506,7 +7553,7 @@ UI_MODES.skills={title:()=>'SKILLS',sub:()=>[`Points: ${skillPoints()}    Lv ${P
   const rc=respecCost();
   r.push({sel:true,h:40,act(){if(!rc)uiMsg('Nothing to reset');else if(!respecSkills())uiMsg('Need '+rc+' G');else{uiMsg('Skills reset',false);saveGame('skill');}},
     tap(){this.act();},
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#120f26';ctx.fillRect(x0,y,W,h);txt('RESET ALL SKILLS',x0+10,y+17,{size:10,col:'#ffb0a0',lw:2});txt(rc?'Refund every point for '+rc+' G':'Nothing to reset',x0+10,y+32,{size:8,col:'#9aa0ff',bold:false});
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#120f26';ctx.fillRect(x0,y,W,h);txt('RESET ALL SKILLS',x0+10,y+17,{size:10,col:'#ffb0a0',lw:2});txt(rc?'Refund every point for '+rc+' G':'Nothing to reset',x0+10,y+32,{size:8,col:'#9aa0ff',bold:false});
       uiButton(x0+W-78,y+5,70,30,rc?rc+' G':'--',!!rc&&P.gold>=rc,()=>{UI.sel=si;if(respecSkills()){uiMsg('Skills reset',false);saveGame('skill');}else uiMsg(rc?'Need '+rc+' G':'Nothing to reset');},{tag:'respec',clip:true,size:10,bg:'#7a2e3a',bd:'#ff9aa8',sel:si});}});
   return r;}};
 
@@ -7525,7 +7572,7 @@ function recipeRow(r){
   const can=canPay(r.mats,r.gold),col=GEAR_RAR[r.rar].col;
   const go=()=>{const it=craftGear(r);if(it){sfx('level');uiMsg('Crafted '+it.name,false);saveGame('craft');}else{uiMsg('Missing parts or gold');sfx('clang');}};
   return {sel:true,h:58,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       gearIconBox(x0+7,y+13,{slot:r.slot,rar:r.rar},32);
       txt(r.name,x0+46,y+14,{size:10,col,lw:2});txt(`${GEAR_RAR[r.rar].n} ${GEAR_SLOT_NAME[r.slot]}`,x0+46,y+26,{size:8,col:'#b9b4d8',lw:2});
@@ -7538,7 +7585,7 @@ function upgradeRow(c){
   const l=upgLvl(c.id),max=l>=UPG_MAX,cs=max?null:upgCost(c.id,l),can=!max&&canPay(cs.mats,cs.gold);
   const go=()=>{if(upgradeCard(c.id)){sfx('level');uiMsg(cardFullName(c)+' upgraded',false);saveGame('craft');}else{uiMsg(max?'Already max':'Missing parts or gold');sfx('clang');}};
   return {sel:true,h:50,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=c.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=c.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       ctx.fillStyle=c.col;ctx.fillRect(x0+8,y+9,28,28);draw(SP.ic[c.id],x0+9,y+10,1.5);
       txt(cardFullName(c),x0+44,y+15,{size:10,col:RAR[c.rar].col,lw:2});
@@ -7553,7 +7600,7 @@ function lightRow(l){
     else if(eq){equipLight(null);sfx('select');uiMsg(l.name+' put away',false);saveGame('light');}
     else{equipLight(l.id);sfx('select');uiMsg(l.name+' equipped',false);saveGame('light');}};
   return {sel:true,h:50,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=l.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=l.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       const cx=x0+22,cy=y+25;ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+9,32,32);
       const gr=ctx.createRadialGradient(cx,cy,2,cx,cy,16);gr.addColorStop(0,l.col);gr.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gr;ctx.fillRect(x0+6,y+9,32,32);
@@ -7593,7 +7640,7 @@ function fishRow(f){
   const sell=()=>{const g=sellFish(f.id,false);if(g)uiMsg('Sold '+f.n+' for '+g+' G',false);};
   const eat=()=>{const h=eatFish(f.id);if(h===-2){uiMsg('You are already at full health');sfx('clang');}else if(h>0)uiMsg('Cooked & ate '+f.n+'  +'+h+' HP',false);};
   return {sel:true,h:52,act:which=>{if(which==='minus')eat();else sell();},tap:sell,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=f.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=f.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+10,32,32);draw(SP.fishIcon,x0+6,y+10,2);ctx.globalAlpha=.55;ctx.fillStyle=f.col;ctx.fillRect(x0+6,y+10,32,32);ctx.globalAlpha=1;draw(SP.fishIcon,x0+6,y+10,2);
       txt(f.n+'  x'+n,x0+46,y+17,{size:10,col:f.col,lw:2});
@@ -7611,7 +7658,7 @@ UI_MODES.fish={title:()=>'FISHING',sub:()=>{const [a,b]=fishXpInto();return [`Lv
   if(!have.length)r.push({t:'head',s:'  Nothing yet - cast a line at a rippling spot and relax!'});
   else{have.forEach(f=>r.push(fishRow(f)));if(!FSH_SHOP.on)return r;
     const all=()=>{const v=sellAllValue();if(!v){return;}Object.keys(FSH.fish).forEach(k=>sellFish(k,true));uiMsg('Sold everything for '+v+' G',false);};
-    r.push({sel:true,h:44,act:all,tap:all,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
+    r.push({sel:true,h:44,act:all,tap:all,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       txt('SELL EVERYTHING',x0+14,y+19,{size:10,col:'#fff',lw:2});txt('Keep a few to cook!  (Silver Scales are for crafting)',x0+14,y+33,{size:7,col:'#b9b4d8',bold:false,lw:2});
       uiButton(x0+W-110,y+7,102,30,'SELL ALL '+sellAllValue(),sellAllValue()>0,()=>{UI.sel=si;all();},{tag:'sellall',clip:true,size:9,sel:si});}});}
@@ -7622,7 +7669,7 @@ function rodRow(i){
   const go=()=>{if(own){uiMsg(eq?'Already your rod':'You have a better rod',false);return;}
     if(buyRod(i)){sfx('level');uiMsg('Bought '+r.n+'!',false);saveGame('rod');}else{uiMsg('Not enough gold');sfx('clang');}};
   return {sel:true,h:50,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=r.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=r.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       ctx.fillStyle='#0c0a1c';ctx.fillRect(x0+6,y+9,32,32);draw(SP.rodIcon,x0+6,y+9,2);
       txt(r.n,x0+46,y+15,{size:10,col:r.col,lw:2});txt(r.desc,x0+46,y+28,{size:7,col:'#b9b4d8',bold:false,lw:2});
@@ -7638,7 +7685,7 @@ function openTravel(){if(state==='title'||WARP)return;openUIMode('travel',state=
 function travelRow(w){
   const on=!!SEC.ways[w.id],go=()=>{if(!on){uiMsg('Not discovered yet');sfx('clang');return;}if(!fastTravel(w.id))uiMsg('Cannot travel now');};
   return {sel:true,h:44,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=on?'#7df9ff':'#4a4470';ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=on?'#7df9ff':'#4a4470';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       draw(on?SP.waystone:SP.waystoneOff,x0+8,y+8,1.75);
       txt(on?w.name:'???  (undiscovered)',x0+44,y+19,{size:10,col:on?'#fff':'#6a6690',lw:2});
@@ -7694,7 +7741,7 @@ function petRow(d){
   const own=!!PET.owned[d.id],act=PET.active===d.id,can=own||P.gold>=d.price;
   const go=()=>{if(!own){if(!adoptPet(d.id)){uiMsg('Need '+d.price+' G');sfx('clang');}else uiMsg('Adopted '+d.name,false);}else{summonPet(act?null:d.id);uiMsg(act?d.name+' rests':d.name+' joins you',false);}};
   return {sel:true,h:56,act:go,tap:go,
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=d.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=d.col;ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x0+8,y+8,40,40);draw(SP.pets[d.id],x0+10,y+10,2.25);
       txt(d.name+(own?'   bond Lv '+petLevel(d.id)+(act?'   (with you)':''):''),x0+56,y+17,{size:10,col:d.col,lw:2});
@@ -7707,7 +7754,7 @@ UI_MODES.pets={title:()=>'PETS',sub:()=>['Marlo the Keeper  -  one pet follows y
 function shelfRow(i){
   const cyc=()=>{UI.sel=i;const v=cycleSlot(i);uiMsg(v?TROPHIES[v].name+' on shelf '+(i+1):'Shelf '+(i+1)+' cleared',false);saveGame('house');};
   return {sel:true,h:44,act:cyc,tap:cyc,
-    draw(x0,y,W,h,isSel,si){const v=HOUSE.slots[i];ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=v?TROPHIES[v].col:'#4a4470';ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){const v=HOUSE.slots[i];ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=v?TROPHIES[v].col:'#4a4470';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       if(v)draw(SP.trophy[v],x0+8,y+6,2);
       txt('Shelf '+(i+1)+':  '+(v?TROPHIES[v].name:'(empty)'),x0+48,y+19,{size:10,col:v?TROPHIES[v].col:'#8a86b0',lw:2});
@@ -7773,7 +7820,7 @@ function openAch(){achTick();openUIMode('ach');}
 function weeklyRow(){
   const go=()=>{if(!rushStart('weekly'))uiMsg('Cannot enter right now');};
   return {sel:true,h:58,act:go,tap:go,draw(x0,y,W,h,isSel,si){
-    ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#b070ff';ctx.fillRect(x0,y,3,h);
+    ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#b070ff';ctx.fillRect(x0,y,3,h);
     if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
     txt('CRYPT OF THE WEEK: '+weeklyName().toUpperCase(),x0+10,y+17,{size:10,col:'#d8b0ff',lw:2});
     txt(`${WEEKLY_CFG.floors} floors  -  pick a boon after each  -  best floor ${WK.best}`,x0+10,y+31,{size:8,col:'#9aa0ff',bold:false});
@@ -7783,7 +7830,7 @@ function weeklyRow(){
 function chestRow(){
   const ready=chestReady(),sv=chestPreview(),go=()=>{const r=claimChest();uiMsg(r?'Chest opened: '+r.got.join(', '):'Already opened today',false);};
   return {sel:true,h:64,act:go,tap:go,draw(x0,y,W,h,isSel,si){
-    ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
+    ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ffd23f';ctx.fillRect(x0,y,3,h);
     if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
     txt('DAILY CHEST',x0+10,y+16,{size:11,col:'#ffe14d',lw:2});
     txt(ready?'Streak '+DAILY.streak+' -> '+sv+' day'+(sv>1?'s':''):'Opened  -  streak '+DAILY.streak+' day'+(DAILY.streak===1?'':'s'),x0+10,y+30,{size:8,col:ready?'#7dffa0':'#9aa0ff',bold:false});
@@ -7825,7 +7872,7 @@ SP.board=autoOutline(makeSprite(16,16,g=>{rect(g,2,13,2,3,'#5a3a1a');rect(g,12,1
    ===================================================================== */
 UI_STATES.push('settings');
 function openSettings(from){openUIMode('settings',from);}
-function setRowBox(x0,y,W,h,isSel){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#7dd3ff';ctx.fillRect(x0,y,3,h);if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}}
+function setRowBox(x0,y,W,h,isSel){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#7dd3ff';ctx.fillRect(x0,y,3,h);if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}}
 function volRow(key,label){
   return {sel:true,h:44,act(which){setVol(key,which==='minus'?-.1:.1);},draw(x0,y,W,h,isSel,si){
     setRowBox(x0,y,W,h,isSel);txt(label,x0+10,y+18,{size:10,col:'#e8e0c8',lw:2});
@@ -8728,7 +8775,7 @@ function ffBegin(){
   if(!B||!ffEligible()||!B.ens.length||!B.ens.every(e=>e.type==='slime'))return;
   // a beginner's fight: at most 2 slimes, the rest go back to their meadow
   for(const e of B.ens.slice(2)){e.engaged=false;e.st='idle';e.cur=null;}B.ens=B.ens.slice(0,2);B.total=B.ens.length;
-  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';TEV0=Object.assign({},TEV);ffFillHand();
+  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';TEV0=Object.assign({},TEV);ffFillHand();for(const e of B.ens){e.tut=true;e.tutSlime=true;}
 }
 let TEV0=null;
 function ffDoneStep(){const s=FF_STEPS[FF.step];return s&&TEV[s.ev]>TEV0[s.ev];}
@@ -8793,6 +8840,21 @@ function guideLines(){
     'Shops hang small signs with an icon (anvil, mug, paw, bread, cross). Everything else is in the menu: HELP, and the BESTIARY for every monster you meet.'];
 }
 function openGuide(){DLG={name:'CONTROLS GUIDE',lines:guideLines().slice(1),i:0,c:0};sfx('talk');}
+
+/* t148u: keep at least 3 tutorial meadow slimes alive until the slime quest is done (guards / wanderers cannot wipe them) */
+function ensureTutSlimes(){
+  if(typeof QS==='undefined'||!QS.st||QS.st.slimes==='done')return;
+  const alive=enemies.filter(e=>e.alive&&e.type==='slime'&&e.tutSlime&&!e.dying);
+  if(alive.length>=3)return;
+  const meadow=(x,y)=>x>=3&&x<=22&&y>=6&&y<=16;
+  let need=3-alive.length;
+  for(let n=0;n<40&&need>0;n++){
+    const x=3+Math.floor(Math.random()*20),y=6+Math.floor(Math.random()*11);
+    if(!meadow(x,y)||!open(x,y))continue;
+    addEnemy('slime',x,y);const e=enemies[enemies.length-1];e.tutSlime=true;need--;
+  }
+}
+{const _uff=updateFF;updateFF=function(dt){try{ensureTutSlimes();}catch(e){}return _uff.apply(this,arguments);};}
 
 /* ---------- src/save/save.js ---------- */
 
@@ -9330,7 +9392,7 @@ function spwTargets(maxD){const pc=pcen(),o=[];for(const s of SPW){if(!spwLive(s
 UI_MODES.rush={title:()=>'EMBER ARENA',sub:()=>['Boss rush  -  best scores on this device','#ff9a6a'],rows(){
   const r=[{t:'head',s:'FIVE CHAMPIONS, ENDLESS LAPS   (+3 levels and affixes each lap)'}];
   r.push({sel:true,h:44,act(){if(!rushStart())uiMsg('Cannot enter right now');},tap(){this.act();},
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#26224a':'#17142b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ff6b3a';ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#ff6b3a';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
       txt('ENTER THE ARENA',x0+10,y+19,{size:11,col:'#ffcf9a',lw:2});txt('Full heal on entry, +35% between rounds',x0+10,y+34,{size:8,col:'#9aa0ff',bold:false});
       uiButton(x0+W-92,y+7,84,30,'START',true,()=>{UI.sel=si;if(!rushStart())uiMsg('Cannot enter right now');},{tag:'rush:start',clip:true,size:12,bg:'#8a3a1a',bd:'#ffb070',sel:si});}});
@@ -9396,7 +9458,7 @@ const GUARD_R=5*TS,GUARD_LEASH=1.6*TS,GUARD_CD=.85;
 function guardTarget(g){   // only real threats: a foe fighting the hero near the gate, or any monster inside the walls. Idle / wandering monsters are left alone.
   let t=null,bd=1e9;const heroNear=playerInTown()||Math.hypot(P.x-g.x,P.y-g.y)<=GUARD_R+2*TS;
   for(const e of enemies){
-    if(!e.alive||e.dying||e.tut||e.rush)continue;
+    if(!e.alive||e.dying||e.tut||e.rush||(e.tutSlime&&!(typeof QS!=='undefined'&&QS.st&&QS.st.slimes==='done')))continue;   // t148u: leave tutorial meadow slimes alone until the quest is finished
     const inWalls=inTownPx(e.x,e.y-8),fightsHero=!!B&&B.phase==='fight'&&B.ens.includes(e)&&!e.lab;
     if(!inWalls&&!(fightsHero&&heroNear))continue;
     const d=Math.min(Math.hypot(e.x-g.hx,e.y-g.hy),Math.hypot(e.x-g.x,e.y-g.y));
@@ -11288,9 +11350,11 @@ const SMITHY=(()=>{
   const O='#1a1214',r=(g,x,y,w,h,c)=>rect(g,x,y,w,h,c);
   let box=null,boxT=-9;const C=new Map(),mk=(k,f)=>{let s=C.get(k);if(!s){s=makeSprite(16,16,f);C.set(k,s);}return s;};
   function find(){if(box&&gtime-boxT<3)return box;boxT=gtime;box=null;
-    const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return null;const tx=Math.floor(n.x/TS),ty=Math.floor(n.y/TS);
-    let dy=-1;for(let k=1;k<=4;k++){const t=map[ty-k]&&map[ty-k][tx];if(t===T.D||t===T.H){dy=-k;break;}}if(dy===-1&&!(map[ty-1]&&(map[ty-1][tx]===T.D)))return null;
-    const wy=ty+dy;let x0=tx,x1=tx;while(x0>0&&(map[wy][x0-1]===T.H||map[wy][x0-1]===T.D))x0--;while(x1<MW-1&&(map[wy][x1+1]===T.H||map[wy][x1+1]===T.D))x1++;
+    const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return null;let tx=Math.floor(n.x/TS),ty=Math.floor(n.y/TS);
+    // t148u: Brum may stand inside; locate the nearest door on his column / neighbours
+    let wy=null;for(let k=0;k<=5&&wy==null;k++)for(const dy of (k?[-k,k]:[0])){const y=ty+dy;if(y<0||y>=MH)continue;for(let x=Math.max(0,tx-3);x<=Math.min(MW-1,tx+3);x++)if(map[y][x]===T.D){wy=y;tx=x;break;}}
+    if(wy==null){let dy=-1;for(let k=1;k<=4;k++){const t=map[ty-k]&&map[ty-k][tx];if(t===T.D||t===T.H){dy=-k;break;}}if(dy===-1)return null;wy=ty+dy;}
+    let x0=tx,x1=tx;while(x0>0&&(map[wy][x0-1]===T.H||map[wy][x0-1]===T.D))x0--;while(x1<MW-1&&(map[wy][x1+1]===T.H||map[wy][x1+1]===T.D))x1++;
     let y0=wy;while(y0>0&&(map[y0-1][x0]===T.R||map[y0-1][x0]===T.RL||map[y0-1][x0+1]===T.R))y0--;
     box={x0,x1,y0,wy,door:tx,tx,ty};
     // yard props (only on open ground, never on the road)
@@ -12102,7 +12166,7 @@ function update(dt){
   if(hit('KeyM')){muted=!muted;toast(muted?'Sound off':'Sound on',1);}
   if(hit('KeyP')||(hit('Escape')&&!DLG&&!FISH.on)){state=state==='paused'?'play':'paused';pauseReset();if(state==='paused')releaseAllTouch();}
   if(state==='paused'){updateTut(dt);return;}
-  if(B&&B.hitstop>0){B.hitstop-=dt;dt=0;}
+  if(B&&B.hitstop>0){B.hitstop=Math.min(B.hitstop,.12);B.hitstop-=dt;if(B.phase==='alert'){B.t+=dt;}dt=0;}   // t148u: cap hitstop; alert phase still advances so the fight cannot freeze at the start
   updateDayNight(dt);updateTown(dt);updateHome(dt);updateWaystones();updateHouseDoor();
   updateExplore(dt);
   if(B)updateBattle(dt);
@@ -12135,14 +12199,14 @@ let HZ=false;   // inside the house with a ?housevoid zoom option
 function viewSize(){const de=document.documentElement,vv=window.visualViewport;
   const w=Math.max(window.innerWidth||0,de.clientWidth||0)||640,h=Math.max(window.innerHeight||0,de.clientHeight||0,vv?Math.round(vv.height*(vv.scale||1)):0)||448;return {cw:w,ch:h};}
 let VIEW_LAST='',VIEW_T=0;
-function viewPoll(dt){VIEW_T+=dt;if(VIEW_T<.5)return;VIEW_T=0;const v=viewSize(),k=v.cw+'x'+v.ch+'@'+(window.devicePixelRatio||1);if(k!==VIEW_LAST)resize();}
+function viewPoll(dt){VIEW_T+=dt;if(VIEW_T<(B?1.2:.5))return;VIEW_T=0;if(B)return;const v=viewSize(),k=v.cw+'x'+v.ch+'@'+(window.devicePixelRatio||1);if(k!==VIEW_LAST)resize();}
 function resize(){rotateCheck();
   DPR=Math.min(window.devicePixelRatio||1,3);
   const {cw,ch}=viewSize();VIEW_LAST=cw+'x'+ch+'@'+(window.devicePixelRatio||1);
   const dw=Math.max(1,Math.floor(cw*DPR)),dh=Math.max(1,Math.floor(ch*DPR));
   S=Math.max(1,Math.round(Math.min(dw,dh)/400));
   if(EDS)S=EDS;
-  else if(HZ&&Math.floor(dw/(S+1))>=18*TS)S++;   // ?housevoid zoom: one pixel-scale step closer inside the house so the room fills the screen
+  // t148u: was S++ inside the house; that shrank VW/VH so fixed-size HUD panels looked enlarged. Room fill is handled by camera alone.
   VW=Math.max(240,Math.floor(dw/S));VH=Math.max(240,Math.floor(dh/S));
   cv.width=VW*S;cv.height=VH*S;
   cv.style.width=(VW*S/DPR)+'px';cv.style.height=(VH*S/DPR)+'px';
@@ -12157,7 +12221,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){resize();
 setApply();resize();
 let last=performance.now();
 function frame(ts){
-  {const hw=houseZoomWant();if(hw!==HZ){HZ=hw;resize();}}
+  {const hw=houseZoomWant();if(hw!==HZ){HZ=hw;if(!B)resize();}}
   let dt=Math.min(1/30,(ts-last)/1000);last=ts;if(!(dt>0))dt=0;
   try{viewPoll(dt);}catch(e){}
   try{if(!ROTATE_BLOCK)update(dt);}catch(err){watchdog('update',err);}
@@ -12312,6 +12376,12 @@ function hdButton(x,y,r,down,o={}){
 }
 drawTouch=function(){
   layoutTouch();
+  // t148u: hide the left stick while an NPC is talking so it does not cover the dialog text
+  if(DLG){const bs=[...activeButtons()];if(state==='play')bs.push(btn.pause);
+    for(const b of bs){const down=keys[b.code];hdButton(b.x,b.y,b.r,down,{alpha:.88});
+      if(b===btn.pause){satBrass(b.x-7,b.y-8,5,16);satBrass(b.x+2,b.y-8,5,16);}
+      else txt(b.label,b.x,b.y+5,{size:b.r>=30?13:10,align:'center',col:'#fff3d0',lw:3,out:'#1c0e06'});}
+    return;}
   const jx=joy.on?joy.bx:joy.dx,jy=joy.on?joy.by:joy.dy;
   // joystick: leather well with a brass ring and a brass knob
   ctx.globalAlpha=joy.on?.75:.5;ctx.fillStyle='rgba(28,14,6,.55)';ctx.beginPath();ctx.arc(jx,jy,52,0,6.283);ctx.fill();
@@ -12424,120 +12494,54 @@ if(typeof treeLayers==='function'){const _tl=treeLayers;treeLayers=function(){co
 
 /* ---------- src/render/perf.js ---------- */
 /* =====================================================================
-   t147u PERFORMANCE. The t145 HD pass itself is cheap after warmup; the lag on iPhone landscape
-   PWA came from (1) DPR=3 canvases (~2.2M px), (2) drifting fog blitting ~60 large translucent
-   sprites every frame at that resolution, (3) ornate HUD rebuilding leather+gradients every frame,
-   (4) the HD drawImage wrap calling getContext on every blit. Fixes keep the same look:
-   - Cap devicePixelRatio at 2 (auto-drops to 1.5 / 1 if fps dips)
-   - Fog draws into a half-res offscreen buffer and is stretched; layers refresh every other frame
-   - Static ground tiles are cached in 8x8 chunk canvases (animated water/fire still per-tile)
-   - HUD panel skins + touch-button discs are cached by size
-   - HD wrap uses a stamped id instead of getContext; common tiles are prewarmed once
-   - QUAL auto: rolling fps → LQ steps that thin fog / drop DPR / skip HD sprites if needed
+   t147u / t148u PERFORMANCE (t148u: chunk cache REMOVED — it left black holes when
+   tileSprite returned null during bake, and auto-quality + resize thrashing made lag
+   constant). Kept: DPR cap at 2 (no auto oscillation), fog half-res buffer, cached HUD
+   panel/button skins, cheaper HD wrap + prewarm, throttled night/crypt light mask.
    ===================================================================== */
-const QUAL={mode:'hi',fps:60,acc:0,n:0,t:0,cool:0,wantDpr:2};
+const QUAL={mode:'hi',fps:60,acc:0,n:0,t:0,wantDpr:2,locked:true};   // t148u: locked — no auto DPR/mode flips
 function qualTick(dt){
   QUAL.acc+=dt;QUAL.n++;QUAL.t+=dt;
-  if(QUAL.t<.5)return;const fps=QUAL.n/QUAL.t;QUAL.fps=fps;QUAL.n=0;QUAL.t=0;QUAL.cool=Math.max(0,QUAL.cool-.5);
-  let next=QUAL.mode;
-  if(fps<38&&QUAL.cool<=0)next=QUAL.mode==='hi'?'mid':QUAL.mode==='mid'?'lo':'lo';
-  else if(fps>56&&QUAL.cool<=0&&QUAL.mode!=='hi')next=QUAL.mode==='lo'?'mid':'hi';
-  if(next!==QUAL.mode){QUAL.mode=next;QUAL.cool=3.5;qualApply();}}
-function qualApply(){
-  QUAL.wantDpr=QUAL.mode==='hi'?2:QUAL.mode==='mid'?1.5:1;
-  FOG_LQ=QUAL.mode!=='hi';HDX.on=QUAL.mode!=='lo';HDX.spr=QUAL.mode==='hi';
-  try{CH.map.clear();}catch(e){}
-  if(Math.abs((DPR||0)-QUAL.wantDpr)>.05)try{resize();}catch(e){}
+  if(QUAL.t<.75)return;QUAL.fps=QUAL.n/QUAL.t;QUAL.n=0;QUAL.t=0;
+  // locked: never call resize from quality (that was the constant-lag spiral)
 }
-/* ---- DPR cap (was Math.min(dpr,3); iPhone Pro = 3 → 2.2M px canvas) ---- */
+function qualApply(){QUAL.wantDpr=2;FOG_LQ=false;HDX.on=true;HDX.spr=true;}
+/* ---- DPR cap at 2 (iPhone Pro = 3 was ~2.2M px) ---- */
 {const _rs=resize;resize=function(){
-  const raw=window.devicePixelRatio||1,cap=QUAL.wantDpr||2;
-  const _min=Math.min;const fake={value:Math.min(raw,cap)};
-  // temporarily report a capped DPR to the original resize
+  const raw=window.devicePixelRatio||1,cap=2;
   const desc=Object.getOwnPropertyDescriptor(window,'devicePixelRatio');
-  try{
-    Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>Math.min(raw,cap)});
-    _rs();
-  }finally{
-    if(desc)Object.defineProperty(window,'devicePixelRatio',desc);
-    else delete window.devicePixelRatio;
-  }
-  DPR=Math.min(raw,cap);
+  try{Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>Math.min(raw,cap)});_rs();}
+  finally{if(desc)Object.defineProperty(window,'devicePixelRatio',desc);else delete window.devicePixelRatio;}
+  DPR=Math.min(raw,cap);QUAL.wantDpr=2;
 };}
-/* ---- Fog: half-res offscreen, refresh every other frame ---- */
-let FOG_LQ=false,FOG_BUF=null,FOG_BG=null,FOG_FR=-1,FOG_KEY='';
+/* ---- Fog: half-res offscreen ---- */
+let FOG_LQ=false,FOG_BUF=null,FOG_BG=null,FOG_KEY='';
 function fogDrawFast(){
   if(FOG.a<.02)return;const a=FOG.a,S=fogSprites();
-  const sc=FOG_LQ?.55:.7,W=Math.max(1,Math.ceil(VW*sc)),H=Math.max(1,Math.ceil(VH*sc));
+  const sc=.7,W=Math.max(1,Math.ceil(VW*sc)),H=Math.max(1,Math.ceil(VH*sc));
   if(!FOG_BUF||FOG_BUF.width!==W||FOG_BUF.height!==H){FOG_BUF=document.createElement('canvas');FOG_BUF.width=W;FOG_BUF.height=H;FOG_BG=FOG_BUF.getContext('2d');}
-  const fr=Math.floor(gtime*(FOG_LQ?8:14));
-  const key=W+'x'+H+'|'+Math.round(cam.x/4)+'|'+Math.round(cam.y/4)+'|'+fr+'|'+Math.round(a*20);
+  const fr=Math.floor(gtime*12);
+  const key=W+'x'+H+'|'+Math.round(cam.x/6)+'|'+Math.round(cam.y/6)+'|'+fr+'|'+Math.round(a*16);
   if(key!==FOG_KEY){FOG_KEY=key;const g=FOG_BG;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,H);
     g.fillStyle=`rgba(226,232,238,${a*.08})`;g.fillRect(0,0,W,H);
-    const layers=FOG_LQ?[[.7,1.1,.8,14],[1.0,1.55,.85,22]]:[[.55,.9,.55,9],[.8,1.25,.75,16],[1.1,1.7,.9,26]];
-    const sx0=sc,sy0=sc;
-    layers.forEach(([par,ss,al,spd],li)=>{const w=320*ss*sx0,h=110*ss*sy0,ox=(-(cam.x*par)+gtime*spd)*sx0,oy=(-(cam.y*par))*sy0;
+    const layers=[[.55,.9,.55,9],[.8,1.25,.75,16],[1.1,1.7,.9,26]];
+    layers.forEach(([par,ss,al,spd],li)=>{const w=320*ss*sc,h=110*ss*sc,ox=(-(cam.x*par)+gtime*spd)*sc,oy=(-(cam.y*par))*sc;
       g.globalAlpha=Math.min(1,a*al*.75);
       const WW=w*.8,HH=h*.7,bx=((ox%WW)+WW)%WW-WW,by=((oy%HH)+HH)%HH-HH;
-      const step=FOG_LQ?1.15:1;
-      for(let gy=0;gy<=Math.ceil(H/HH)+1;gy+=step)for(let gx=0;gx<=Math.ceil(W/WW)+1;gx+=step){
-        const sx=bx+gx*WW+(gy%2)*WW*.4,sy=by+gy*HH+Math.sin(gtime*.3+gx+li)*6*sy0;
+      for(let gy=0;gy<=Math.ceil(H/HH)+1;gy++)for(let gx=0;gx<=Math.ceil(W/WW)+1;gx++){
+        const sx=bx+gx*WW+(gy%2)*WW*.4,sy=by+gy*HH+Math.sin(gtime*.3+gx+li)*6*sc;
         g.drawImage(S[(gx*7+gy*3+li)%4],Math.round(sx-w*.1),Math.round(sy),Math.round(w),Math.round(h));}
     });
     g.globalAlpha=1;}
-  ctx.save();ctx.globalAlpha=1;ctx.imageSmoothingEnabled=true;ctx.drawImage(FOG_BUF,0,0,VW,VH);ctx.imageSmoothingEnabled=false;ctx.restore();
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(FOG_BUF,0,0,VW,VH);ctx.imageSmoothingEnabled=false;ctx.restore();
 }
 drawFog=fogDrawFast;
-/* ---- Chunked static tile cache (8x8 tiles → one blit) ---- */
-const CH={n:8,px:8*32,map:new Map(),anim:null,ver:0,zn:null};
-function chAnim(){if(CH.anim)return CH.anim;CH.anim=new Set([T.W,T.U,T.PW,T.PR,T.FR,T.BWK]);if(typeof TREE_IDS!=='undefined')TREE_IDS.forEach(t=>CH.anim.add(t));return CH.anim;}
-function chkKey(cx,cy){return (CH.zn||'ow')+'|'+cy*10000+cx;}
-function chBuild(cx,cy){
-  const c=document.createElement('canvas');c.width=CH.px;c.height=CH.px;const g=c.getContext('2d');g.imageSmoothingEnabled=false;
-  const x0=cx*CH.n,y0=cy*CH.n,A=chAnim();
-  for(let ty=0;ty<CH.n;ty++)for(let tx=0;tx<CH.n;tx++){
-    const x=x0+tx,y=y0+ty;if(y<0||y>=MH||x<0||x>=MW)continue;const id=map[y][x];
-    if(A.has(id))continue;                                                                    // animated / trees drawn live
-    if(typeof BIGTREE_IDS!=='undefined'&&BIGTREE_IDS.has(id))continue;
-    const s=tileSprite(id,x,y,0);if(!s)continue;
-    g.drawImage(s,tx*TS,ty*TS,TS,TS);
-  }
-  return {c,cx,cy,dirty:false};
-}
-function chGet(cx,cy){const k=chkKey(cx,cy);let h=CH.map.get(k);if(!h){h=chBuild(cx,cy);CH.map.set(k,h);}return h;}
-function chInvalidate(tx,ty){if(tx==null){CH.map.clear();return;}CH.map.delete(chkKey(Math.floor(tx/CH.n),Math.floor(ty/CH.n)));}
-{const _dw=drawWorld;drawWorld=function(){
-  const zn=zoneOfPx(P.y);if(zn!==CH.zn){CH.zn=zn;CH.map.clear();}   // zone-aware: dungeon dark fill vs overworld
-  const x0=Math.floor(cam.x/TS),y0=Math.floor(cam.y/TS),x1=x0+Math.ceil(VW/TS)+1,y1=y0+Math.ceil(VH/TS)+1;
-  const cx0=Math.floor(x0/CH.n),cy0=Math.floor(y0/CH.n),cx1=Math.floor(x1/CH.n),cy1=Math.floor(y1/CH.n);
-  for(let cy=cy0;cy<=cy1;cy++)for(let cx=cx0;cx<=cx1;cx++){
-    if(cy<0||cx<0)continue;const h=chGet(cx,cy);
-    ctx.drawImage(h.c,cx*CH.px-cam.x,cy*CH.px-cam.y);
-  }
-  CH.live=true;_dw();CH.live=false;
-};}
-{const _tsW=null;
- // wrap the world tile loop's drawImage of tiles: when CH.live, skip static tiles (already in chunk)
- const _di0=null;}
-/* The original drawWorld iterates every tile. Mark static ones as already drawn by patching tileSprite
-   to return a 1x1 empty when CH.live and the tile is static — cheapest way without rewriting world.js. */
-const CH_EMPTY=(()=>{const c=document.createElement('canvas');c.width=1;c.height=1;return c;})();
-{const _ts=tileSprite;tileSprite=function(id,x,y,time){
-  if(CH.live&&chAnim().has(id)===false&&!(typeof BIGTREE_IDS!=='undefined'&&BIGTREE_IDS.has(id)))return CH_EMPTY;
-  return _ts.apply(this,arguments);
-};}
 /* ---- HUD panel + button disc caches ---- */
 const PANEL_SKIN=new Map();
 function panelSkin(w,h,fillKey){
   const k=w+'x'+h+'|'+fillKey;let s=PANEL_SKIN.get(k);if(s)return s;
   const c=document.createElement('canvas');c.width=w+4;c.height=h+6;const g=c.getContext('2d'),ox=0,oy=0;
-  // bake using a temporary hijack of ctx
-  const prev=ctx;window._bakCtx=true;
-  // draw into c directly by temporarily swapping
-  const _ctx=ctx; // keep reference
-  // manual bake mirroring panel()
   g.fillStyle='rgba(0,0,0,.45)';g.fillRect(ox+2,oy+4,w,h);
-  // leather via satPattern
   const pat=satPattern();
   g.fillStyle='#2a160a';g.fillRect(ox+3,oy,w-6,h);g.fillRect(ox,oy+3,w,h-6);g.fillRect(ox+1,oy+1,w-2,h-2);
   g.save();g.beginPath();g.rect(ox+2,oy+2,w-4,h-4);g.clip();g.fillStyle=pat;g.fillRect(ox,oy,w,h);g.restore();
@@ -12578,47 +12582,176 @@ function btnSkin(r,tintKey){
 hdButton=function(x,y,r,down,o={}){
   ctx.globalAlpha=o.alpha==null?1:o.alpha;
   const tint=o.tint||(down?'rgba(255,220,140,.25)':'rgba(20,8,2,.35)');
-  const skin=btnSkin(r,tint);ctx.drawImage(skin,Math.round(x-r-8),Math.round(y-r-8));
+  ctx.drawImage(btnSkin(r,tint),Math.round(x-r-8),Math.round(y-r-8));
   if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+4.5,0,6.283);ctx.stroke();}
   ctx.globalAlpha=1;
 };
-/* ---- Cheaper HD wrap: stamp canvases, skip getContext ---- */
-HDX.spr=true;HDX._id=1;
+/* ---- Cheaper HD wrap ---- */
+HDX.spr=true;
 {const _hg=hdGet;hdGet=function(src,mode){
   if(!HDX.on||!src)return null;if(mode==='spr'&&!HDX.spr)return null;
   if(src._hd)return src._hd;if(src._hdMiss)return null;
   if(!src.width||src.width>48){src._hdMiss=1;return null;}
   const c=_hg(src,mode);if(c)src._hd=c;else src._hdMiss=1;return c;
 };}
-// replace the drawImage wrap with a cheaper stamp check
-{const _di=CanvasRenderingContext2D.prototype.drawImage;
- // only override our game ctx (already wrapped once in hd.js); re-wrap on top
- const prev=ctx.drawImage;
+{const prev=ctx.drawImage;
  ctx.drawImage=function(img,a,b,c,d){
-   if(img===CH_EMPTY)return;
    if(arguments.length===5&&img&&img._hd)return prev.call(this,img._hd,a,b,c,d);
-   if(arguments.length===5&&img&&!img._hdMiss&&img.width<=48&&img.height<=64&&c>=(img.width||0)*1.9&&d>=(img.height||0)*1.9&&!HD_NO.has(img)){
+   if(arguments.length===5&&img&&!img._hdMiss&&img.width<=48&&img.height<=64&&c>=(img.width||0)*1.9&&d>=(img.height||0)*1.9&&!(typeof HD_NO!=='undefined'&&HD_NO.has(img))){
      const h=hdGet(img,'spr');if(h)return prev.call(this,h,a,b,c,d);
    }
    return prev.apply(this,arguments);
  };}
-/* ---- Prewarm common tile HD at boot (next idle frames) ---- */
 function hdPrewarm(){
-  try{
-    const ids=[T.G,T.K,T.P,T.B,T.BT,T.F,T.S,T.L,T.N,T.RK,T.SN,T.MD,T.SD,T.MR,T.SR];
-    let i=0;const step=()=>{let n=0;while(i<ids.length&&n<4){const id=ids[i++],arr=TSPR[id];if(arr)for(const s of arr)hdGet(s,'tile');n++;}
-      if(i<ids.length)setTimeout(step,0);};
-    setTimeout(step,0);
-    // also warm a few path tiles around spawn
-    setTimeout(()=>{for(let y=SPAWN.y/TS-4|0;y<(SPAWN.y/TS+8|0);y++)for(let x=SPAWN.x/TS-6|0;x<(SPAWN.x/TS+6|0);x++){
-      if(y>=0&&x>=0&&y<MH&&x<MW){const id=map[y][x];if(id===T.P||id===T.G||id===T.K)try{tileSprite(id,x,y,0);}catch(e){}}}
-    },100);
-  }catch(e){}
+  try{const ids=[T.G,T.K,T.P,T.B,T.BT,T.F,T.S,T.L,T.N,T.RK,T.SN,T.MD,T.SD];
+    let i=0;const step=()=>{let n=0;while(i<ids.length&&n<4){const id=ids[i++],arr=TSPR[id];if(arr)for(const s of arr)hdGet(s,'tile');n++;}if(i<ids.length)setTimeout(step,0);};
+    setTimeout(step,0);}catch(e){}
 }
 setTimeout(hdPrewarm,0);
-/* ---- Hook quality into the frame loop ---- */
 {const _up=update;update=function(dt){qualTick(dt);return _up.apply(this,arguments);};}
-/* invalidate chunks when the editor or world-edits change tiles */
-if(typeof setTile==='function'){const _st=setTile;setTile=function(x,y,id){const r=_st.apply(this,arguments);chInvalidate(x,y);return r;};}
+/* stubs so older tests that poke CH / chGet don't throw */
+const CH={map:new Map(),n:8,px:256,live:false,zn:null};
+function chGet(){return null;}function chInvalidate(){}function chkKey(){return 0;}
+
+/* ---------- src/world/t148.js ---------- */
+/* =====================================================================
+   t148u FEATURES: planter boxes, blacksmith shop interior, tavern, water life,
+   extra moss on the south wall. Fishing Lv70 + quest UI are patched elsewhere.
+   ===================================================================== */
+Object.assign(T,{PLB:98});
+const PLANTERS=[];
+(function placePlanters(){
+  const spots0=[[18,32],[20,32],[22,32],[24,32],[13,35],[26,35],[16,38],[23,38],[19,41],[21,41],[14,33],[25,33],[17,36],[22,36]];
+  const oy=typeof OWY0==='number'?OWY0:(typeof OY==='number'?OY:0);
+  const spots=spots0.map(([x,y])=>[x,y+oy]);
+  const mk=makeSprite(16,16,g=>{
+    rect(g,0,0,16,16,'#5aaa45');rect(g,1,9,14,7,'#6b4423');rect(g,1,9,14,1,'#8a5a32');rect(g,1,15,14,1,'#3a2410');
+    rect(g,2,10,12,5,'#4a3018');
+    for(const [x,y,c] of [[3,6,'#ff6a8a'],[7,4,'#ffe14d'],[11,6,'#a78bff'],[5,3,'#ff9a3d'],[9,5,'#ff8ab8'],[6,7,'#8ab4ff']]){
+      rect(g,x,y,2,2,c);rect(g,x,y+2,1,2,'#3d8530');}
+  });
+  TSPR[T.PLB]=[mk];TSPR.mini[T.PLB]='#8a5a32';XTILE_FN[T.PLB]=()=>mk;
+  function apply(){if(PLANTERS.length>=8)return;if(typeof map==='undefined'||!map||!map.length||typeof TOWN==='undefined')return;
+    const x0=Math.floor(TOWN.x0/TS)+2,x1=Math.floor(TOWN.x1/TS)-2,y0=Math.floor(TOWN.y0/TS)+2,y1=Math.floor(TOWN.y1/TS)-2;
+    const cand=[];for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const t=map[y][x];if(t===T.G||t===T.L||t===T.K){
+      // prefer grass next to a path or building
+      let near=false;for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const n=map[y+dy]&&map[y+dy][x+dx];if(n===T.P||n===T.H||n===T.D||n===T.F)near=true;}
+      if(near)cand.push([x,y]);}}
+    // space them out
+    for(const [x,y] of cand){if(PLANTERS.length>=14)break;
+      if(PLANTERS.some(([px,py])=>Math.hypot(px-x,py-y)<3))continue;
+      map[y][x]=T.PLB;PLANTERS.push([x,y]);}}
+  setTimeout(apply,0);setTimeout(apply,200);setTimeout(apply,800);
+  {const _ts=tileSprite;tileSprite=function(id,x,y,time){if(id===T.PLB)return mk;return _ts.apply(this,arguments);};}
+})();
+(function moreMoss(){
+  if(typeof SW==='undefined'||!SW.southTile)return;
+  const _st=SW.southTile;
+  SW.southTile=function(x,y){
+    const s=_st(x,y);if(!s||s.width!==16)return s;
+    if(!s._moss){const c=makeSprite(16,16,g=>{g.drawImage(s,0,0);
+      const rnd=mulberry32((x*31+y*17)|0);
+      for(let i=0;i<5;i++){const mx=1+Math.floor(rnd()*14),my=9+Math.floor(rnd()*6),h=2+Math.floor(rnd()*4);
+        g.fillStyle=rnd()<.5?'#6fa24a':'#4a7a2a';g.fillRect(mx,my,1,h);if(rnd()<.45){g.fillStyle='#9ccc6a';g.fillRect(mx,my,1,1);}}
+      if(((x+y)&3)===0){g.fillStyle='#5a8a3a';g.fillRect(3,11,4,3);g.fillRect(9,12,3,3);g.fillStyle='#9ccc6a';g.fillRect(4,11,1,1);}
+    });c._moss=1;s._moss=c;}
+    return s._moss;
+  };
+})();
+const WLIFE={pads:[],reeds:[],fish:[],jumps:[],t:0,built:false};
+function wlifeBuild(){
+  if(typeof map==="undefined"||!map||!map.length)return;if(WLIFE.built&&WLIFE.pads.length)return;WLIFE.built=true;WLIFE.pads.length=0;WLIFE.reeds.length=0;WLIFE.fish.length=0;const rnd=mulberry32(90210);
+  const yA=typeof OWY0==='number'?OWY0:0,yB=Math.min(MH,yA+(typeof OW_H==='number'?OW_H:MH));
+  for(let y=yA;y<yB;y++)for(let x=0;x<MW;x++){
+    if(map[y][x]!==T.W&&map[y][x]!==T.PW)continue;
+    const r=rnd();
+    if(r<.035)WLIFE.pads.push({x:x*TS+8+rnd()*16,y:y*TS+10+rnd()*12,s:.7+rnd()*.5});
+    else if(r<.06)WLIFE.reeds.push({x:x*TS+4+rnd()*20,y:y*TS+18,ph:rnd()*6.28,h:8+rnd()*8});
+    if(r>.97)WLIFE.fish.push({x:x*TS+16,y:y*TS+16,a:rnd()*6.28,spd:.4+rnd()*.5,r:10+rnd()*18});
+  }
+}
+function updateWlife(dt){
+  if(!WLIFE.built)wlifeBuild();WLIFE.t+=dt;
+  for(const f of WLIFE.fish){f.a+=dt*f.spd;f.wx=f.x+Math.cos(f.a)*f.r;f.wy=f.y+Math.sin(f.a)*f.r*.6;}
+  if(Math.random()<dt*.08&&WLIFE.fish.length){
+    const f=WLIFE.fish[Math.floor(Math.random()*WLIFE.fish.length)];
+    const sx=f.wx||f.x,sy=f.wy||f.y;
+    if(Math.abs(sx-cam.x-VW/2)<VW&&Math.abs(sy-cam.y-VH/2)<VH)WLIFE.jumps.push({x:sx,y:sy,t:0,dur:.9,col:'#cfe3ff'});
+  }
+  for(let i=WLIFE.jumps.length-1;i>=0;i--){WLIFE.jumps[i].t+=dt;if(WLIFE.jumps[i].t>=WLIFE.jumps[i].dur)WLIFE.jumps.splice(i,1);}
+}
+function drawWlife(){
+  wlifeBuild();const cx=cam.x,cy=cam.y;
+  for(const p of WLIFE.pads){const x=p.x-cx,y=p.y-cy;if(x<-20||y<-20||x>VW+20||y>VH+20)continue;
+    ctx.fillStyle='#3a6a28';ctx.beginPath();ctx.ellipse(x,y,7*p.s,4*p.s,0,0,6.283);ctx.fill();
+    ctx.fillStyle='#5a9a3a';ctx.beginPath();ctx.ellipse(x-1,y-1,5*p.s,3*p.s,0,0,6.283);ctx.fill();
+    ctx.fillStyle='#2a4a18';ctx.fillRect(Math.round(x),Math.round(y-1),1,3);}
+  for(const r of WLIFE.reeds){const x=r.x-cx,y=r.y-cy;if(x<-10||y<-30||x>VW+10||y>VH+10)continue;
+    const sway=Math.sin(gtime*1.4+r.ph)*2;ctx.strokeStyle='#4a7a2a';ctx.lineWidth=1.5;
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(x+i*3,y);ctx.quadraticCurveTo(x+i*3+sway,y-r.h/2,x+i*3+sway*1.4,y-r.h);ctx.stroke();}
+    ctx.fillStyle='#7acc4a';ctx.fillRect(Math.round(x+sway*1.4),Math.round(y-r.h-2),3,2);}
+  ctx.globalAlpha=.28;ctx.fillStyle='#0a1830';
+  for(const f of WLIFE.fish){const x=(f.wx||f.x)-cx,y=(f.wy||f.y)-cy;if(x<-20||y<-20||x>VW+20||y>VH+20)continue;
+    ctx.beginPath();ctx.ellipse(x,y,6,2.5,f.a,0,6.283);ctx.fill();}
+  ctx.globalAlpha=1;
+  for(const j of WLIFE.jumps){const p=j.t/j.dur,x=j.x-cx,y=j.y-cy-Math.sin(p*Math.PI)*18;
+    ctx.globalAlpha=Math.max(0,1-Math.abs(p-.5)*1.6);ctx.fillStyle=j.col;ctx.beginPath();ctx.ellipse(x,y,5,2.5,0,0,6.283);ctx.fill();
+    ctx.fillStyle='#fff';ctx.fillRect(Math.round(x+3),Math.round(y-1),2,1);
+    if(p>.55){ctx.globalAlpha=.4*(1-p);ctx.strokeStyle='#a8d6ff';ctx.beginPath();ctx.arc(j.x-cx,j.y-cy,4+(p-.55)*16,0,6.283);ctx.stroke();}
+    ctx.globalAlpha=1;}
+  if(state==='play'){const tx=Math.floor(P.x/TS),ty=Math.floor(P.y/TS);
+    for(const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const t=map[ty+dy]&&map[ty+dy][tx+dx];if(t!==T.W&&t!==T.PW)continue;
+      const px=(tx+dx+.5)*TS-cx,py=(ty+dy+.5)*TS-cy,ph=(gtime*2+dx+dy)%1;
+      ctx.globalAlpha=.25*(1-ph);ctx.strokeStyle='#cfe8ff';ctx.beginPath();ctx.ellipse(px,py,4+ph*10,2+ph*4,0,0,6.283);ctx.stroke();ctx.globalAlpha=1;}}
+}
+{const _dw=drawWorld;drawWorld=function(){_dw();try{drawWlife();}catch(e){}};
+ const _up=update;update=function(dt){try{updateWlife(dt);}catch(e){}return _up.apply(this,arguments);};}
+const SMITH_SHOP={ready:false};
+function buildSmithShop(){
+  if(SMITH_SHOP.ready)return;const n=NPCS.find(q=>q.name==='Blacksmith Brum');if(!n)return;
+  // find the door wall from Brum's ORIGINAL yard position (he stands south of the facade)
+  let tx=Math.floor(n.x/TS),ty=Math.floor(n.y/TS),wy=null;
+  for(let k=0;k<=5;k++){for(const dy of [-k,k?k:null]){if(dy==null)continue;const y=ty+dy;if(y<1||y>=MH)continue;
+    for(let x=Math.max(0,tx-4);x<=Math.min(MW-1,tx+4);x++)if(map[y][x]===T.D){wy=y;tx=x;break;}if(wy!=null)break;}if(wy!=null)break;}
+  if(wy==null){for(let k=1;k<=4;k++){const t=map[ty-k]&&map[ty-k][tx];if(t===T.D||t===T.H){wy=ty-k;break;}}}
+  if(wy==null)return;
+  let x0=tx;while(x0>1&&(map[wy][x0-1]===T.H||map[wy][x0-1]===T.D))x0--;
+  let x1=tx;while(x1<MW-2&&(map[wy][x1+1]===T.H||map[wy][x1+1]===T.D))x1++;
+  const iy1=wy-1,iy0=wy-4;if(iy0<2)return;
+  for(let y=iy0;y<=iy1;y++)for(let x=x0;x<=x1;x++){
+    if(y===iy0||x===x0||x===x1)map[y][x]=T.B;else map[y][x]=T.F;
+  }
+  const mx=(x0+x1)>>1;map[iy0][mx]=T.FRN;map[iy0+1][mx-1]=T.ANV;
+  // yard props south of the door so SMITHY.find still sees them
+  const put=(x,y,id)=>{if(y>=0&&y<MH&&x>=0&&x<MW){const t=map[y][x];if(t===T.G||t===T.L||t===T.K||t===T.P||t===id||t===T.F)map[y][x]=id;}};
+  put(x0-1,wy+1,T.FRN);put(tx-2,wy+1,T.ANV);
+  // Brum stands just inside the doorway
+  n.x=(tx+.5)*TS;n.y=(wy+.55)*TS;if(n.hx!=null){n.hx=n.x;n.hy=n.y;}
+  SMITH_SHOP.ready=true;SMITH_SHOP.door={tx,wy,x0,x1};
+}
+setTimeout(buildSmithShop,50);setTimeout(buildSmithShop,400);
+const TAVERN={ready:false};
+function buildTavern(){
+  if(TAVERN.ready)return;
+  const x0=27,y0=31,w=5,h=4;if(y0+h>=MH||x0+w>=MW)return;
+  for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++){
+    if(y===y0)map[y][x]=T.R;
+    else if(y===y0+h-1)map[y][x]=(x===x0+2)?T.D:T.H;
+    else if(x===x0||x===x0+w-1)map[y][x]=T.H;
+    else map[y][x]=T.F;
+  }
+  map[y0+1][x0+1]=T.Z;map[y0+1][x0+3]=T.Z;
+  for(let y=y0+h;y<=y0+h+1&&y<MH;y++)if(map[y][x0+2]===T.G||map[y][x0+2]===T.L)map[y][x0+2]=T.P;
+  if(!NPCS.some(n=>n.name==='Mara the Tapster')){
+    NPCS.push({name:'Mara the Tapster',x:(x0+2.5)*TS,y:(y0+h-1.2)*TS,hx:(x0+2.5)*TS,hy:(y0+h-1.2)*TS,spr:'inn',tavern:true,inn:true,
+      lines:['Welcome to the Oakvale Tap!','Stew\'ll put the spring back in your step.','Heard a rumor: bigger fish bite at dawn by the east pond.','Pull up a stool - first round\'s on the house... almost.']});
+  }
+  if(!NPCS.some(n=>n.name==='Tavern Sign')){
+    NPCS.push({name:'Tavern Sign',x:(x0+4.5)*TS,y:(y0+h+.7)*TS,spr:'sign',sign:true,
+      lines:['THE OAKVALE TAP','Hot stew, cold ale, warm rumors. Open from noon to late.']});
+  }
+  TAVERN.ready=true;
+}
+setTimeout(buildTavern,80);
 
 </script></body></html>
