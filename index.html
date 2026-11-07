@@ -3905,7 +3905,7 @@ function drawFishingWorld(){
   const bendPx=G.bend*9,mx=(hand.x+tip.x)/2,my=(hand.y+tip.y)/2+bendPx,ex=tip.x,ey=tip.y+bendPx*.55;
   ctx.lineCap='round';
   ctx.strokeStyle='#4a2c10';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(hand.x,hand.y);ctx.quadraticCurveTo(mx,my,ex,ey);ctx.stroke();
-  ctx.strokeStyle='#d8a060';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(hand.x,hand.y);ctx.quadraticCurveTo(mx,my,ex,ey);ctx.stroke();
+  ctx.strokeStyle=(typeof rodSkinCol==='function'&&rodSkinCol())||'#d8a060';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(hand.x,hand.y);ctx.quadraticCurveTo(mx,my,ex,ey);ctx.stroke();
   ctx.fillStyle='#8a6a3a';ctx.fillRect(Math.round(hand.x-2),Math.round(hand.y-2),4,4);   // grip / reel
   // line + ripples + bobber
   const taut=F.ph==='rare'?.2:1;
@@ -5521,6 +5521,7 @@ function damageEnemy(e,d,kind){
   if((kind==='ice'||kind==='steam')&&skillRank('frost')>=3)e.chill=Math.max(e.chill||0,2.5);
   const cursed=e.curse>0;if(cursed)d*=2;           // Curse card: double damage
   if(e.weak>0)d*=1.3;                               // t154u: Shadow Step curse - takes 30% more
+  if(typeof x7DmgMul==='function')d*=x7DmgMul();   // t157u: card mastery + bestiary stamp sets
   const crit=!quiet&&Math.random()<.05+gearStats().crit;if(crit)d*=1.6;   // gear crit chance
   if(e.bshield>0&&kind!=='dot')return bossShieldHit(e,Math.round(d),c,top);
   d=Math.round(d);const d0=d;d=eliteShield(e,d,c,top);if(d<=0){burst(c.x,c.y,'#cfefff',4,80,.3);eliteAfterHit(e,d0,kind);return true;}
@@ -10278,7 +10279,7 @@ const PM_DRAW={
   journal(x,y,w,h){
     pmTitle('JOURNAL',x,y+16);
     const sw=Math.min(150,Math.round(w*.27)),rq=pauseReadyQ();
-    [['quests','QUESTS','excl',()=>openQuests(),true],['story','CHRONICLE','book',()=>openUIMode('story'),false]].forEach(([id,lab,ic,act,on],i)=>{const yy=y+32+i*38;const r=pmReg(x,yy,sw,32,{id,lab,act});
+    [['quests','QUESTS','excl',()=>openQuests(),true],['story','CHRONICLE','book',()=>openUIMode('story'),false],['codex',(typeof x7AnyDot==='function'&&x7AnyDot()?'CODEX (new!)':'CODEX'),'book',()=>openCodex(),false]].forEach(([id,lab,ic,act,on],i)=>{const yy=y+32+i*38;const r=pmReg(x,yy,sw,32,{id,lab,act});
       rr(x,yy,sw,32,4);ctx.fillStyle=on?PMC.greenD:PMC.edge;ctx.fill();rr(x+2,yy+2,sw-4,28,3);ctx.fillStyle=on?PMC.green:'#f8ead0';ctx.fill();pmIcon(ic,x+8,yy+7,1.8);
       pmText(lab,x+34,yy+21,{size:pmFit(lab,sw-40,11,7),col:on?'#fff8e0':PMC.ink,lw:on?2:0,out:on?'#163a12':false});if(pmSel(r)){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;rr(x,yy,sw,32,4);ctx.stroke();}});
     const act=QUESTS.filter(q=>{const s=questStatus(q.id);return s==='active'||s==='ready';});
@@ -13254,5 +13255,378 @@ function drawDailyChip(){
   DAILY_CHIP={x:px,y:py,w,h};
 }
 {const _dt=drawTracker;drawTracker=function(){_dt.apply(this,arguments);try{drawDailyChip();}catch(e){}};}
+
+/* ---------- src/meta/t157.js ---------- */
+/* =====================================================================
+   t157u REPLAYABILITY PACK: Fish Journal, foil cards, Bestiary stamps, login calendar, weekly bounties, Fish of the Week,
+   Weekend Market, New Game+, challenge runs, ending cards, furniture, garden, visitors, villager hearts + personal quests,
+   Mara's rumors, Pip/Tobin/Brum chains, a night ghost quest, the Endless Crypt, boss rematches, card mastery, pet tricks /
+   outfits / bond walks, Harvest Festival & Lantern Night, meteor nights, the fishing derby, town/night/tavern music,
+   jingles and ambient sound. Everything lives in X7 and is saved inside the achievements block (packAch / unpackAch).
+   Most of it is reached from the CODEX (pause menu) - each section is a page there.
+   ===================================================================== */
+const X7_NEW=()=>({jr:{},skins:{},rodSkin:null,foil:{},best:{},stamps:{},login:{last:-1,day:0,claimed:-1,total:0},
+  bounty:{wk:-1,list:[]},ngp:0,ch:{noHeal:false,oneLife:false},chFail:{},badges:{},endings:{},furn:{owned:{},placed:[]},
+  garden:[{herb:null,t:0},{herb:null,t:0},{herb:null,t:0}],herbs:0,fr:{},frDay:{},cu:{},mast:{},pet:{walk:{},outfit:{},hats:{}},
+  shards:0,meteorDay:-1,meteors:[],fest:{wk:-1,tok:[],got:0,prize:false},derby:{day:-1,on:false,t:0,best:0,trophies:0},
+  depth:{best:0,runs:[]},rematch:{dragon:0,lich:0},cos:{},rumorSeen:-1,newDots:{},ed:{on:false}});
+let X7=X7_NEW();
+const x7Day=()=>dayNum(),x7Week=()=>weekNum(),x7Dow=()=>window.__DOW!=null?window.__DOW:new Date(nowMs()).getDay();
+const x7Weekend=()=>{const d=x7Dow();return d===0||d===6;};
+const x7Night=()=>typeof DAY!=='undefined'&&DAY.nightAmt>.45;
+const x7Hash=(a,b)=>{let h=(a*374761393+b*668265263)|0;h=(h^(h>>>13))*1274126177|0;return ((h^(h>>>16))>>>0);};
+function x7Dot(k){X7.newDots[k]=1;}
+/* ---------- save: rides inside the achievements block ---------- */
+{const _p=packAch;packAch=function(){const o=_p();o.x7=X7;return o;};
+ const _u=unpackAch;unpackAch=function(s){_u(s);const n=X7_NEW();X7=(s&&s.x7&&typeof s.x7==='object')?Object.assign(n,s.x7):n;
+   for(const k of Object.keys(n))if(X7[k]==null||typeof X7[k]!==typeof n[k])X7[k]=n[k];};
+ const _r=resetAch;resetAch=function(){_r();if(X7._keep){delete X7._keep;return;}X7=X7_NEW();};}
+
+/* ======================= 28. JINGLES ======================= */
+Object.assign(SFXT,{
+  jingleFish:()=>[0,.1,.2,.32].forEach((d,i)=>tone([660,880,990,1320][i],[660,880,990,1320][i]*1.01,.16,'sine',.06,d)),
+  jingleFoil:()=>{[0,.07,.14,.21,.28].forEach((d,i)=>tone(1046+i*130,1200+i*130,.12,'triangle',.05,d));noise(.25,.03,.3);},
+  jingleAch:()=>[0,.12,.24,.36,.5].forEach((d,i)=>tone([523,659,784,1046,784][i],[523,659,784,1046,1046][i],i===4?.4:.14,'triangle',.07,d)),
+  hammer:()=>{tone(1400,900,.05,'triangle',.05);noise(.04,.05);},
+  chatter:()=>{for(let i=0;i<3;i++)tone(180+Math.random()*120,160+Math.random()*100,.08,'sine',.025,i*.09);},
+  river:()=>noise(.9,.025),
+  starfall:()=>tone(1800,400,.6,'sine',.05),
+});
+{const _a=achUnlock;achUnlock=function(a){const r=_a(a);if(r)sfx('jingleAch');return r;};}
+
+/* ======================= 1. FISH JOURNAL + 6. FISH OF THE WEEK + 26. DERBY ======================= */
+const FISH_PAGES=[0,1,2,3,4].map(t=>({t,n:['Brook & Pond','River Runs','Deep Pools','Lake Lords','Legends'][t],skin:['#7ac060','#6ab8ff','#c58aff','#ff9a3d','#ffe14d'][t]}));
+const fishOfPage=t=>FISHES.filter(f=>f.tier===t);
+function rodSkinCol(){return X7.rodSkin!=null&&X7.skins[X7.rodSkin]?FISH_PAGES[X7.rodSkin].skin:null;}
+function fotw(){const L=FISHES.filter(f=>!f.junk&&f.lv<=30);return L[x7Week()%L.length];}
+function derbySpot(){return FISH_SPOTS[x7Day()%FISH_SPOTS.length];}
+const DERBY_SECS=180,DERBY_TARGET=()=>12+(x7Day()%5)*3;
+function derbyStart(){const d=X7.derby;if(d.day===x7Day()){toast('Today\'s derby is done - come back tomorrow!',2.4,'#ffb0a0');return false;}
+  d.day=x7Day();d.on=true;d.t=DERBY_SECS;d.best=0;toast('FISHING DERBY at '+derbySpot().name+'! Heaviest fish in 3 minutes. Beat '+DERBY_TARGET()+' lb!',4,'#7df9ff');sfx('level');return true;}
+function derbyTick(dt){const d=X7.derby;if(!d.on)return;d.t-=dt;if(d.t<=0){d.on=false;
+  if(d.best>=DERBY_TARGET()){d.trophies++;P.gold+=150;toast('DERBY WON! '+d.best+' lb  - Derby Trophy +150 G',4,'#ffe14d');sfx('jingleAch');}
+  else toast('Derby over - best '+d.best+' lb (needed '+DERBY_TARGET()+')',3,'#cfd0ff');saveGame('derby');}}
+{const _aw=fishAward;fishAward=function(f,rare){_aw(f,rare);if(!f||f.junk)return;
+  const spot=FISH.spot,w=Math.round((1+Math.random()*(4+f.price/18)*(1+(f.rar|0)*.3))*10)/10,j=X7.jr[f.id]||(X7.jr[f.id]={n:0,big:0,where:''});
+  const first=!j.n;j.n++;if(w>j.big){j.big=w;j.where=spot?spot.name:'?';}
+  if(first){x7Dot('journal');toast('NEW in your Fish Journal: '+f.n,2.6,f.col);}
+  if((f.rar|0)>=3)sfx('jingleFish');
+  if(fotw()&&f.id===fotw().id){P.gold+=f.price;try{fishWeekSubmit(f,w*2);}catch(e){}toast('Fish of the Week! double pay +'+f.price+' G',2.4,'#ffe14d');}
+  if(X7.derby.on&&spot&&spot.id===derbySpot().id&&w>X7.derby.best){X7.derby.best=w;toast('Derby: '+w+' lb!',1.6,'#7df9ff');}
+  for(const p of FISH_PAGES)if(!X7.skins[p.t]&&fishOfPage(p.t).every(q=>X7.jr[q.id])){X7.skins[p.t]=1;X7.rodSkin=p.t;toast('Journal page "'+p.n+'" complete! Rod skin unlocked',4,p.skin);sfx('jingleAch');}
+};}
+
+/* ======================= 2. FOIL CARDS + 20. CARD MASTERY ======================= */
+const FOIL_CHANCE=.04,MASTER_USES=100;
+{const _g=grantCard;grantCard=function(id,at){const r=_g(id,at);if(CARD[id]&&!window.__NOFOIL&&Math.random()<FOIL_CHANCE)x7Foil(id);return r;};}
+function x7Foil(id){X7.foil[id]=(X7.foil[id]|0)+1;x7Dot('cards');toast('*** FOIL '+CARD[id].name+'! ***',3.4,'#fff6a0');sfx('jingleFoil');}
+const isFoil=id=>(X7.foil[id]|0)>0,isMastered=id=>!!X7.mast[id];
+{const _uc=useCard;useCard=function(i){const id=B&&B.hand[i];
+  if(id==='heal'&&X7.ch.noHeal){floatText(P.x,P.y-40,'NO-HEAL CHALLENGE','#ffb0a0',11);sfx('clang');return;}
+  const before=B&&B.hand[i];_uc(i);if(!B||!before||B.hand[i]===before)return;   // cast actually happened
+  X7.cu[id]=(X7.cu[id]|0)+1;if(X7.cu[id]>=MASTER_USES&&!X7.mast[id]){X7.mast[id]=1;toast(CARD[id].name+' MASTERED: +15% damage',3.6,'#ffd23f');sfx('jingleAch');}
+  if(isMastered(id))B.mastT=1.4;};}
+{const _cf=drawCardFace;drawCardFace=function(id,cw,ch,sel,idx){_cf(id,cw,ch,sel,idx);if(!id)return;
+  if(isFoil(id)){ctx.save();ctx.beginPath();ctx.rect(2,2,cw-4,ch-4);ctx.clip();const k=(gtime*.6)%1.6-.3,gx=k*cw*1.6;
+    const g=ctx.createLinearGradient(gx-cw*.5,0,gx+cw*.2,ch);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.45,'rgba(255,240,180,.38)');g.addColorStop(.55,'rgba(160,220,255,.32)');g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,cw,ch);for(let i=0;i<3;i++){const sx=(i*37+gtime*20)%cw,sy=(i*23+gtime*11)%ch;ctx.fillStyle='rgba(255,255,255,'+(.5+.5*Math.sin(gtime*6+i))+')';ctx.fillRect(sx,sy,2,2);}ctx.restore();
+    ctx.strokeStyle='#ffe9a0';ctx.lineWidth=1;ctx.strokeRect(1.5,1.5,cw-3,ch-3);}
+  if(isMastered(id))txt('*',cw-7,11,{size:11,align:'center',col:'#ffd23f',lw:2});};}
+
+/* ======================= 3. BESTIARY STAMPS + bounties + NG+ drops + rematch wins (one kill hook) ======================= */
+const STAMP_T=[10,50,100],STAMP_N=['Bronze','Silver','Gold'],STAMP_C=['#c87a3a','#d8dce8','#ffd23f'];
+const stampOf=t=>{const n=X7.best[t]|0;return n>=100?3:n>=50?2:n>=10?1:0;};
+function stampSetBonus(){const types=Object.keys(ENEMY).filter(t=>!ENEMY[t].boss);let b=0;for(let k=1;k<=3;k++)if(types.length&&types.every(t=>stampOf(t)>=k))b=k;return b;}   // +2% dmg per full tier
+{const _de=dailyEvent;dailyEvent=function(kind,arg){const r=_de.apply(this,arguments);
+  if(kind==='kill'&&arg&&arg.type&&!arg.tmp){const t=arg.type,s0=stampOf(t);X7.best[t]=(X7.best[t]|0)+1;const s1=stampOf(t);
+    if(s1>s0){toast('BESTIARY: '+STAMP_N[s1-1]+' stamp - '+((ENEMY[t]&&ENEMY[t].name)||t),3,STAMP_C[s1-1]);x7Dot('bestiary');}
+    bountyKill(arg);if(X7.ngp>0&&Math.random()<.06)x7GoldTrim();
+    if(arg.x7rematch){const k=arg.type==='lich'?'lich':'dragon';X7.rematch[k]++;const c=k==='lich'?'lichcrown':'dragonhorns';if(!X7.pet.hats[c]){X7.pet.hats[c]=1;X7.cos[c]=1;toast('REMATCH WON! Cosmetic: '+HATS[c].n,4,'#ffd23f');sfx('jingleAch');}}}
+  return r;};}
+function x7DmgMul(){return (B&&B.mastT>0?1.15:1)*(1+.02*stampSetBonus());}
+function x7GoldTrim(){try{const it=genGear(null,Math.max(5,P.lv+3),'epic',false);it.name='Gold-Trim '+it.name;it.gold=1;addGear(it);toast('NEW GAME+ drop: '+it.name,3.2,'#ffd23f');}catch(e){}}
+
+/* ======================= 4. LOGIN CALENDAR (missing a day pauses, never resets) ======================= */
+const LOGIN_REW=[{g:40},{g:60},{g:80,shard:1},{g:100},{g:130},{g:160,shard:2},{g:300,card:true,shard:3}];
+function loginTick(){const L=X7.login,d=x7Day();if(L.last===d)return;L.last=d;L.day=(L.day%7)+1;L.total++;x7Dot('daily');}
+const loginReady=()=>X7.login.claimed!==X7.login.last&&X7.login.day>0;
+function loginClaim(){if(!loginReady())return false;const L=X7.login,r=LOGIN_REW[L.day-1];L.claimed=L.last;P.gold+=r.g;X7.shards+=r.shard|0;
+  let msg='Day '+L.day+': +'+r.g+' G'+(r.shard?'  +'+r.shard+' star shard':'');if(r.card){const k=x7RareCard();if(k){grantCard(k);msg+='  + card '+CARD[k].name;}}
+  toast(msg,3.4,'#ffe14d');sfx(L.day===7?'jingleAch':'coin');saveGame('login');return true;}
+function x7RareCard(){const L=CARDS.filter(c=>(c.rar==='rare'||c.rar==='epic')&&!c.unique);const fresh=L.filter(c=>!COL[c.id]);const p=(fresh.length?fresh:L);return p.length?p[(Math.random()*p.length)|0].id:null;}
+
+/* ======================= 5. WEEKLY BOUNTY BOARD ======================= */
+const BOUNTY_POOL=[{k:'night',t:'knight',n:5,d:'Beat 5 Skeleton Knights at night'},{k:'kill',t:'goblin',n:12,d:'Beat 12 Goblins'},{k:'night',t:'wraith',n:6,d:'Banish 6 Wraiths at night'},
+  {k:'kill',t:'wolf',n:10,d:'Beat 10 Wolves'},{k:'noheal',t:null,n:8,d:'Beat 8 monsters in fights where you never heal'},{k:'kill',t:'knight',n:15,d:'Beat 15 Skeleton Knights'},{k:'kill',t:'slime',n:25,d:'Squash 25 Slimes'}];
+function bountyEnsure(){const B2=X7.bounty,w=x7Week();if(B2.wk===w)return;B2.wk=w;const pick=[],seen=new Set();let i=0;
+  while(pick.length<3&&i<50){const b=BOUNTY_POOL[x7Hash(w,i++)%BOUNTY_POOL.length];if(seen.has(b.d))continue;seen.add(b.d);pick.push({...b,p:0,done:false,paid:false});}B2.list=pick;}
+function bountyKill(e){bountyEnsure();for(const b of X7.bounty.list){if(b.done)continue;
+  if(b.t&&b.t!==e.type)continue;if(b.k==='night'&&!x7Night())continue;if(b.k==='noheal'&&B&&B.healClk!=null)continue;
+  b.p++;if(b.p>=b.n){b.done=true;toast('BOUNTY DONE: '+b.d+' - claim it on the board',3.4,'#7dffa0');x7Dot('bounty');}}}
+function bountyClaim(b){if(!b.done||b.paid)return;b.paid=true;const k=x7RareCard();if(k)grantCard(k);P.gold+=120;toast('Bounty reward: '+(k?CARD[k].name+' + ':'')+'120 G',3.2,'#ffd23f');sfx('jingleAch');saveGame('bounty');}
+
+/* ======================= 7. WEEKEND MARKET + 22. OUTFITS ======================= */
+const HATS={straw:{n:'Straw Hat',col:'#e6c878',g:60},bandana:{n:'Red Bandana',col:'#d04030',g:45},bell:{n:'Bell Collar',col:'#ffd23f',g:50},
+  wizard:{n:'Wizard Cap',col:'#6a4ab0',g:9,sh:3},pumpkin:{n:'Pumpkin Cap',col:'#ff8a2a',fest:'harvest'},paper:{n:'Paper Lantern Hat',col:'#ff6a5a',fest:'lantern'},
+  dragonhorns:{n:'Dragon Horns',col:'#c0302a',cos:1},lichcrown:{n:'Lich Crown',col:'#9ae0ff',cos:1},starcrown:{n:'Star Crown',col:'#fff2a0',sh:8}};
+const MARKET_NPC={name:'Zell the Wanderer',spr:'merchant',lines:['Weekend wares from far-off roads! Hats, collars, bait, and one rare card.','Gone by Monday - the road calls.'],x7market:true,x:-9999,y:-9999};
+function marketCard(){const L=CARDS.filter(c=>c.rar==='rare'&&!c.unique);return L.length?L[x7Week()%L.length].id:null;}
+function marketTick(){if(!NPCS.includes(MARKET_NPC)){if(!SP.npc||!SP.npc.merchant)MARKET_NPC.spr='smith';NPCS.push(MARKET_NPC);}
+  const on=x7Weekend();if(on&&MARKET_NPC.x<0){MARKET_NPC.x=13.5*TS+(typeof OX==='number'?OX:0)*TS;MARKET_NPC.y=(42.6+(typeof OY==='number'?OY:0))*TS;}else if(!on)MARKET_NPC.x=MARKET_NPC.y=-9999;}
+function buyHat(id){const h=HATS[id];if(X7.pet.hats[id])return equipHat(id);const cost=h.g||0,sh=h.sh||0;
+  if(P.gold<cost||X7.shards<sh){toast('Need '+(cost?cost+' G':'')+(sh?' '+sh+' star shards':''),2,'#ffb0a0');return false;}P.gold-=cost;X7.shards-=sh;X7.pet.hats[id]=1;toast('Bought '+h.n+'!',2,h.col);sfx('coin');return equipHat(id);}
+function equipHat(id){if(!PET.active){toast('Pick an active pet first (Marlo)',2,'#ffb0a0');return false;}X7.pet.outfit[PET.active]=X7.pet.outfit[PET.active]===id?null:id;sfx('select');return true;}
+{const _dp=drawPetWorld;drawPetWorld=function(){_dp();const id=PET.active,h=id&&HATS[X7.pet.outfit[id]];if(!h)return;
+  const x=Math.round(PET.x-cam.x),fly=id==='wisp'||id==='moth',y=Math.round(PET.y-cam.y-(fly?36:26)+Math.sin(PET.t*(fly?5:9))*(fly?3:1.2));
+  ctx.fillStyle='#1e140c';ctx.fillRect(x-7,y+1,14,3);ctx.fillStyle=h.col;ctx.fillRect(x-6,y+1,12,2);ctx.fillRect(x-4,y-4,8,5);ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(x-3,y-3,2,3);};}
+
+/* ======================= 8. NEW GAME+  9. CHALLENGES  10. ENDING CARDS ======================= */
+const ngpReady=()=>!!(STORY.ending||lichDown);
+function startNGPlus(){if(!ngpReady())return false;X7.ngp++;
+  if(STORY.ending)X7.endings[STORY.ending]=1;
+  if(X7.ch.noHeal&&!X7.chFail.noHeal){X7.badges.ascetic=1;toast('Badge earned: THE ASCETIC',3,'#ffd23f');}
+  resetQuests();resetStory();bossDown=false;lichDown=false;
+  for(const e of enemies)if(e.type==='dragon'||e.type==='lich'){e.alive=true;e.respawn=0;}
+  X7.chFail={};X7.rematch={dragon:0,lich:0};
+  P.x=SPAWN.x;P.y=SPAWN.y;snapCam();toast('NEW GAME+ '+X7.ngp+': the world grows fiercer. Cards, pets, gear and house are yours.',4.5,'#ffd23f');sfx('jingleAch');saveGame('ngplus');return true;}
+const ngpMul=()=>1+.35*X7.ngp;
+{const _se=startEncounter;startEncounter=function(e,by){const r=_se.apply(this,arguments);if(B&&X7.ngp>0)for(const o of B.ens){if(o.x7ng)continue;o.x7ng=1;o.hp=o.maxhp=Math.round(o.maxhp*ngpMul());}return r;};}
+{const _dp2=damagePlayer;damagePlayer=function(d,src){if(X7.ngp>0)d*=1+.25*X7.ngp;return _dp2.call(this,d,src);};}
+{const _ul=typeof updateStory==='function'?updateStory:null;}
+// endings get recorded as soon as they happen
+setInterval(()=>{try{if(STORY.ending&&!X7.endings[STORY.ending]){X7.endings[STORY.ending]=1;toast('Ending card collected: '+ENDINGS[STORY.ending].n,3.4,ENDINGS[STORY.ending].col);x7Dot('endings');}}catch(e){}},1500);
+const BADGES={ascetic:{n:'The Ascetic',d:'Finish the story with the No-Heal challenge on',col:'#7dffa0'},gladiator:{n:'Iron Gladiator',d:'Reach Arena round 10 with One-Life on',col:'#ff9a3d'},
+  delver:{n:'Abyss Delver',d:'Reach depth 15 in the Endless Crypt',col:'#9ae0ff'},angler:{n:'Master of Pages',d:'Complete every Fish Journal page',col:'#7df9ff'}};
+function chToggle(k){X7.ch[k]=!X7.ch[k];if(X7.ch[k])X7.chFail[k]=false;toast((k==='noHeal'?'No-Heal':'One-Life Arena')+' challenge '+(X7.ch[k]?'ON':'OFF'),2,'#ffe14d');sfx('select');}
+// one-life arena: losing a round with it on fails the run; round 10 earns the badge
+{const _rt=updateRush;updateRush=function(dt){const r=_rt.apply(this,arguments);
+  if(RUSH.on&&RUSH.mode==='rush'&&X7.ch.oneLife&&RUSH.round>=10&&!X7.badges.gladiator){X7.badges.gladiator=1;toast('Badge earned: IRON GLADIATOR',3.4,'#ff9a3d');sfx('jingleAch');}
+  if(RUSH.on&&X7.ch.oneLife&&P.hp<=0)X7.chFail.oneLife=true;
+  if(X7.ed.on&&!RUSH.on){X7.ed.on=false;WEEKLY_CFG.floors=X7.ed.f0;const d=X7.ed.round;X7.depth.best=Math.max(X7.depth.best,d);X7.depth.runs.unshift({d,day:x7Day()});X7.depth.runs=X7.depth.runs.slice(0,5);
+    if(d>=15)X7.badges.delver=1;toast('Endless Crypt: reached depth '+d+' (best '+X7.depth.best+')',3.4,'#9ae0ff');saveGame('endless');}
+  if(X7.ed.on&&RUSH.on)X7.ed.round=RUSH.round;return r;};}
+{const _dt=drawTitle;drawTitle=function(){_dt.apply(this,arguments);try{const b=Object.keys(X7.badges).filter(k=>X7.badges[k]&&BADGES[k]);let y=VH-SB-14;
+  if(X7.ngp>0){txt('NEW GAME+ '+X7.ngp,SL+12,y,{size:11,col:'#ffd23f',lw:3});y-=16;}
+  b.forEach(k=>{txt('* '+BADGES[k].n,SL+12,y,{size:10,col:BADGES[k].col,lw:3});y-=14;});}catch(e){}};}
+
+/* ======================= 18. ENDLESS CRYPT (weekly-crypt floors that never stop) ======================= */
+
+function endlessStart(){if(!rushStart('weekly'))return false;X7.ed={on:true,f0:WEEKLY_CFG.floors,round:0};WEEKLY_CFG.floors=999;toast('THE ENDLESS CRYPT: how deep can you go?',3.4,'#9ae0ff');return true;}
+
+/* ======================= 19. BOSS REMATCHES ======================= */
+function rematchStart(type){const e=enemies.find(o=>o.type===type);if(!e)return false;if(type==='dragon'?!bossDown&&!X7.rematch.dragon:!lichDown&&!X7.rematch.lich){toast('Defeat it once first',2,'#ffb0a0');return false;}
+  closeUI&&isUI()&&closeUI();state='play';e.alive=true;e.dying=false;e.respawn=0;e.x=e.hx;e.y=e.hy;P.x=e.x-60;P.y=e.y+4;P.grace=0;snapCam();startEncounter(e,true);
+  if(B){for(const o of B.ens)if(o.type===type){o.x7rematch=true;o.hp=o.maxhp=Math.round(o.maxhp*1.6);o.x7pat=4;}toast((type==='lich'?'LICH KING':'EMBERFANG')+' REMATCH - new tricks!',3,'#ff9a6a');}return true;}
+function rematchTick(dt){if(!B||B.phase!=='fight')return;for(const e of B.ens){if(!e.x7rematch||e.dying)continue;e.x7pat-=dt;if(e.x7pat>0)continue;e.x7pat=e.type==='lich'?7:5;
+  const c=ecen(e);if(e.type==='lich'){try{summonMinions(e,'wraith',2,Math.max(5,(e.lv||16)*.6),{});}catch(_){}floatText(c.x,c.y-50,'GRAVE CALL','#9ae0ff',12);}
+  else{const o=B.owner;B.owner=e;for(let i=0;i<10;i++)fireProj(c.x,c.y,i*Math.PI/5+gtime,150,Math.round(8+P.lv*.6),'fire',7);B.owner=o;floatText(c.x,c.y-50,'EMBER RING','#ff9a3d',12);}}}
+
+/* ======================= 11-13. HOUSE: FURNITURE, GARDEN, VISITORS ======================= */
+const FURN={rug:{n:'Woven Rug',g:60,from:'Mara',col:'#b0503a',w:2,h:1},plant:{n:'Potted Fern',g:40,from:'Mara',col:'#3f8a3a',w:1,h:1},
+  bookcase:{n:'Bookcase',g:120,from:'Brum',col:'#6a4423',w:1,h:2},lamp:{n:'Brass Lamp',g:80,from:'Brum',col:'#e0b44a',w:1,h:1},
+  tank:{n:'Wall Fish Tank',g:150,from:'Brum',col:'#5ab8f0',w:2,h:1},armor:{n:'Armor Stand',g:140,from:'Brum',col:'#b0b8c8',w:1,h:2},
+  table:{n:'Oak Table',g:90,from:'Mara',col:'#8a5a2c',w:2,h:1},banner:{n:'Oakvale Banner',g:70,from:'Mara',col:'#2f6a3a',w:1,h:2}};
+const FURN_SPOTS=()=>{const r=HOUSE_ROOM;return [[r.x0+1,r.y0+6],[r.x1-2,r.y0+6],[r.x0+5,r.y1-2],[r.x1-5,r.y1-2],[r.x0+1,r.y0+1],[r.x1-1,r.y0+1],[r.x0+8,r.y0+5],[r.x1-8,r.y0+5]];};
+function furnBuy(id){const f=FURN[id];if(X7.furn.owned[id])return furnToggle(id);if(P.gold<f.g){toast('Need '+f.g+' G',2,'#ffb0a0');return false;}P.gold-=f.g;X7.furn.owned[id]=1;sfx('coin');toast(f.from+' sells you a '+f.n+' - it is in your house!',2.8,f.col);return furnToggle(id,true);}
+function furnToggle(id,force){const i=X7.furn.placed.indexOf(id);if(i>=0&&!force){X7.furn.placed.splice(i,1);return true;}if(i<0){if(X7.furn.placed.length>=8){toast('House is full (8)',2,'#ffb0a0');return false;}X7.furn.placed.push(id);}return true;}
+const decorScore=()=>X7.furn.placed.length+Math.min(4,(FSH.tank||[]).length);
+const HERBS={mint:{n:'Mint',min:20},sage:{n:'Sage',min:45},thyme:{n:'Thyme',min:90}};
+const GARDEN_SPOTS=()=>[[HOUSE_ROOM.x1-3,HOUSE_ROOM.y1-1],[HOUSE_ROOM.x1-2,HOUSE_ROOM.y1-1],[HOUSE_ROOM.x1-1,HOUSE_ROOM.y1-1]];
+const herbPct=g=>g.herb?clamp((nowMs()-g.t)/(HERBS[g.herb].min*60000),0,1):0;
+function gardenAct(i){const g=X7.garden[i];if(!g.herb){const ks=Object.keys(HERBS);g.herb=ks[i%ks.length];g.t=nowMs();toast('Planted '+HERBS[g.herb].n+' - ready in '+HERBS[g.herb].min+' min (even while you are away)',3,'#7dffa0');sfx('select');return;}
+  if(herbPct(g)<1){toast(HERBS[g.herb].n+' is '+Math.round(herbPct(g)*100)+'% grown',1.8,'#cfd0ff');return;}X7.herbs++;toast('Harvested '+HERBS[g.herb].n+'! (herbs: '+X7.herbs+')',2.4,'#7dffa0');sfx('coin');g.herb=null;g.t=0;}
+function cookHerbStew(){const fish=Object.keys(FSH.fish).find(k=>FISH_BY[k]&&!FISH_BY[k].junk&&FSH.fish[k]>0);if(X7.herbs<1||!fish){toast('Needs 1 herb + 1 fish',2,'#ffb0a0');return false;}
+  X7.herbs--;FSH.fish[fish]--;if(FSH.fish[fish]<=0)delete FSH.fish[fish];applyMealBuff('xp',240,'Herbed Fish Stew');return true;}
+const VISIT={t:30,npc:null,left:0};
+function visitTick(dt){if(zoneOfPx(P.y)!=='house'||B||DLG){if(VISIT.npc&&zoneOfPx(P.y)!=='house'){x7EndVisit();}return;}
+  if(VISIT.npc){VISIT.left-=dt;if(VISIT.left<=0)x7EndVisit();return;}
+  VISIT.t-=dt;if(VISIT.t>0)return;VISIT.t=50+Math.random()*40;if(Math.random()>.35+decorScore()*.06)return;
+  const pool=FRIENDS.filter(n=>NPCS.some(q=>q.name===n));const nm=pool[(Math.random()*pool.length)|0],src=NPCS.find(q=>q.name===nm);if(!src)return;
+  const ds=decorScore(),happy=ds>=6?'I love what you have done with the place!':ds>=3?'Cozy! A few more things and it would be perfect.':'A bit bare in here... maybe a rug?';
+  VISIT.npc={name:nm+' (visiting)',spr:src.spr,x7visit:nm,x:(HOUSE_ROOM.x0+7.5)*TS,y:(HOUSE_ROOM.y0+5.6)*TS,lines:['Knock knock! Just dropping by.',happy]};NPCS.push(VISIT.npc);VISIT.left=40;
+  frAdd(nm,1+Math.floor(ds/3),'visit');toast(nm+' drops by your house!',2.6,'#ffe14d');}
+function x7EndVisit(){const i=NPCS.indexOf(VISIT.npc);if(i>=0)NPCS.splice(i,1);VISIT.npc=null;}
+function drawHouseX7(){if(zoneOfPx(P.y)!=='house')return;const sp=FURN_SPOTS();
+  X7.furn.placed.forEach((id,i)=>{const f=FURN[id],s=sp[i];if(!f||!s)return;const x=s[0]*TS-cam.x,y=s[1]*TS-cam.y,w=f.w*TS,h=f.h*TS;
+    ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(x+3,y+h-6,w-6,6);ctx.fillStyle='#1e140c';ctx.fillRect(x+3,y+4,w-6,h-8);ctx.fillStyle=f.col;ctx.fillRect(x+5,y+6,w-10,h-12);
+    ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x+5,y+6,w-10,3);
+    if(id==='tank'){for(let k=0;k<3;k++){ctx.fillStyle=['#ffa64a','#7dffd0','#ff6a8a'][k];ctx.fillRect(x+10+k*14+Math.sin(gtime*2+k)*4,y+12+k*3,6,3);}}
+    if(id==='lamp'){ctx.fillStyle='rgba(255,220,140,'+(.25+.1*Math.sin(gtime*3))+')';ctx.beginPath();ctx.arc(x+16,y+10,18,0,6.283);ctx.fill();}});
+  GARDEN_SPOTS().forEach(([gx,gy],i)=>{const g=X7.garden[i],x=gx*TS-cam.x,y=gy*TS-cam.y;ctx.fillStyle='#5a3a1e';ctx.fillRect(x+4,y+10,24,16);ctx.fillStyle='#3e2614';ctx.fillRect(x+6,y+12,20,12);
+    if(g&&g.herb){const p=herbPct(g),hh=3+p*12;ctx.fillStyle=p>=1?'#7dffa0':'#4a9a3a';for(let k=0;k<3;k++)ctx.fillRect(x+8+k*6,y+12-hh+6,3,hh);}});}
+{const _dw=drawWorld;drawWorld=function(){_dw.apply(this,arguments);try{drawHouseX7();drawFestival();drawMeteors();}catch(e){}};}
+
+/* ======================= 14. VILLAGER HEARTS + personal quests, 16. chains, 17. night ghost quest ======================= */
+const FRIENDS=['Elder Orin','Blacksmith Brum','Pip','Fisher Tobin','Old Tom','Gardener Lyn','Marlo the Keeper','Mara the Tapster','Innkeeper Rosa','Farmer Hale'];
+const hearts=n=>Math.min(10,Math.floor((X7.fr[n]|0)/10));
+function frAdd(n,v,why){if(!FRIENDS.includes(n))return;const h0=hearts(n);X7.fr[n]=(X7.fr[n]|0)+v;const h1=hearts(n);
+  if(h1>h0){toast(n+': '+'\u2665'.repeat(Math.min(h1,5))+(h1>5?'+':'')+'  ('+h1+' hearts)',2.6,'#ff8ab0');if(h1===3)toast(n+' has a personal favour to ask - visit them!',3,'#ffd23f');x7Dot('friends');}}
+function giftFish(n){const k=Object.keys(FSH.fish).find(id=>FISH_BY[id]&&!FISH_BY[id].junk&&FSH.fish[id]>0);if(!k){toast('No fish to give',1.8,'#ffb0a0');return;}FSH.fish[k]--;if(FSH.fish[k]<=0)delete FSH.fish[k];frAdd(n,4+(FISH_BY[k].rar|0)*2,'gift');toast('You give '+n+' a '+FISH_BY[k].n,2,'#ff8ab0');sfx('coin');}
+const UNIQUE_CARDS=[{id:'tidecaller',base:'frostburst',name:'TIDECALLER',lab:'TIDECALL',col:'#4ad0ff',pow:130,desc:'Tobin\'s gift: a freezing wave over an area'},
+  {id:'forgeheart',base:'quake',name:'FORGEHEART',lab:'FORGEHRT',col:'#ff7a3a',pow:80,desc:'Brum\'s gift: molten shockwave, stun'},
+  {id:'pipspark',base:'chain',name:'PIP\'S SPARKLER',lab:'SPARKLER',col:'#ffe870',pow:95,desc:'Pip\'s gift: lightning that hops 4 foes'}];
+UNIQUE_CARDS.forEach(u=>{const b=CARD[u.base];if(!b||CARD[u.id])return;const c=Object.assign({},b,{id:u.id,name:u.name,lab:u.lab,col:u.col,pow:u.pow,desc:u.desc,rar:'epic',unique:true});CARDS.push(c);CARD[u.id]=c;
+  if(CAST[u.base])CAST[u.id]=(ch,m,a,pc)=>CAST[u.base](ch,m,a,pc);});
+function x7Icons(){try{for(const u of UNIQUE_CARDS)if(SP.ic&&!SP.ic[u.id]&&SP.ic[u.base])SP.ic[u.id]=SP.ic[u.base];}catch(e){}}
+setTimeout(x7Icons,0);setTimeout(x7Icons,600);
+const X7_QUESTS=[
+  {id:'pip3',giver:'Pip',req:'bones',name:'Goblin Trinkets',obj:{k:'kill',type:'goblin',n:8},offer:['Goblins carry the shiniest junk! Beat eight of them for me?'],prog:['Eight goblins! They hide in Whisperwood.'],done:['Shiny! Okay, one more thing...'],reward:{gold:120,xp:200}},
+  {id:'pip4',giver:'Pip',req:'pip3',name:'Pip\'s Big Sparkler',obj:{k:'collect',item:'gel',n:5,from:'slime',chance:.6},offer:['I am building a SPARKLER. Five Slime Gels, please!'],prog:['Five gels for the sparkler!'],done:['KA-ZAP! It works! You keep the magic card - it is Pip\'s Sparkler!'],reward:{gold:150,xp:260,card:'pipspark'}},
+  {id:'tob3',giver:'Fisher Tobin',req:'fish2',name:'The Long Season',obj:{k:'fish',n:20},offer:['You have the knack now. Catch twenty more and I will teach you an old river secret.'],prog:['Twenty fish, friend. Any water will do.'],done:['Steady hands. One more test...'],reward:{gold:160,xp:220}},
+  {id:'tob4',giver:'Fisher Tobin',req:'tob3',name:'Call of the Tide',obj:{k:'fish',n:40},offer:['Forty more, and the river will answer you.'],prog:['The tide is listening. Keep casting.'],done:['Hear that? The tide knows your name. This card was my father\'s - Tidecaller.'],reward:{gold:250,xp:400,card:'tidecaller'}},
+  {id:'brum2',giver:'Blacksmith Brum',req:'iron',name:'Bones for the Bellows',obj:{k:'kill',type:'knight',n:10},offer:['Skeleton bone burns hotter than coal, believe it or not. Ten knights\' worth!'],prog:['Ten Skeleton Knights - Whisperwood after dark is thick with them.'],done:['The forge roars! Now for the real work...'],reward:{gold:180,xp:260}},
+  {id:'brum3',giver:'Blacksmith Brum',req:'brum2',name:'The Forgeheart',obj:{k:'kill',type:'goblin',n:12},offer:['Goblins stole my best tongs. Twelve of them should cough them up.'],prog:['Twelve goblins. Tongs. Go!'],done:['My tongs! With them I forged THIS - the Forgeheart. It is yours.'],reward:{gold:300,xp:420,card:'forgeheart'}},
+  {id:'ghost',giver:'Old Tom',name:'The Lantern Ghost',x7night:true,obj:{k:'kill',type:'wraith',n:4},offer:['*shivers* You see her too? The pale lady in the meadow... only at night.','Four wraiths wander with her. Send them to rest and she may go too.'],prog:['Only at night, mind. North meadow.'],done:['The meadow is quiet... I saw a lantern float up to the stars. Thank you.'],reward:{gold:200,xp:300,card:'curse'}},
+  {id:'pq_orin',giver:'Elder Orin',x7hearts:3,name:'Orin\'s Old Friend',obj:{k:'kill',type:'knight',n:6},offer:['You have been kind to an old man. My friend Aldric fell in Whisperwood long ago - his bones still walk. Lay six to rest?'],prog:['Six knights. Rest easy, Aldric.'],done:['Thank you. That has weighed on me for forty years.'],reward:{gold:200,xp:300}},
+  {id:'pq_lyn',giver:'Gardener Lyn',x7hearts:3,name:'Lyn\'s Rare Bloom',obj:{k:'fish',n:8},offer:['Fish scraps make the best compost! Eight fish and my moonflowers will finally bloom.'],prog:['Eight fish for the moonflowers!'],done:['Look - they bloomed! Take some seeds... and some gold.'],reward:{gold:160,xp:200}},
+  {id:'pq_tom',giver:'Old Tom',x7hearts:3,name:'Tom\'s War Story',obj:{k:'kill',type:'goblin',n:6},offer:['When I was young I chased six goblins out of the farm with a broom. Can you still do it with a sword?'],prog:['Six goblins, like old times.'],done:['Ha! Just like me in my prime.'],reward:{gold:140,xp:220}},
+  {id:'pq_marlo',giver:'Marlo the Keeper',x7hearts:3,name:'A Wild Friend',obj:{k:'kill',type:'slime',n:10},offer:['The slimes keep scaring the pen pets. Ten of them, gently please.'],prog:['Ten slimes. The pets thank you.'],done:['The pets are so calm now. Here, a treat for your companion too.'],reward:{gold:150,xp:200}},
+];
+X7_QUESTS.forEach(q=>{if(QUEST_BY_ID[q.id])return;QUESTS.push(q);QUEST_BY_ID[q.id]=q;});
+{const _qs=questStatus;questStatus=function(id){const s=_qs(id),q=QUEST_BY_ID[id];if(s==='avail'&&q){if(q.x7hearts&&hearts(q.giver)<q.x7hearts)return 'locked';if(q.x7night&&!x7Night())return 'locked';}return s;};}
+{const _qc=questComplete;questComplete=function(id){const q=QUEST_BY_ID[id],r=_qc(id);if(q&&r&&r.length)frAdd(q.giver,8,'quest');return r;};}
+
+/* ======================= 15. MARA'S RUMORS (one per day) ======================= */
+const RUMORS=['They say a glint hides behind the old trees in the far north-west meadow... a chest nobody has opened.','Tobin swears a Ghost Carp rises at the river bend - only after dark.',
+  'A Dawnlight Char bites at first light, never later. Early birds eat well.','Smoke from the castle chimneys? Emberfang is restless. Bring fire wards.',
+  'The waystones remember every traveller. Touch them all and the roads get shorter.','Ember Koi glow at dusk in the deep pools - the hour between day and night.',
+  'Marlo says pets that walk far with you grow brave. Bond walks, he calls them.','Somebody dropped a silver key near the chapel. Look by the gravestones.',
+  'Shooting stars some nights! Star shards buy the fanciest hats from Zell.','The Endless Crypt goes deeper every week. The Arena Master knows the way down.'];
+const rumorToday=()=>RUMORS[x7Hash(x7Day(),3)%RUMORS.length];
+{const _od=openDlg;openDlg=function(npc){
+  if(npc&&npc.x7market){openCodex('market');return;}
+  if(npc&&npc.x7visit){frAdd(npc.x7visit,1,'chat');}
+  if(npc&&FRIENDS.includes(npc.name)&&X7.frDay[npc.name]!==x7Day()){X7.frDay[npc.name]=x7Day();frAdd(npc.name,2,'talk');}
+  if(npc&&npc.oakTap){const base=(npc.x7base=npc.x7base||npc.lines.slice());npc.lines=base.concat(['Rumor of the day: '+rumorToday()]);X7.rumorSeen=x7Day();}
+  if(npc&&npc.name==='Arena Master'&&(bossDown||lichDown||X7.depth.best>0||X7.ngp>0)&&!npc.rush){}
+  return _od.apply(this,arguments);};}
+
+/* ======================= 21. PET TRICKS  23. BOND WALKS ======================= */
+const TRICKS=[{lv:5,id:'dig',n:'Dig',d:'Digs up a few coins now and then'},{lv:10,id:'sentry',n:'Sentry',d:'Barks "!" when a monster spots you'},{lv:20,id:'lucky',n:'Lucky Paw',d:'+8% fishing luck'}];
+const hasTrick=(id,t)=>id&&petLevel(id)>=TRICKS.find(x=>x.id===t).lv;
+const WALK_GOAL=60000,bonded=id=>id&&(X7.pet.walk[id]|0)>=WALK_GOAL;
+const PT={dig:60,lx:null,ly:null};
+function petTick(dt){const id=PET.active;if(!id||state!=='play')return;
+  if(PT.lx!=null&&!B&&!WARP){const d=Math.hypot(P.x-PT.lx,P.y-PT.ly);if(d<200){const w0=X7.pet.walk[id]|0;X7.pet.walk[id]=w0+d;if(w0<WALK_GOAL&&X7.pet.walk[id]>=WALK_GOAL){toast('BONDED with '+PETS[id].name+'! Bond perk: +3% damage',4,'#ff8ab0');sfx('jingleAch');}}}
+  PT.lx=P.x;PT.ly=P.y;
+  if(hasTrick(id,'dig')&&!B&&zoneOfPx(P.y)==='ow'){PT.dig-=dt;if(PT.dig<=0){PT.dig=90+Math.random()*60;const g=5+petLevel(id);P.gold+=g;floatText(PET.x,PET.y-30,'+'+g+'G dug up!','#ffd23f',11);sfx('coin');}}
+  if(hasTrick(id,'sentry')&&!B)for(const e of enemies){if(!e.alive||e.dying||e.x7warn>gtime)continue;if(Math.hypot(e.x-P.x,e.y-P.y)<240&&(e.chasing||e.alert>0)){e.x7warn=gtime+12;floatText(PET.x,PET.y-34,'!','#ff6a5a',18);sfx('select');}}}
+{const _fw=fishWeighted;fishWeighted=function(pool,spot,rod){if(hasTrick(PET.active,'lucky'))rod={...rod,luck:(rod.luck||0)+.08};return _fw(pool,spot,rod);};}
+{const _m=x7DmgMul;x7DmgMul=function(){return _m()*(bonded(PET.active)?1.03:1);};}
+
+/* ======================= 24. FESTIVALS  25. METEOR NIGHTS ======================= */
+const festKind=()=>x7Weekend()?(x7Week()%2?'lantern':'harvest'):null;
+const FEST_TOK=[[5,34],[9,38],[14,36],[18,38],[22,36],[12,44]];
+function festTick(){const k=festKind();if(!k)return;const F=X7.fest;if(F.wk!==x7Week()){F.wk=x7Week();F.tok=FEST_TOK.map(()=>0);F.got=0;F.prize=false;}
+  FEST_TOK.forEach(([x,y],i)=>{if(F.tok[i])return;const px=(x+.5+(OX|0))*TS,py=(y+.5+(OY|0))*TS;if(Math.hypot(P.x-px,P.y-py)<30){F.tok[i]=1;F.got++;sfx('coin');toast((k==='harvest'?'Golden acorn ':'Paper star ')+F.got+'/6',1.8,'#ffd23f');
+    if(F.got>=6&&!F.prize){F.prize=true;const h=k==='harvest'?'pumpkin':'paper';X7.pet.hats[h]=1;toast('Festival prize: '+HATS[h].n+' (pet outfit)!',4,'#ffd23f');sfx('jingleAch');}}});}
+function drawFestival(){const k=festKind();if(!k||zoneOfPx(P.y)!=='ow')return;const ox=(OX|0)*TS-cam.x,oy=(OY|0)*TS-cam.y;
+  if(k==='lantern'){for(let x=3;x<25;x+=1){const sx=ox+x*TS+16,sy=oy+36.6*TS+Math.sin(x)*3;ctx.strokeStyle='#3a2410';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx-16,sy-4);ctx.quadraticCurveTo(sx,sy+2,sx+16,sy-4);ctx.stroke();
+      ctx.fillStyle=['#ff6a5a','#ffd23f','#7df9ff','#ff9ad0'][x%4];ctx.globalAlpha=.75+.25*Math.sin(gtime*3+x);ctx.fillRect(sx-3,sy,6,7);ctx.globalAlpha=1;}}
+  else{for(const [x,y] of [[4,38],[10,39],[16,39],[21,38],[13,35]]){const sx=ox+x*TS,sy=oy+y*TS;ctx.fillStyle='#d8b050';ctx.fillRect(sx+4,sy+14,24,14);ctx.fillStyle='#b08a30';ctx.fillRect(sx+4,sy+20,24,2);
+      ctx.fillStyle='#ff8a2a';ctx.beginPath();ctx.ellipse(sx+16,sy+10,8,6,0,0,6.283);ctx.fill();ctx.fillStyle='#3a7a2a';ctx.fillRect(sx+15,sy+2,2,4);}}
+  const F=X7.fest;FEST_TOK.forEach(([x,y],i)=>{if(F.tok&&F.tok[i])return;const sx=ox+(x+.5)*TS,sy=oy+(y+.5)*TS+Math.sin(gtime*3+i)*3;ctx.fillStyle=k==='harvest'?'#e0a030':'#fff2a0';ctx.beginPath();ctx.arc(sx,sy,5,0,6.283);ctx.fill();ctx.strokeStyle='#5a3a10';ctx.stroke();});}
+const meteorNight=()=>x7Night()&&x7Hash(x7Day(),7)%4===0;
+function meteorTick(){if(!meteorNight()){if(!x7Night())X7.meteors=[];return;}
+  if(X7.meteorDay!==x7Day()){X7.meteorDay=x7Day();X7.meteors=[];for(let i=0;i<40&&X7.meteors.length<5;i++){const tx=3+((x7Hash(x7Day(),i*3)%50)),ty=(OY|0)+2+(x7Hash(x7Day(),i*3+1)%40);
+      if(!solidTile(tx,ty)&&!inTownPx(tx*TS+16,ty*TS+16))X7.meteors.push({x:tx*TS+16,y:ty*TS+16,t0:gtime});}toast('METEOR NIGHT! Falling stars land around the valley - find the star shards!',4,'#fff2a0');sfx('starfall');}
+  for(const m of X7.meteors){if(m.got)continue;if(Math.hypot(P.x-m.x,P.y-m.y)<34){m.got=1;X7.shards++;toast('+1 STAR SHARD ('+X7.shards+')',2,'#fff2a0');sfx('jingleFoil');}}}
+function drawMeteors(){if(!X7.meteors.length||zoneOfPx(P.y)!=='ow')return;for(const m of X7.meteors){if(m.got)continue;const x=m.x-cam.x,y=m.y-cam.y,k=clamp((gtime-m.t0)/1.5,0,1);
+  if(k<1){ctx.strokeStyle='rgba(255,240,180,.8)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+120*(1-k),y-200*(1-k));ctx.lineTo(x+140*(1-k)+10,y-230*(1-k)-16);ctx.stroke();continue;}
+  ctx.fillStyle='rgba(255,240,160,'+(.35+.2*Math.sin(gtime*5))+')';ctx.beginPath();ctx.arc(x,y,12,0,6.283);ctx.fill();ctx.fillStyle='#fff6c0';ctx.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,r=i%2?3:7;ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}ctx.fill();}}
+
+/* ======================= 27. MUSIC  29. AMBIENT ======================= */
+Object.assign(TRACKS,{
+  villageNight:{bpm:66,key:57,prog:[[0,'m'],[5,'m'],[3,'M'],[7,'M']],lead:{w:'sine',v:.045,oct:0,pat:[12,null,null,15,null,14,null,null, 12,null,10,null,7,null,null,null, 8,null,null,12,null,10,null,8, 7,null,null,null,null,null,null,null]},
+    bass:{w:'sine',v:.06,pat:[0,null,null,null,null,null,2,null]},pad:{w:'sine',v:.02}},
+  tavern:{bpm:108,key:62,prog:[[0,'M'],[5,'M'],[7,'M'],[0,'M']],lead:{w:'triangle',v:.04,oct:0,pat:[12,14,16,null,14,12,9,null, 7,9,12,null,9,7,4,null, 5,7,9,null,12,null,11,9, 7,null,null,null,null,null,null,null]},
+    bass:{w:'triangle',v:.06,pat:[0,null,2,null,1,null,2,null]},arp:{w:'sine',v:.022,pat:[0,1,2,1,0,1,2,1]}},
+});
+const inTapPx=(x,y)=>typeof TAVERN!=='undefined'&&TAVERN.box&&x>TAVERN.box.x0*TS&&x<(TAVERN.box.x1+1)*TS&&y>TAVERN.box.y0*TS&&y<(TAVERN.box.y1+1)*TS;
+{const _mw=musWant;musWant=function(){const w=_mw();if(state!=='play'||B)return w;if(inTapPx(P.x,P.y))return 'tavern';if(w==='village'&&zoneOfPx(P.y)==='ow'&&x7Night())return 'villageNight';return w;};}
+const AMB={t:0};
+function ambTick(dt){if(muted||!AC||state!=='play'||B)return;AMB.t-=dt;if(AMB.t>0)return;AMB.t=.7;
+  const brum=NPCS.find(n=>n.name==='Blacksmith Brum');if(brum&&brum.x>0){const d=Math.hypot(brum.x-P.x,brum.y-P.y);if(d<360&&Math.random()<.6){const k=1-d/360;tone(1400,900,.05,'triangle',.05*k);noise(.04,.05*k);}}
+  if(inTapPx(P.x,P.y)&&Math.random()<.7)for(let i=0;i<3;i++)tone(180+Math.random()*120,160+Math.random()*100,.08,'sine',.02,i*.09);
+  const tx=Math.floor(P.x/TS),ty=Math.floor(P.y/TS);let wd=99;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const t=map[ty+dy]&&map[ty+dy][tx+dx];if(t===T.W)wd=Math.min(wd,Math.hypot(dx,dy));}
+  if(wd<5)noise(.9,.03*(1-wd/5));}
+
+/* ======================= tick everything ======================= */
+let X7T=0;
+{const _up=update;update=function(dt){const r=_up.apply(this,arguments);if(state==='play'||isUI&&isUI())try{
+  X7T-=dt;if(X7T<=0){X7T=.25;loginTick();bountyEnsure();marketTick();festTick();meteorTick();}
+  derbyTick(dt);visitTick(dt);petTick(dt);rematchTick(dt);ambTick(dt);if(B&&B.mastT>0)B.mastT-=dt;}catch(e){}return r;};}
+
+/* ======================= THE CODEX (pause > Journal > CODEX, the Notice Board, Zell, the fishing screen) ======================= */
+const CODEX_PAGES=[['journal','Fish Journal'],['bestiary','Bestiary Stamps'],['daily','Login Calendar'],['bounty','Weekly Bounties'],['market','Weekend Market'],
+  ['events','Events & Derby'],['house','House & Garden'],['friends','Villager Hearts'],['pets','Pet Tricks & Outfits'],['endgame','Endgame & Mastery'],['ngplus','New Game+ & Challenges']];
+const x7AnyDot=()=>Object.keys(X7.newDots).length>0;
+let CODEX_PAGE=null;
+function openCodex(p){CODEX_PAGE=p||null;if(p)delete X7.newDots[{daily:'daily',bounty:'bounty'}[p]||p];openUIMode('codex',state==='paused'?'paused':'play');}
+function cxRow(label,on,go,sub){const r=fishActRow(label,on,go);if(sub){const d=r.draw;r.h=44;r.draw=function(x0,y,W,h,isSel,si){d.call(this,x0,y,W,h,isSel,si);txt(sub,x0+10,y+36,{size:8,col:'#d8c8a8',bold:false,out:false});};}return r;}
+const H=s=>({t:'head',s});
+function x7FishRow(f){const j=X7.jr[f.id];return {h:34,draw(x0,y,W,h){ctx.fillStyle='#22140b';ctx.fillRect(x0,y,W,h);
+  if(j){draw(fishTinted(f.col),x0+8,y+5,1.5);txt(f.n,x0+40,y+15,{size:10,col:f.col,lw:2});txt('Biggest '+j.big+' lb at '+j.where+'  ('+j.n+' caught)',x0+40,y+28,{size:8,col:'#d8c8a8',bold:false,out:false});}
+  else{ctx.globalAlpha=.9;for(let i=0;i<3;i++)draw(fishTinted('#000000'),x0+8,y+5,1.5);ctx.globalAlpha=1;txt('??????',x0+40,y+15,{size:10,col:'#7a6a50',lw:2});txt(f.tod?'Bites at '+f.tod:'Fishing Lv '+f.lv,x0+40,y+28,{size:8,col:'#8a7a60',bold:false,out:false});}}};}
+UI_MODES.codex={title:()=>CODEX_PAGE?'CODEX - '+(CODEX_PAGES.find(p=>p[0]===CODEX_PAGE)||['','?'])[1].toUpperCase():'CODEX',
+  sub:()=>['Gold '+P.gold+'   Star shards '+X7.shards+'   Herbs '+X7.herbs+(X7.ngp?'   NG+'+X7.ngp:''),'#ffd23f'],rows(){
+  const R=[];
+  if(!CODEX_PAGE){R.push(H('EVERYTHING TO COLLECT, CHASE AND COME BACK FOR'));CODEX_PAGES.forEach(([id,n])=>R.push(cxRow((X7.newDots[id]?'(new!) ':'')+n,true,()=>openCodex(id))));return R;}
+  R.push(cxRow('< Back to the Codex',true,()=>{CODEX_PAGE=null;UI.scroll=0;UI.sel=0;}));
+  const P2=CODEX_PAGE;
+  if(P2==='journal'){const f=fotw();R.push(H('FISH OF THE WEEK: '+(f?f.n:'-')+'  (double pay, double weight)'));
+    FISH_PAGES.forEach(p=>{const L=fishOfPage(p.t),n=L.filter(q=>X7.jr[q.id]).length;R.push(H('PAGE '+(p.t+1)+': '+p.n+'  '+n+'/'+L.length+(X7.skins[p.t]?'  - rod skin unlocked':'  - complete for a rod skin')));
+      if(X7.skins[p.t])R.push(cxRow((X7.rodSkin===p.t?'[ON] ':'')+'Rod skin: '+p.n+' colours',true,()=>{X7.rodSkin=X7.rodSkin===p.t?null:p.t;}));L.forEach(q=>R.push(x7FishRow(q)));});}
+  else if(P2==='bestiary'){const sb=stampSetBonus();R.push(H('Beat 10 / 50 / 100 of a kind: Bronze / Silver / Gold. Full set: +2% dmg per tier (now +'+sb*2+'%)'));
+    Object.keys(ENEMY).filter(t=>!ENEMY[t].boss).forEach(t=>{const n=X7.best[t]|0,s=stampOf(t);R.push({h:30,draw(x0,y,W,h){ctx.fillStyle='#22140b';ctx.fillRect(x0,y,W,h);
+      for(let k=0;k<3;k++){ctx.fillStyle=k<s?STAMP_C[k]:'#3a2618';ctx.beginPath();ctx.arc(x0+14+k*16,y+15,6,0,6.283);ctx.fill();}
+      txt(ENEMY[t].name,x0+66,y+14,{size:10,col:'#f0e2c0',lw:2});txt(n+' beaten'+(s<3?'  - next stamp at '+STAMP_T[s]:'  - GOLD'),x0+66,y+26,{size:8,col:'#d8c8a8',bold:false,out:false});}});});}
+  else if(P2==='daily'){const L=X7.login;R.push(H('LOGIN CALENDAR - missing a day only pauses your streak'));
+    R.push({h:56,draw(x0,y,W){const cw=Math.floor((W-12)/7);for(let i=0;i<7;i++){const x=x0+4+i*cw,done=i<L.day-(loginReady()?1:0),today=i===L.day-1;
+      ctx.fillStyle=today&&loginReady()?'#5a3a10':done?'#2d4a20':'#2a1a10';ctx.fillRect(x,y,cw-4,50);ctx.strokeStyle=today?'#ffe14d':'#7a5a30';ctx.strokeRect(x+.5,y+.5,cw-5,49);
+      txt('D'+(i+1),x+cw/2-2,y+14,{size:9,align:'center',col:'#f0e2c0',lw:2});txt(i===6?'CHEST':LOGIN_REW[i].g+'G',x+cw/2-2,y+32,{size:8,align:'center',col:i===6?'#ffd23f':'#d8c8a8',lw:2});if(done)txt('ok',x+cw/2-2,y+45,{size:8,align:'center',col:'#7dffa0',lw:2});}}});
+    R.push(cxRow(loginReady()?'Claim day '+L.day+' reward':'Claimed - come back tomorrow',loginReady(),loginClaim,'Total login days: '+L.total));
+    R.push(cxRow('Open the Daily hub',true,()=>openDaily()));}
+  else if(P2==='bounty'){bountyEnsure();R.push(H('THIS WEEK\'S BOUNTIES - rare card + 120 G each'));X7.bounty.list.forEach(b=>R.push(cxRow((b.paid?'[PAID] ':b.done?'[DONE] ':'')+b.d,b.done&&!b.paid,()=>bountyClaim(b),'Progress '+Math.min(b.p,b.n)+'/'+b.n)));}
+  else if(P2==='market'){if(!x7Weekend()){R.push(H('Zell the Wanderer only comes to Oakvale on SATURDAY and SUNDAY.'));R.push(H('Your hats can still be equipped:'));}
+    else{R.push(H('ZELL\'S WEEKEND WARES (by the Notice Board)'));const mc=marketCard();if(mc)R.push(cxRow('Rare card: '+CARD[mc].name+'  400 G',P.gold>=400,()=>{if(P.gold<400)return;P.gold-=400;grantCard(mc);toast('Bought '+CARD[mc].name,2.4,'#ffd23f');sfx('coin');}));
+      FISH_BAITS.forEach(b=>R.push(cxRow('Bait: '+b.n+'  '+Math.round(b.gold*.8)+' G (weekend price)',P.gold>=b.gold*.8,()=>{const g=Math.round(b.gold*.8);if(P.gold<g)return;P.gold-=g;FSH.bait=b.id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');})));}
+    Object.keys(HATS).forEach(id=>{const h=HATS[id],own=X7.pet.hats[id];if(!own&&(h.fest||h.cos||!x7Weekend()))return;
+      R.push(cxRow((own?(PET.active&&X7.pet.outfit[PET.active]===id?'[WORN] ':'[OWNED] '):'')+h.n+(own?'':'  '+(h.g?h.g+' G ':'')+(h.sh?h.sh+' shards':'')),true,()=>own?equipHat(id):buyHat(id),own?'Tap to put on / take off your active pet':'Pet outfit'));});}
+  else if(P2==='events'){const k=festKind();R.push(H(k?(k==='harvest'?'HARVEST FESTIVAL':'LANTERN NIGHT')+' this weekend! Find 6 '+(k==='harvest'?'golden acorns':'paper stars')+' around town ('+(X7.fest.got|0)+'/6)':'Festivals: Harvest Festival / Lantern Night on alternating weekends'));
+    R.push(H(meteorNight()?'METEOR NIGHT tonight! Shards left: '+X7.meteors.filter(m=>!m.got).length:'Meteor nights: some nights stars fall - shards buy fancy hats'));
+    const sp=derbySpot();R.push(H('FISHING DERBY today at '+sp.name+': heaviest fish in 3 min, beat '+DERBY_TARGET()+' lb'));
+    R.push(cxRow(X7.derby.on?'Derby running: '+Math.ceil(X7.derby.t)+'s  best '+X7.derby.best+' lb':X7.derby.day===x7Day()?'Today\'s derby is done':'Start today\'s derby',!X7.derby.on&&X7.derby.day!==x7Day(),derbyStart,'Derby trophies: '+X7.derby.trophies));
+    R.push(H('Mara\'s rumor today: '+rumorToday().slice(0,60)+'...'));}
+  else if(P2==='house'){R.push(H('FURNITURE - Brum and Mara deliver to your house (decor makes visitors happier)'));
+    Object.keys(FURN).forEach(id=>{const f=FURN[id],own=X7.furn.owned[id],pl=X7.furn.placed.includes(id);R.push(cxRow((pl?'[PLACED] ':own?'[STORED] ':'')+f.n+(own?'':'  '+f.g+' G  ('+f.from+')'),own||P.gold>=f.g,()=>own?furnToggle(id):furnBuy(id)));});
+    R.push(H('GARDEN PLOTS (grow in real time, even while you are away)'));X7.garden.forEach((g,i)=>R.push(cxRow(g.herb?HERBS[g.herb].n+'  '+Math.round(herbPct(g)*100)+'%'+(herbPct(g)>=1?'  - HARVEST':''):'Plot '+(i+1)+': plant '+HERBS[Object.keys(HERBS)[i%3]].n,true,()=>gardenAct(i))));
+    R.push(cxRow('Cook Herbed Fish Stew (1 herb + 1 fish): +30% XP 4 min',X7.herbs>0,cookHerbStew));R.push(H('Decor score '+decorScore()+'  - villagers drop by while you are home'));}
+  else if(P2==='friends'){R.push(H('Talk daily (+2), give fish, finish their quests. 3 hearts unlocks a personal quest.'));
+    FRIENDS.filter(n=>NPCS.some(q=>q.name===n)).forEach(n=>{const h=hearts(n);R.push(cxRow(n+'  '+'\u2665'.repeat(h)+'\u2661'.repeat(Math.max(0,5-h))+(h>5?' +'+(h-5):''),true,()=>giftFish(n),'Tap: gift a fish  -  '+(X7.fr[n]|0)+' friendship'));});}
+  else if(P2==='pets'){const id=PET.active;if(!id)R.push(H('No active pet - visit Marlo the Keeper'));else{const lv=petLevel(id),w=X7.pet.walk[id]|0;
+    R.push(H(PETS[id].name+'  Lv '+lv));TRICKS.forEach(t=>R.push(H((lv>=t.lv?'[LEARNED] ':'[Lv '+t.lv+'] ')+t.n+' - '+t.d)));
+    R.push(H('BOND WALK: '+Math.min(100,Math.floor(w/WALK_GOAL*100))+'%'+(bonded(id)?' - BONDED (+3% damage)':' - walk together to bond')));}
+    R.push(cxRow('Pet outfits (Weekend Market page)',true,()=>openCodex('market')));R.push(cxRow('Open Pets',true,()=>openPets()));}
+  else if(P2==='endgame'){R.push(H('ENDLESS CRYPT - floors never end. Best depth: '+X7.depth.best));R.push(cxRow('Enter the Endless Crypt',true,()=>{closeUI();endlessStart();}));
+    X7.depth.runs.forEach(r=>R.push(H('  depth '+r.d)));
+    R.push(H('BOSS REMATCHES - harder, new attacks, a cosmetic each'));
+    R.push(cxRow('Rematch Emberfang (wins: '+X7.rematch.dragon+')',bossDown||X7.rematch.dragon>0,()=>rematchStart('dragon')));R.push(cxRow('Rematch the Lich King (wins: '+X7.rematch.lich+')',lichDown||X7.rematch.lich>0,()=>rematchStart('lich')));
+    R.push(H('CARD MASTERY - cast a card 100 times: +15% damage (gold * on the card)'));
+    Object.keys(COL).filter(id=>CARD[id]).sort((a,b)=>(X7.cu[b]|0)-(X7.cu[a]|0)).slice(0,14).forEach(id=>R.push(H('  '+CARD[id].name+'  '+Math.min(100,X7.cu[id]|0)+'/100'+(X7.mast[id]?'  MASTERED':'')+(isFoil(id)?'  FOIL':''))));}
+  else if(P2==='ngplus'){R.push(H('NEW GAME+ keeps cards, pets, gear, house. Monsters get tougher, Gold-Trim gear drops.'));
+    R.push(cxRow(ngpReady()?'Begin New Game+ '+(X7.ngp+1):'Finish the story (beat the Lich King) to unlock',ngpReady(),startNGPlus));
+    R.push(H('CHALLENGES (earn title-screen badges)'));R.push(cxRow((X7.ch.noHeal?'[ON] ':'')+'No Healing Cards',true,()=>chToggle('noHeal'),'Finish the story with it on: The Ascetic'));
+    R.push(cxRow((X7.ch.oneLife?'[ON] ':'')+'One-Life Arena',true,()=>chToggle('oneLife'),'Reach Arena round 10: Iron Gladiator'));
+    Object.keys(BADGES).forEach(k=>R.push(H((X7.badges[k]?'[EARNED] ':'[ ] ')+BADGES[k].n+' - '+BADGES[k].d)));
+    R.push(H('ENDING CARDS'));Object.keys(ENDINGS).forEach(k=>{const e=ENDINGS[k],got=X7.endings[k]||STORY.ending===k;R.push({h:40,draw(x0,y,W,h){ctx.fillStyle=got?'#3a2618':'#1e120a';ctx.fillRect(x0,y,W,h);ctx.fillStyle=got?e.col:'#3a2a1a';ctx.fillRect(x0+6,y+5,22,30);
+      txt(got?e.n:'??? (an ending not yet seen)',x0+36,y+16,{size:10,col:got?e.col:'#8a7a60',lw:2});if(got)txt(e.desc.slice(0,70),x0+36,y+30,{size:8,col:'#d8c8a8',bold:false,out:false});}});});}
+  return R;}};
+UI_STATES.push('codex');
+PAUSE_ITEMS.push({k:'KeyX',lab:()=>'CODEX'+(x7AnyDot()?'  (new!)':''),home:'journal',act:()=>openCodex()});
+// discovery hooks: the Notice Board gets a bounty line, the fishing screen links the journal / derby / fish of the week
+{const p=()=>{if(UI_MODES.daily&&!UI_MODES.daily.rows._x7){const r0=UI_MODES.daily.rows;UI_MODES.daily.rows=function(){const r=r0.apply(this,arguments);r.push(H('MORE'));r.push(cxRow('Weekly Bounty Board',true,()=>openCodex('bounty')));r.push(cxRow('Login Calendar'+(loginReady()?' (reward!)':''),true,()=>openCodex('daily')));r.push(cxRow('Events, Derby & Festivals',true,()=>openCodex('events')));return r;};UI_MODES.daily.rows._x7=1;}
+  if(UI_MODES.fish&&!UI_MODES.fish.rows._x7){const r1=UI_MODES.fish.rows;UI_MODES.fish.rows=function(){const r=r1.apply(this,arguments);const f=fotw();r.splice(0,0,H('FISH OF THE WEEK: '+(f?f.n:'-')+'  -  DERBY today at '+derbySpot().name),cxRow('Fish Journal ('+Object.keys(X7.jr).length+'/'+FISHES.length+')',true,()=>openCodex('journal')),cxRow(X7.derby.on?'Derby: '+Math.ceil(X7.derby.t)+'s left, best '+X7.derby.best+' lb':'Fishing Derby',true,()=>openCodex('events')));return r;};UI_MODES.fish.rows._x7=1;UI_MODES.fish.rows._t153=1;}};
+ setTimeout(p,400);setTimeout(p,1200);}
 
 </script></body></html>
