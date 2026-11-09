@@ -8231,6 +8231,8 @@ const inRect=(p,r)=>r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
 const touches=new Map();
 function lpos(t){const r=cv.getBoundingClientRect();return {x:(t.clientX-r.left)/r.width*VW,y:(t.clientY-r.top)/r.height*VH};}
 function tapUI(p){   // taps that act like a click; returns true if consumed
+  if(typeof wmapTapUI==='function'&&wmapTapUI(p))return true;
+  if(typeof pokerTapUI==='function'&&pokerTapUI(p))return true;
   if(typeof revealBusy==='function'&&revealBusy()&&state==='play'){revealTap();return true;}
   if(ffTap(p))return true;
   if(state==='title'){
@@ -8288,6 +8290,7 @@ function cardDown(id,p){
   return false;
 }
 function swipeMove(id,p){
+  if(typeof wmapMove==='function'&&wmapMove(id,p))return;
   if(state==='editor'){edMove(id,p);return;}
   const t0=touches.get(id);
   if(t0&&t0.kind==='card'){
@@ -8310,6 +8313,7 @@ function swipeMove(id,p){
 }
 function touchDown(id,p){
   if(state==='editor'){edDown(id,p);return;}
+  if(typeof overlayDown==='function'&&overlayDown(id,p))return;
   if(state==='fishlab'){touches.set(id,{kind:'fl'});flDown(p);return;}
   if(isUI()){touches.set(id,{kind:'ui',sx:p.x,sy:p.y,ly:p.y,moved:false});return;}
   if(TOUCH&&state==='play'&&!B&&inCircle(p,runBtn(),4)){runToggle();touches.set(id,{kind:'tap'});return;}
@@ -8358,6 +8362,7 @@ function touchEndId(id){
     else if(expSelActive()&&(t.maxd||0)<14&&performance.now()-t.t0<420)expTapAt(t.sx,t.sy);}   // a quick tap in the stick zone also aims
   else if(t.kind==='xtap'){if(!t.dashed&&expSelActive()&&performance.now()-t.t0<520)expTapAt(t.sx,t.sy);}
   else if(t.kind==='wtap'){if(t.wt&&!t.moved&&performance.now()-t.t0<500)setGoto(t.wt);}
+  else if(t.kind==='wmap'&&typeof wmapUp==='function')wmapUp(t);
 }
 function releaseAllTouch(){for(const id of [...touches.keys()])touchEndId(id);joy.on=false;joy.x=joy.y=0;}
 cv.addEventListener('touchstart',e=>{e.preventDefault();TOUCH=true;lockLandscape();lastTouchT=performance.now();ensureAudio();for(const t of e.changedTouches)touchDown(t.identifier,lpos(t));},{passive:false});
@@ -8368,7 +8373,7 @@ cv.addEventListener('touchend',tEnd,{passive:false});cv.addEventListener('touchc
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('dblclick',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(state==='editor'){edDown('mouse',q);return;}if(state==='fishlab'){touches.set('mouse',{kind:'fl'});flDown(q);return;}if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
+cv.addEventListener('mousedown',e=>{if(performance.now()-lastTouchT<900)return;ensureAudio();const q=lpos(e);if(state==='editor'){edDown('mouse',q);return;}if(typeof overlayDown==='function'&&overlayDown('mouse',q))return;if(state==='fishlab'){touches.set('mouse',{kind:'fl'});flDown(q);return;}if(isUI())uiTap(q);else if(!cardDown('mouse',q)){if(tapUI(q))expCancel();else if(!(B&&expSelActive()&&expTapAt(q.x,q.y)))worldTap(q);}});
 addEventListener('mousemove',e=>{if(state==='editor'){edMove('mouse',lpos(e));return;}if(state==='paused'){try{PAUSE.ptr=lpos(e);}catch(x){}}if(touches.has('mouse'))swipeMove('mouse',lpos(e));if(B&&B.xsel>=0){const q=lpos(e);B.xptr={x:q.x+cam.x,y:q.y+cam.y};}});
 addEventListener('mouseup',()=>{if(state==='editor'){edUp('mouse');return;}if(touches.has('mouse'))touchEndId('mouse');});
 addEventListener('blur',releaseAllTouch);
@@ -9282,15 +9287,26 @@ function updateTut(dt){
   if(tutDone(st.id)){TUT.i++;TUT.gap=1;TUT.flash=.6;sfx('select');
     if(TUT.i>=TUT_STEPS.length)tutFinish(false);}
 }
+function tutPlace(){
+  if(typeof WMAP!=='undefined'&&WMAP.on)return 'hide';
+  if(typeof POKER!=='undefined'&&POKER.on)return 'hide';
+  if(typeof inTapPx==='function'&&inTapPx(P.x,P.y))return 'top';
+  if(typeof TAVERN!=='undefined'&&TAVERN.door){const tx=P.x/TS,ty=P.y/TS,d=TAVERN.door;if(Math.abs(tx-d.tx)<8&&ty>=d.wy-1&&ty<=d.wy+4)return 'top';}
+  return 'bottom';
+}
 function drawTut(){
   TUT.skipR=null;
   if(!TUT.on||tutOff()||state!=='play'||DLG||B||TUT.i>=TUT_STEPS.length)return;
+  if(tutPlace()==='hide')return;
   const dm=tutDummyOf();
   if(dm&&dm.alive&&TUT_STEPS[TUT.i].id==='fight'){const sx=dm.x-cam.x,sy=dm.y-cam.y-34+Math.sin(gtime*4)*3;
     txt('TRAINING SLIME',sx,sy-14,{size:10,align:'center',col:'#ffe14d',lw:3});ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-6,sy-8);ctx.lineTo(sx+6,sy-8);ctx.closePath();ctx.fill();}
-  const st=TUT_STEPS[TUT.i],w=Math.min(VW-SL-SR-24,380),x=Math.round(VW/2-w/2),h=62,y=VH-SB-h-(TOUCH?(VH>VW?160:14):34);
-  const txtS=TOUCH?st.t:st.k,font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(txtS,w-24,font);
-  const hh=Math.max(h,44+ls.length*14);const yy=y-(hh-h);
+  const st=TUT_STEPS[TUT.i],top=tutPlace()==='top';
+  const w=top?Math.max(140,Math.min(260,(VW-SR-8-128)-(SL+196)-8)):Math.min(VW-SL-SR-24,380);
+  const x=top?SL+196:Math.round(VW/2-w/2),h=top?44:62;
+  const y=top?ST+72:VH-SB-h-(TOUCH?(VH>VW?160:14):34);
+  const txtS=TOUCH?st.t:st.k,font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(txtS,w-(top?74:24),font);
+  const hh=Math.max(h,top?28+ls.length*13:44+ls.length*14);const yy=top?y:y-(hh-h);
   ctx.save();ctx.globalAlpha=TUT.gap>0?.6:1;
   panel(x,yy,w,hh,{fill:'#0f1c34',border:'#7dd3ff'});
   txt('TUTORIAL  '+(TUT.i+1)+'/'+TUT_STEPS.length,x+10,yy+16,{size:10,col:'#7dd3ff',lw:2});
@@ -10460,7 +10476,7 @@ PM_DRAW.bestiary=function(x,y,w,h){
 };
 const HELP_SECT=[
  ['Controls','Move: WASD / arrows or the left stick.  Shoot: J or SHOT.  Talk / use: E or tap.  Run: hold RUN.  Pause: P or II.  In fights: K cast a card, L next card, X discard, hold J to charge a shot.'],
- ['Town & shops','Brum\'s Forge and the Oakvale Tap stand on West Street, on the same side of the river as the inn. Brum (anvil sign): cards, lights and rods, morning to dusk. Mara (the Tap): stew and rumors, noon till late.  The Inn (mug sign): rest to heal, cure poison and skip to morning - it saves.  Wren\'s Bakery (bread sign).  The Pet Pen (paw sign): adopt a pet.  The Chapel (cross): the priest heals and blesses.  Fisher Tobin (fish sign) buys your fish.  Monsters never follow you into town.'],
+ ['Town & shops','Tap the minimap for a full world map. Brum\'s Forge and the Oakvale Tap stand on West Street, on the same side of the river as the inn. Brum (anvil sign): cards, lights and rods, morning to dusk. Mara (the Tap): stew and rumors, noon till late. Dealer Sol runs Texas Hold\'em for in-game gold only.  The Inn (mug sign): rest to heal, cure poison and skip to morning - it saves.  Wren\'s Bakery (bread sign).  The Pet Pen (paw sign): adopt a pet.  The Chapel (cross): the priest heals and blesses.  Fisher Tobin (fish sign) buys your fish.  Monsters never follow you into town.'],
  ['Waystones','Touch a waystone to wake it. Then travel between woken waystones from WORLD > TRAVEL or by tapping a waystone.'],
  ['Dungeon gates','A gate leads into a dungeon. Monsters you defeat inside stay down until you leave. The boss waits at the far end; the exit rune is at the start.'],
  ['Attack warnings','Every enemy shows what it is about to do, with a colour, a shape and an icon above it:'],
@@ -13158,7 +13174,7 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
   function cottage(x0,y,w){for(let x=x0;x<x0+w;x++){put(x,y,T.R);put(x,y+1,T.RL);put(x,y+2,T.H);}const dx=x0+(w>>1);put(dx,y+2,T.D);put(dx,y+3,T.P);return {tx:tx(dx),ty:ty(y+2)};}
   const Q={x0:27,x1:59,y0:45,y1:59};   // cottage quarter east of the river (local tiles) — shops no longer live here
   const FORGE={x0:-30,y0:30,w:8,h:7,door:3};     // door columns door and door+1, facing the west street
-  const TAP={x0:-18,y0:29,w:12,h:8,door:5};      // interior 10 x 6
+  const TAP={x0:-20,y0:28,w:19,h:9,door:9};   // t162u: interior 17x7 (about twice the old 10x6 floor). Door still faces West Street.
   const STATE={ready:false,sig:'',busy:false};
   function park(n){if(!n)return;n.x=n.hx=-9999;n.y=n.hy=-9999;}
   // widen the village name westward so the common reads as Oakvale, not Greenmeadow
@@ -13224,17 +13240,17 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
     const x0=TAP.x0,y0=TAP.y0,doorX=x0+TAP.door;
     const b=shop(x0,y0,TAP.w,TAP.h,doorX);
     put(doorX+1,y0+TAP.h-1,T.F);
-    for(let x=x0+2;x<=x0+8;x++)put(x,y0+2,T.BT);                 // the long bar
-    put(x0+1,y0+1,T.Z);put(x0+10,y0+1,T.Z);                     // hanging lanterns in the back corners
-    put(x0+9,y0+1,T.FRN);put(x0+10,y0+2,T.FRN);                 // stone hearth
-    for(const [x,y] of [[x0+2,y0+4],[x0+4,y0+5],[x0+8,y0+4],[x0+9,y0+5],[x0+2,y0+6],[x0+9,y0+3]])put(x,y,T.BT);
+    for(let x=x0+4;x<=x0+14;x++)put(x,y0+2,T.BT);                // the long bar, short of the side walls
+    put(x0+1,y0+1,T.Z);put(x0+17,y0+1,T.Z);                     // lanterns in the back corners
+    put(x0+16,y0+2,T.FRN);put(x0+16,y0+3,T.FRN);                // hearth on the east wall
+    for(const [x,y] of [[x0+3,y0+4],[x0+3,y0+5],[x0+5,y0+6],[x0+6,y0+6],[x0+13,y0+4],[x0+15,y0+5],[x0+14,y0+6]])put(x,y,T.BT);
     let mara=NPCS.find(q=>q.name==='Mara the Tapster');if(!mara){mara={name:'Mara the Tapster',spr:'inn',lines:[]};NPCS.push(mara);}
-    delete mara.inn;mara.tavern=true;mara.oakTap=true;
+    delete mara.inn;mara.tavern=true;mara.oakTap=true;mara.spr='inn';
     mara.x=(tx(doorX)+.5)*TSZ();mara.y=(ty(y0+3)+.55)*TSZ();mara.hx=mara.x;mara.hy=mara.y;   // in the aisle, in front of the bar
     mara.lines=['Welcome to the Oakvale Tap - stew on the fire, rumors on the house.','Try the River Stew - it puts a shine of luck on your next casts.',
       'Dawn and dusk, the big ones bite. Night brings the glowfish.','Pull up a stool. First bowl is honest gold - not free, mind.'];
-    let sg=NPCS.find(q=>q.name==='Oakvale Tap Sign');if(!sg){sg={name:'Oakvale Tap Sign',spr:'sign',sign:true};NPCS.push(sg);}
-    sg.name='Oakvale Tap Sign';sg.x=(tx(x0-1)+.5)*TSZ();sg.y=(ty(y0+TAP.h-2)+.4)*TSZ();
+    let sg=NPCS.find(q=>q.name==='Oakvale Tap Sign');if(!sg){sg={name:'Oakvale Tap Sign',spr:'houseSign',sign:true};NPCS.push(sg);}
+    sg.name='Oakvale Tap Sign';sg.spr='houseSign';sg.x=(tx(x0+TAP.w)+.5)*TSZ();sg.y=(ty(y0+TAP.h-2)+.4)*TSZ();
     sg.lines=['THE OAKVALE TAP','Hot stew, cold ale, warm rumors. Noon till late. The door faces West Street.'];
     TAVERN.ready=true;TAVERN.west=true;TAVERN.door=b.door;
     TAVERN.box={x0:tx(x0),y0:ty(y0),x1:tx(x0+TAP.w-1),y1:ty(y0+TAP.h-1)};
@@ -13268,7 +13284,7 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
       if(STATE.sig===sig&&STATE.ready)return;
       frameWest();clearQuarter();clearOldShops();buildSmith();buildTavern();buildCottages();
       if(typeof clearStrayForge==='function')clearStrayForge();
-      if(!REGION_LABELS.some(r=>r.name==='WEST COMMON'))REGION_LABELS.push({name:'WEST COMMON',tx:tx(-22),ty:ty(34)});
+      if(!REGION_LABELS.some(r=>r.name==='WEST COMMON'))REGION_LABELS.push({name:'WEST COMMON',tx:tx(-28),ty:ty(40)});
       if(typeof edMapChanged==='function')edMapChanged();
       STATE.ready=true;STATE.sig=sig;
       if(typeof ROUT!=='undefined'&&ROUT.on&&typeof rtInit==='function')rtInit();
@@ -13692,5 +13708,388 @@ PAUSE_ITEMS.push({k:'KeyX',lab:()=>'CODEX'+(x7AnyDot()?'  (new!)':''),home:'jour
 {const p=()=>{if(UI_MODES.daily&&!UI_MODES.daily.rows._x7){const r0=UI_MODES.daily.rows;UI_MODES.daily.rows=function(){const r=r0.apply(this,arguments);r.push(H('MORE'));r.push(cxRow('Weekly Bounty Board',true,()=>openCodex('bounty')));r.push(cxRow('Login Calendar'+(loginReady()?' (reward!)':''),true,()=>openCodex('daily')));r.push(cxRow('Events, Derby & Festivals',true,()=>openCodex('events')));return r;};UI_MODES.daily.rows._x7=1;}
   if(UI_MODES.fish&&!UI_MODES.fish.rows._x7){const r1=UI_MODES.fish.rows;UI_MODES.fish.rows=function(){const r=r1.apply(this,arguments);const f=fotw();r.splice(0,0,H('FISH OF THE WEEK: '+(f?f.n:'-')+'  -  DERBY today at '+derbySpot().name),cxRow('Fish Journal ('+Object.keys(X7.jr).length+'/'+FISHES.length+')',true,()=>openCodex('journal')),cxRow(X7.derby.on?'Derby: '+Math.ceil(X7.derby.t)+'s left, best '+X7.derby.best+' lb':'Fishing Derby',true,()=>openCodex('events')));return r;};UI_MODES.fish.rows._x7=1;UI_MODES.fish.rows._t153=1;}};
  setTimeout(p,400);setTimeout(p,1200);}
+
+/* ---------- src/world/t162.js ---------- */
+/* =====================================================================
+   t162u: full world map (tap the minimap), Mara's missing sprite, a larger livelier Oakvale Tap,
+   and a table-stakes Texas Hold'em game for in-game gold only.
+   Mara was invisible because her spr was 'inn' and no SP.inn was ever drawn.
+   ===================================================================== */
+SP.inn=person({body:'#7a3048',bodyL:'#d47890',bodyD:'#4a1828',hair:'#3a2414',apron:'#f4e6c8',hat:'#6a2838',dir:'d',belt:'#e0b44a'});
+SP.dealer=person({body:'#1e4a38',bodyL:'#3a8a68',bodyD:'#102820',hair:'#1a120c',hat:'#1a120c',dir:'d',belt:'#e0b44a'});
+
+/* ---------- full world map ---------- */
+const WMAP={on:false,z:1,fit:1,ox:0,oy:0,btns:[]};
+function miniMapRect(){const mx=VW-SR-8-128,my=ST+8;return {x:mx-6,y:my-6,w:140,h:108};}
+function wmapXY(tx,ty){return {x:WMAP.ox+tx*2*WMAP.z,y:WMAP.oy+(ty-OWY0)*2*WMAP.z};}
+function wmapFit(){
+  const spr=MINI.ow.spr,aw=VW-24,ah=VH-78;
+  WMAP.fit=Math.max(.15,Math.min(aw/spr.width,ah/spr.height));
+  WMAP.z=WMAP.fit;
+  WMAP.ox=(VW-spr.width*WMAP.z)/2;
+  WMAP.oy=46+(ah-spr.height*WMAP.z)/2;
+}
+function wmapOpen(){if(B||DLG||(typeof POKER!=='undefined'&&POKER.on)||state!=='play')return;WMAP.on=true;wmapFit();try{releaseAllTouch();}catch(e){}sfx('select');}
+function wmapZoom(f){
+  const cx=VW/2,cy=VH/2,nz=clamp(WMAP.z*f,WMAP.fit*.5,WMAP.fit*6),k=nz/WMAP.z;
+  WMAP.ox=cx-(cx-WMAP.ox)*k;WMAP.oy=cy-(cy-WMAP.oy)*k;WMAP.z=nz;
+}
+function wmapKeys(){
+  const s=18;if(held('ArrowLeft','KeyA'))WMAP.ox+=s*.35;if(held('ArrowRight','KeyD'))WMAP.ox-=s*.35;
+  if(held('ArrowUp','KeyW'))WMAP.oy+=s*.35;if(held('ArrowDown','KeyS'))WMAP.oy-=s*.35;
+  if(hit('Equal','NumpadAdd'))wmapZoom(1.25);if(hit('Minus','NumpadSubtract'))wmapZoom(.8);
+}
+function drawWmap(){
+  ctx.fillStyle='#0c1018';ctx.fillRect(0,0,VW,VH);
+  const spr=MINI.ow.spr,dw=spr.width*WMAP.z,dh=spr.height*WMAP.z;
+  ctx.fillStyle='#1c140c';ctx.fillRect(WMAP.ox-4,WMAP.oy-4,dw+8,dh+8);
+  ctx.drawImage(spr,WMAP.ox,WMAP.oy,dw,dh);
+  ctx.strokeStyle='#e0b44a';ctx.lineWidth=2;ctx.strokeRect(WMAP.ox-1,WMAP.oy-1,dw+2,dh+2);
+  const here=zoneOfPx(P.y)==='ow', you=here?wmapXY(P.x/TS,P.y/TS):null;
+  ctx.font='bold '+Math.max(8,Math.round(9*Math.min(1.4,WMAP.z)))+'px "Courier New",monospace';
+  for(const r of REGION_LABELS){if(r.ty<OWY0||r.ty>=OWY0+OW_H)continue;const p=wmapXY(r.tx,r.ty);if(p.x<WMAP.ox+8||p.y<WMAP.oy+8||p.x>WMAP.ox+dw-8||p.y>WMAP.oy+dh-8)continue;
+    txt(r.name,p.x,p.y,{size:Math.max(8,Math.min(13,Math.round(8*WMAP.z/.4))),align:'center',col:'#fff6d0',lw:3});}
+  if(you){ctx.fillStyle='#14100a';ctx.beginPath();ctx.arc(you.x,you.y,6,0,6.283);ctx.fill();ctx.fillStyle='#ffe14d';ctx.beginPath();ctx.arc(you.x,you.y,4,0,6.283);ctx.fill();
+    txt('YOU',you.x+16,you.y+3,{size:9,align:'left',col:'#fff',lw:3});}
+  txt('WORLD MAP',VW/2,ST+22,{size:16,align:'center',col:'#ffe9a0',lw:3});
+  txt(here?'The whole valley, including the west common. Drag to pan.':'You are away from the valley. This is the full overworld.',VW/2,ST+38,{size:9,align:'center',col:'#f0e2c0',lw:2});
+  const bh=40,bw=64,y=VH-ST-bh-8,gap=8;
+  const labs=[['fit','FIT'],['out','-'],['in','+'],['close','CLOSE']];
+  const total=labs.length*bw+(labs.length-1)*gap,x0=(VW-total)/2;
+  WMAP.btns=labs.map((b,i)=>({id:b[0],lab:b[1],x:x0+i*(bw+gap),y,w:b[0]==='close'?bw+16:bw,h:bh}));
+  let shift=0;for(const b of WMAP.btns){if(b.id==='close'){b.x+=shift;b.w=bw+20;}panel(b.x,b.y,b.w,b.h,{fill:b.id==='close'?'#4a2218':'#2a2118',border:'#e0b44a'});txt(b.lab,b.x+b.w/2,b.y+26,{size:13,align:'center',col:'#ffe9a0',lw:2});}
+}
+function wmapTapAt(p){
+  const b=WMAP.btns.find(q=>inRect(p,q));if(!b)return;
+  if(b.id==='close'){WMAP.on=false;sfx('select');}
+  else if(b.id==='fit'){wmapFit();sfx('select');}
+  else if(b.id==='in')wmapZoom(1.25);
+  else if(b.id==='out')wmapZoom(.8);
+}
+function wmapTapUI(p){
+  if(WMAP.on){wmapTapAt(p);return true;}
+  if(state==='play'&&!B&&!DLG&&!(typeof POKER!=='undefined'&&POKER.on)&&!isUI()&&inRect(p,miniMapRect())){wmapOpen();return true;}
+  return false;
+}
+function wmapDown(id,p){if(!WMAP.on)return false;touches.set(id,{kind:'wmap',sx:p.x,sy:p.y,ox:WMAP.ox,oy:WMAP.oy,moved:false});return true;}
+function wmapMove(id,p){
+  if(!WMAP.on)return false;const t=touches.get(id);if(t&&t.kind==='wmap'){WMAP.ox=t.ox+(p.x-t.sx);WMAP.oy=t.oy+(p.y-t.sy);if(Math.hypot(p.x-t.sx,p.y-t.sy)>8)t.moved=true;}
+  return true;
+}
+function wmapUp(t){if(t&&!t.moved)wmapTapAt({x:t.sx,y:t.sy});}
+function overlayDown(id,p){if(typeof pokerDown==='function'&&pokerDown(id,p))return true;return wmapDown(id,p);}
+
+/* ---------- livelier tap: patrons + chatter (Mara stays the bartender) ---------- */
+const TAPCHAT={left:0,who:null,msg:''};
+const TAP_LIFE=[
+  {name:'Nell the Fiddler',spr:'kid',dx:2,dy:5,chatter:['This stew could wake a knight.','Play us a hand, hero?','The fire makes the fiddle sweeter.']},
+  {name:'Old Hob',spr:'elder',dx:4,dy:4,chatter:['I remember when the Tap was a tent.','Mind the hearth. She bites.','West Street was worth the walk.']},
+  {name:'Bramble',spr:'fisher',dx:15,dy:4,chatter:['Dawn for fish, dusk for cards.','The river was kind today.','Sol deals a fair deck.']},
+  {name:'Dealer Sol',spr:'dealer',dx:7,dy:6,poker:true,chatter:['Hold\'em is twenty gold a seat.','No one sees your hole cards but you.','Blinds are one and two. Table stakes.']}
+];
+function placeTapLife(){
+  const spec=window.__t159West&&window.__t159West.tap;if(!spec||typeof TAVERN==='undefined'||!TAVERN.box)return;
+  const ox=typeof OX==='number'?OX:0,oy=typeof OY==='number'?OY:0,TSZ=typeof TS==='number'?TS:32;
+  const mara=NPCS.find(n=>n.name==='Mara the Tapster');
+  if(mara){mara.spr='inn';delete mara.inn;mara.oakTap=true;mara.tavern=true;}
+  for(const a of TAP_LIFE){
+    let n=NPCS.find(q=>q.name===a.name);
+    const tx=ox+spec.x0+a.dx,ty=oy+spec.y0+a.dy;
+    if(!n){n={name:a.name,spr:a.spr,lines:a.chatter.slice(),patron:true};NPCS.push(n);}
+    n.spr=a.spr;n.patron=true;n.lines=a.chatter.slice();n.poker=!!a.poker;
+    n.x=(tx+.5)*TSZ;n.y=(ty+.65)*TSZ;n.hx=n.x;n.hy=n.y;
+  }
+}
+function tapLifeTick(dt){
+  if(typeof inTapPx!=='function'||!inTapPx(P.x,P.y)||B){return;}
+  TAPCHAT.left-=dt;if(TAPCHAT.left>0)return;TAPCHAT.left=3.2+Math.random()*2.5;
+  const ps=NPCS.filter(n=>n.patron&&n.lines&&n.lines.length);
+  if(!ps.length)return;const n=ps[(Math.random()*ps.length)|0];
+  TAPCHAT.who=n;TAPCHAT.msg=n.lines[(Math.random()*n.lines.length)|0];
+  if(!muted&&Math.random()<.8)tone(196+Math.random()*90,160+Math.random()*40,.12,'sine',.012);
+}
+function drawTapChat(){
+  if(TAPCHAT.left<=0||!TAPCHAT.who)return;const n=TAPCHAT.who;
+  if(Math.abs(n.x-cam.x)>VW||Math.abs(n.y-cam.y)>VH)return;
+  txt(TAPCHAT.msg,n.x-cam.x,n.y-cam.y-48,{size:8,align:'center',col:'#fff6d0',lw:3});
+}
+{const _dw=drawWorld;drawWorld=function(){_dw();try{drawTapChat();}catch(e){}};}
+if(window.__t153Town){const _rel=window.__t153Town;window.__t153Town=function(){const r=_rel();try{placeTapLife();}catch(e){}return r;};}
+if(typeof edRebuild==='function'){const _er=edRebuild;edRebuild=function(){const r=_er.apply(this,arguments);try{placeTapLife();}catch(e){}return r;};}
+setTimeout(placeTapLife,200);setTimeout(placeTapLife,700);setTimeout(placeTapLife,1600);
+
+/* ---------- Texas Hold'em (table stakes, in-game gold only) ---------- */
+const POKER={on:false,seated:false,buy:20,sb:1,bb:2,players:[],me:null,button:0,deck:[],board:[],street:0,bet:0,minRaise:2,pot:0,msg:'',phase:'offer',btns:[],handN:0};
+const PSUIT=['S','H','D','C'],PCOL=['#d8e4f8','#e05050','#e05050','#d8e4f8'],PRANK='23456789TJQKA';
+const pCard=(id)=>({id,r:id%13,s:(id/13)|0});
+/* Settlement: stack is still yours. contrib is already in the pot.
+   Leave / Escape mid-hand folds you and returns only stack (committed bets are not refunded).
+   Between hands, awardPots has moved results into stack and zeroed contrib, so cashing out stack
+   includes settled winnings once. A save does not cash chips; it stores the hand and resumes it,
+   so reloading cannot undo a bet or pay NPC gold twice. */
+function pokerEquity(){const m=POKER.me;return POKER.seated&&m?Math.max(0,m.stack|0):0;}
+function packPoker(){
+  if(!POKER.seated||!POKER.me)return null;
+  const id=c=>c&&c.id;
+  return {on:!!POKER.on,phase:POKER.phase,button:POKER.button|0,street:POKER.street|0,bet:POKER.bet|0,minRaise:POKER.minRaise||2,turn:POKER.turn|0,handN:POKER.handN|0,msg:POKER.msg||'',
+    deck:POKER.deck.slice(),board:POKER.board.map(id),
+    players:POKER.players.map(p=>({seat:p.seat|0,name:p.name,human:!!p.human,stack:Math.max(0,p.stack|0),contrib:Math.max(0,p.contrib|0),base:p.base|0,fold:!!p.fold,allin:!!p.allin,acted:!!p.acted,hole:(p.hole||[]).map(id)}))};
+}
+function pokerClear(){POKER.on=false;POKER.seated=false;POKER.me=null;POKER.players=[];POKER.deck=[];POKER.board=[];POKER.phase='offer';POKER.msg='';}
+function unpackPoker(pk){
+  if(!pk||!Array.isArray(pk.players)){pokerClear();return;}
+  const card=id=>typeof id==='number'?pCard(id):null;
+  POKER.players=pk.players.map(p=>({seat:p.seat|0,name:p.name,human:!!p.human,stack:Math.max(0,p.stack|0),contrib:Math.max(0,p.contrib|0),base:p.base|0,fold:!!p.fold,allin:!!p.allin,acted:!!p.acted,hole:(p.hole||[]).map(card).filter(Boolean)}));
+  POKER.me=POKER.players.find(p=>p.human)||null;
+  if(!POKER.me){pokerClear();return;}
+  POKER.seated=true;POKER.on=pk.on!==false;POKER.phase=pk.phase||'bet';POKER.button=pk.button|0;POKER.street=pk.street|0;
+  POKER.bet=pk.bet|0;POKER.minRaise=pk.minRaise||2;POKER.turn=pk.turn|0;POKER.handN=pk.handN|0;POKER.msg=pk.msg||'Hand resumed.';
+  POKER.deck=(pk.deck||[]).slice();POKER.board=(pk.board||[]).map(card).filter(Boolean);
+}
+function fiveInfo(cs){
+  const rs=cs.map(c=>c.r).sort((a,b)=>a-b),flush=cs.every(c=>c.s===cs[0].s),cnt={};
+  rs.forEach(r=>cnt[r]=(cnt[r]||0)+1);
+  const groups=Object.keys(cnt).map(r=>({r:+r,n:cnt[r]})).sort((a,b)=>b.n-a.n||b.r-a.r);
+  let straight=-1;const u=[...new Set(rs)];
+  if(u.length===5){if(u[4]-u[0]===4)straight=u[4];if(u[0]===0&&u[1]===1&&u[2]===2&&u[3]===3&&u[4]===12)straight=3;}
+  let cat=0,key;
+  if(flush&&straight>=0){cat=8;key=[straight];}
+  else if(groups[0].n===4){cat=7;key=[groups[0].r,groups[1].r];}
+  else if(groups[0].n===3&&groups[1]&&groups[1].n===2){cat=6;key=[groups[0].r,groups[1].r];}
+  else if(flush){cat=5;key=rs.slice().reverse();}
+  else if(straight>=0){cat=4;key=[straight];}
+  else if(groups[0].n===3){cat=3;key=[groups[0].r].concat(groups.slice(1).map(g=>g.r));}
+  else if(groups[0].n===2&&groups[1]&&groups[1].n===2){cat=2;key=[Math.max(groups[0].r,groups[1].r),Math.min(groups[0].r,groups[1].r),groups[2].r];}
+  else if(groups[0].n===2){cat=1;key=[groups[0].r].concat(groups.slice(1).map(g=>g.r));}
+  else{cat=0;key=rs.slice().reverse();}
+  return {cat,key};
+}
+function infoCmp(a,b){if(a.cat!==b.cat)return a.cat-b.cat;const n=Math.max(a.key.length,b.key.length);for(let i=0;i<n;i++){const d=(a.key[i]||0)-(b.key[i]||0);if(d)return d;}return 0;}
+function bestInfo(cards){
+  if(cards.length<5)return fiveInfo(cards.concat([{r:0,s:0},{r:1,s:1},{r:2,s:2},{r:3,s:3},{r:4,s:0}]).slice(0,5));
+  let best=null;const n=cards.length;
+  for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++)for(let e=d+1;e<n;e++){
+    const inf=fiveInfo([cards[a],cards[b],cards[c],cards[d],cards[e]]);if(!best||infoCmp(inf,best)>0)best=inf;}
+  return best;
+}
+function sidePots(players){
+  let rest=players.map(p=>({p,c:p.contrib}));const pots=[];
+  while(rest.some(r=>r.c>0)){
+    const min=Math.min(...rest.filter(r=>r.c>0).map(r=>r.c));
+    let amt=0;const elig=[];
+    for(const r of rest)if(r.c>0){amt+=min;r.c-=min;elig.push(r.p);}
+    pots.push({amt,elig});rest=rest.filter(r=>r.c>0);
+  }
+  return pots;
+}
+function splitPot(amt,winners){
+  if(!winners.length||amt<=0)return;
+  const n=winners.length,base=Math.floor(amt/n);let rem=amt-base*n;
+  const order=winners.slice().sort((a,b)=>((a.seat-POKER.button-1+9)%9)-((b.seat-POKER.button-1+9)%9));
+  for(const w of order){w.stack+=base+(rem>0?1:0);if(rem>0)rem--;}
+}
+function awardPots(show){
+  const pots=sidePots(POKER.players);let note='';
+  for(const pot of pots){
+    let live=pot.elig.filter(p=>!p.fold);
+    if(!live.length)live=pot.elig.slice();
+    if(!show){splitPot(pot.amt,live);continue;}
+    let best=null,winners=[];
+    for(const p of live){const inf=bestInfo(p.hole.concat(POKER.board));const c=best?infoCmp(inf,best):1;if(c>0){best=inf;winners=[p];}else if(c===0)winners.push(p);}
+    splitPot(pot.amt,winners);
+    if(winners.some(w=>w.human))note=winners.length>1?'Split pot.':'You win the pot.';
+    else if(!note)note=winners.map(w=>w.name).join(' & ')+' takes the pot.';
+  }
+  for(const p of POKER.players)p.contrib=0;
+  POKER.msg=note||'Pot awarded.';POKER.phase='between';
+}
+function streetPaid(p){return p.contrib-(p.base||0);}
+function toCall(p){return Math.max(0,POKER.bet-streetPaid(p));}
+function commit(p,amt){const pay=Math.min(p.stack,Math.max(0,amt));p.stack-=pay;p.contrib+=pay;if(p.stack<=0){p.stack=0;p.allin=true;}return pay;}
+function activeSeats(){return POKER.players.filter(p=>!p.fold&&!p.allin&&p.stack+p.contrib>0);}
+function bettingDone(){
+  const live=POKER.players.filter(p=>!p.fold);
+  if(live.length<=1)return true;
+  return POKER.players.every(p=>p.fold||p.allin||(p.acted&&streetPaid(p)===POKER.bet));
+}
+function nextSeat(from){
+  const n=POKER.players.length;
+  for(let k=1;k<=n;k++){const p=POKER.players[(from+k)%n];if(!p.fold&&!p.allin)return p.seat;}
+  return -1;
+}
+function pokeTurn(){
+  if(POKER.phase!=='bet')return;
+  if(bettingDone()){advanceStreet();return;}
+  const p=POKER.players[POKER.turn];
+  if(!p||p.fold||p.allin){const s=nextSeat(POKER.turn<0?POKER.button:POKER.turn);if(s<0){advanceStreet();return;}POKER.turn=s;return pokeTurn();}
+  if(p.acted&&streetPaid(p)===POKER.bet){const s=nextSeat(p.seat);if(s<0||s===p.seat){advanceStreet();return;}POKER.turn=s;return pokeTurn();}
+  if(!p.human){npcAct(p);pokeTurn();}
+}
+function applyBet(p,kind,raiseTo){
+  const need=toCall(p);
+  if(kind==='fold'){p.fold=true;p.acted=true;POKER.msg=p.human?'You fold.':p.name+' folds.';return;}
+  if(kind==='check'){if(need>0)return;p.acted=true;POKER.msg=p.human?'You check.':p.name+' checks.';return;}
+  if(kind==='call'){commit(p,need);p.acted=true;POKER.msg=(p.human?'You':p.name)+(p.allin?' all-in.':' call'+(need?' '+need+'.':'.'));return;}
+  const target=Math.max(POKER.bet+POKER.minRaise,raiseTo||0),add=target-streetPaid(p);
+  if(add>=p.stack){const was=POKER.bet;commit(p,p.stack);const now=streetPaid(p);if(now-was>=POKER.minRaise){POKER.minRaise=now-was;POKER.bet=now;for(const q of POKER.players)if(q!==p&&!q.fold&&!q.allin)q.acted=false;}else POKER.bet=Math.max(POKER.bet,now);
+    p.acted=true;POKER.msg=(p.human?'You':p.name)+' all-in.';return;}
+  commit(p,add);const now=streetPaid(p);POKER.minRaise=now-POKER.bet;POKER.bet=now;
+  for(const q of POKER.players)if(q!==p&&!q.fold&&!q.allin)q.acted=false;
+  p.acted=true;POKER.msg=(p.human?'You raise to '+now+'.':p.name+' raises.');
+}
+function npcStrength(p){
+  if(POKER.board.length<3){const a=p.hole[0].r,b=p.hole[1].r,hi=Math.max(a,b),lo=Math.min(a,b);let s=hi*2+lo;if(a===b)s+=28;if(p.hole[0].s===p.hole[1].s)s+=4;if(hi-lo===1||hi-lo===12)s+=3;return {cat:s>=40?3:s>=28?1:0,raw:s};}
+  return bestInfo(p.hole.concat(POKER.board));
+}
+function npcAct(p){
+  const need=toCall(p),inf=npcStrength(p),cat=POKER.board.length<3?(inf.raw>=36?3:inf.raw>=22?1:0):inf.cat;
+  if(need<=0){if(cat>=3&&p.stack>POKER.minRaise)applyBet(p,'raise',streetPaid(p)+need+POKER.minRaise);else applyBet(p,'check');return;}
+  if(cat<=0&&need>POKER.bb){applyBet(p,'fold');return;}
+  if(cat>=4&&p.stack>need+POKER.minRaise)applyBet(p,'raise',streetPaid(p)+need+POKER.minRaise);
+  else applyBet(p,'call');
+}
+function dealBoard(n){for(let i=0;i<n;i++)POKER.board.push(pCard(POKER.deck.pop()));}
+function advanceStreet(){
+  const live=POKER.players.filter(p=>!p.fold);
+  if(live.length<=1){POKER.phase='show';awardPots(false);if(live[0])POKER.msg=(live[0].human?'Everyone folds. You take the pot.':live[0].name+' wins. The rest folded.');return;}
+  if(POKER.street>=3){POKER.phase='show';awardPots(true);return;}
+  POKER.street++;
+  if(POKER.street===1)dealBoard(3);else dealBoard(1);
+  POKER.bet=0;POKER.minRaise=POKER.bb;
+  for(const p of POKER.players){p.base=p.contrib;p.acted=p.fold||p.allin;}
+  const s=nextSeat(POKER.button);POKER.turn=s<0?0:s;POKER.phase='bet';POKER.msg=['','Flop.','Turn.','River.'][POKER.street];
+  pokeTurn();
+}
+function startHand(){
+  const alive=POKER.players.filter(p=>p.stack>0);
+  if(alive.length<2||POKER.me.stack<=0){POKER.phase='broke';POKER.msg=POKER.me.stack<=0?'You are out of table chips.':'Not enough players with chips.';return;}
+  POKER.handN++;POKER.button=(POKER.button+1)%POKER.players.length;
+  if(POKER.players[POKER.button].stack<=0)POKER.button=alive[0].seat;
+  const nxt=from=>{for(let k=1;k<=3;k++){const p=POKER.players[(from+k)%3];if(p.stack>0)return p;}return null;};
+  const sb=nxt(POKER.button),bb=sb&&nxt(sb.seat);
+  if(!sb||!bb){POKER.phase='broke';POKER.msg='Not enough chips to post blinds.';return;}
+  POKER.deck=Array.from({length:52},(_,i)=>i);for(let i=51;i>0;i--){const j=(Math.random()*(i+1))|0;const t=POKER.deck[i];POKER.deck[i]=POKER.deck[j];POKER.deck[j]=t;}
+  POKER.board=[];POKER.street=0;POKER.minRaise=POKER.bb;
+  for(const p of POKER.players){p.contrib=0;p.base=0;p.fold=p.stack<=0;p.allin=false;p.acted=p.fold;p.hole=p.fold?[]:[pCard(POKER.deck.pop()),pCard(POKER.deck.pop())];}
+  commit(sb,POKER.sb);commit(bb,POKER.bb);
+  POKER.bet=Math.max(streetPaid(sb),streetPaid(bb));
+  const first=nxt(bb.seat)||bb;
+  POKER.turn=first.seat;POKER.phase='bet';POKER.msg='Blinds posted. Your hole cards are hidden from Nell and Hob.';
+  pokeTurn();
+}
+function pokerSit(){
+  if(P.gold<POKER.buy){POKER.msg='You need '+POKER.buy+' gold to sit. Nothing was taken.';sfx('clang');return;}
+  P.gold-=POKER.buy;
+  POKER.seated=true;POKER.players=[
+    {seat:0,name:'You',human:true,stack:POKER.buy,contrib:0,hole:[],fold:false,allin:false},
+    {seat:1,name:'Nell',human:false,stack:POKER.buy,contrib:0,hole:[],fold:false,allin:false},
+    {seat:2,name:'Hob',human:false,stack:POKER.buy,contrib:0,hole:[],fold:false,allin:false}
+  ];
+  POKER.me=POKER.players[0];POKER.button=2;sfx('coin');startHand();
+}
+function pokerLeave(){
+  let note='You pick up your chips.';
+  if(POKER.seated&&POKER.me){
+    const pot=Math.max(0,POKER.me.contrib|0),back=Math.max(0,POKER.me.stack|0);
+    if(pot>0)note='You fold out. '+pot+'g already in the pot stays there.';
+    P.gold=Math.max(0,Math.round(P.gold+back));
+  }
+  pokerClear();
+  toast(note,1.8,'#ffd23f');sfx('coin');
+}
+function pokerRebuy(){
+  if(P.gold<POKER.buy){POKER.msg='Not enough gold to buy in again.';sfx('clang');return;}
+  P.gold-=POKER.buy;POKER.me.stack+=POKER.buy;POKER.msg='Another '+POKER.buy+' gold on the table.';sfx('coin');startHand();
+}
+function openPoker(){
+  if(WMAP.on)WMAP.on=false;
+  POKER.on=true;if(!POKER.seated)POKER.phase='offer';
+  try{releaseAllTouch();}catch(e){}sfx('select');
+}
+function heroAct(kind){
+  const p=POKER.me;if(!p||POKER.phase!=='bet'||POKER.turn!==0||p.fold||p.allin)return;
+  applyBet(p,kind,kind==='raise'?streetPaid(p)+toCall(p)+POKER.minRaise:0);
+  const s=nextSeat(0);POKER.turn=s<0?0:s;pokeTurn();
+}
+function pokerKeys(){
+  if(POKER.phase==='bet'&&POKER.turn===0){
+    if(hit('KeyF'))heroAct('fold');
+    else if(hit('KeyC'))heroAct(toCall(POKER.me)>0?'call':'check');
+    else if(hit('KeyR'))heroAct('raise');
+  }
+  if(hit('KeyN')&&(POKER.phase==='between'||POKER.phase==='show'))startHand();
+}
+function drawPCard(x,y,w,h,card,mode){
+  if(mode==='empty'){ctx.strokeStyle='#6a5438';ctx.strokeRect(x+1.5,y+1.5,w-3,h-3);return;}
+  ctx.fillStyle='#1a120c';ctx.fillRect(x+2,y+2,w,h);
+  if(mode==='back'||!card){ctx.fillStyle='#6a1e2e';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#e0b44a';ctx.strokeRect(x+.5,y+.5,w-1,h-1);ctx.fillStyle='#e0b44a';ctx.fillRect(x+w/2-3,y+h/2-3,6,6);return;}
+  ctx.fillStyle='#f7f1e4';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#2a2118';ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+  const lab=PRANK[card.r]+PSUIT[card.s];txt(lab,x+w/2,y+h/2+4,{size:Math.max(9,Math.round(h*.28)),align:'center',col:PCOL[card.s],lw:2});
+}
+function drawPoker(){
+  ctx.fillStyle='#100e0c';ctx.fillRect(0,0,VW,VH);
+  txt("SOL'S HOLD'EM",VW/2,ST+18,{size:15,align:'center',col:'#ffe9a0',lw:3});
+  txt('Table stakes '+POKER.buy+'g   blinds '+POKER.sb+'/'+POKER.bb+'   fictional gold only   hole cards stay hidden',VW/2,ST+34,{size:8,align:'center',col:'#f0e2c0',lw:2});
+  const cw=VH<380?26:34,ch=VH<380?36:48;
+  if(!POKER.seated){
+    txt(POKER.msg||'Sit with Nell and Hob. Buy-in 20g. Leaving mid-hand folds you: pot chips stay, stack chips return. A save resumes the same hand.',VW/2,VH/2-10,{size:11,align:'center',col:'#fff6d0',lw:2});
+    POKER.btns=[{id:'sit',lab:'SIT  '+POKER.buy+'G',x:VW/2-120,y:VH/2+20,w:110,h:42},{id:'close',lab:'CLOSE',x:VW/2+10,y:VH/2+20,w:110,h:42}];
+  } else {
+    const opp=POKER.players.filter(p=>!p.human);
+    opp.forEach((p,i)=>{const x=VW/2+(i===0?-160:40),y=ST+46;
+      txt(p.name+'  '+(p.fold?'FOLD':p.stack+'g')+(POKER.turn===p.seat&&POKER.phase==='bet'?'  ...':''),x+cw,y,{size:9,align:'center',col:'#ffe9a0',lw:2});
+      const show=POKER.phase==='show'||POKER.phase==='between';
+      drawPCard(x,y+8,cw,ch,p.hole[0],show?'face':'back');drawPCard(x+cw+6,y+8,cw,ch,p.hole[1],show?'face':'back');});
+    const bx=VW/2-2.5*(cw+6),by=ST+46+ch+28;
+    txt('Pot '+POKER.players.reduce((s,p)=>s+p.contrib,0)+'    '+['Preflop','Flop','Turn','River'][POKER.street]||'',VW/2,by-4,{size:10,align:'center',col:'#ffd98a',lw:2});
+    for(let i=0;i<5;i++)drawPCard(bx+i*(cw+6),by,cw,ch,POKER.board[i],POKER.board[i]?'face':'empty');
+    const m=POKER.me,hx=VW/2-cw-4,hy=by+ch+28;
+    txt('You  '+m.stack+'g'+(m.fold?'  FOLD':''),VW/2,hy-2,{size:11,align:'center',col:'#fff',lw:2});
+    drawPCard(hx,hy,cw+6,ch+8,m.hole[0],'face');drawPCard(hx+cw+14,hy,cw+6,ch+8,m.hole[1],'face');
+    txt(POKER.msg||'',VW/2,hy+ch+22,{size:10,align:'center',col:'#fff6d0',lw:2});
+    const yb=VH-ST-50,need=toCall(m),myTurn=POKER.phase==='bet'&&POKER.turn===0&&!m.fold&&!m.allin;
+    POKER.btns=[];
+    if(myTurn){
+      const row=[{id:'fold',lab:'FOLD'},{id:need?'call':'check',lab:need?'CALL '+need:'CHECK'},{id:'raise',lab:'RAISE '+POKER.minRaise},{id:'leave',lab:'LEAVE'}];
+      const bw=Math.min(100,Math.floor((VW-40)/row.length)-6),x0=(VW-row.length*(bw+6))/2;
+      row.forEach((b,i)=>POKER.btns.push({id:b.id,lab:b.lab,x:x0+i*(bw+6),y:yb,w:bw,h:42}));
+    } else if(POKER.phase==='between'||POKER.phase==='show'){
+      POKER.btns=[{id:'next',lab:m.stack>0?'NEXT HAND':'REBUY '+POKER.buy+'G',x:VW/2-130,y:yb,w:140,h:42},{id:'leave',lab:'CASH OUT',x:VW/2+16,y:yb,w:120,h:42}];
+    } else if(POKER.phase==='broke'){
+      POKER.btns=[{id:'rebuy',lab:'REBUY '+POKER.buy+'G',x:VW/2-130,y:yb,w:140,h:42},{id:'leave',lab:'CASH OUT',x:VW/2+16,y:yb,w:120,h:42}];
+    } else POKER.btns=[{id:'leave',lab:'CASH OUT',x:VW/2-60,y:yb,w:120,h:42}];
+  }
+  for(const b of POKER.btns){panel(b.x,b.y,b.w,b.h,{fill:b.id==='fold'||b.id==='leave'||b.id==='close'?'#4a2218':'#1d3a28',border:'#e0b44a'});txt(b.lab,b.x+b.w/2,b.y+27,{size:11,align:'center',col:'#ffe9a0',lw:2});}
+}
+function pokerTapAt(p){
+  const b=POKER.btns.find(q=>inRect(p,q));if(!b)return;
+  if(b.id==='sit')pokerSit();
+  else if(b.id==='close'||b.id==='leave')pokerLeave();
+  else if(b.id==='fold')heroAct('fold');
+  else if(b.id==='check')heroAct('check');
+  else if(b.id==='call')heroAct('call');
+  else if(b.id==='raise')heroAct('raise');
+  else if(b.id==='next'){if(POKER.me.stack>0)startHand();else pokerRebuy();}
+  else if(b.id==='rebuy')pokerRebuy();
+  sfx('select');
+}
+function pokerTapUI(p){if(!POKER.on)return false;pokerTapAt(p);return true;}
+function pokerDown(id,p){if(!POKER.on)return false;touches.set(id,{kind:'tap'});pokerTapAt(p);return true;}
+{const _od=openDlg;openDlg=function(npc){if(npc&&npc.poker){openPoker();return;}return _od.apply(this,arguments);};}
+{const _sv=saveGame;saveGame=function(why){const r=_sv.apply(this,arguments);if(!r)return r;try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return r;const o=JSON.parse(raw);if(POKER.seated&&POKER.me)o.poker=packPoker();else delete o.poker;localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}return r;};}
+{const _ls=loadSave;loadSave=function(s){const r=_ls.apply(this,arguments);try{if(s&&s.poker)unpackPoker(s.poker);else pokerClear();}catch(e){pokerClear();}return r;};}
+{const _ng=startFromTitle;startFromTitle=function(){const it=titleMenu.items[titleMenu.sel];const r=_ng.apply(this,arguments);if(state==='play'&&it!=='Continue'&&it!=='Restore Backup'&&it!=='Fishing Lab')pokerClear();return r;};}
+{const _ex=updateExplore;updateExplore=function(dt){
+  if((WMAP.on||POKER.on)&&!B){if(WMAP.on)wmapKeys();if(POKER.on){pokerKeys();tapLifeTick(0);}camFollow(dt);return;}
+  tapLifeTick(dt);return _ex.apply(this,arguments);
+};}
+{const _up=update;update=function(dt){
+  if(WMAP.on&&(hit('Escape')||hit('KeyP'))){WMAP.on=false;pressed.Escape=false;pressed.KeyP=false;}
+  else if(POKER.on&&(hit('Escape')||hit('KeyP'))){pokerLeave();pressed.Escape=false;pressed.KeyP=false;}
+  return _up.apply(this,arguments);
+};}
+{const _rn=render;render=function(){const r=_rn.apply(this,arguments);try{if(state==='play'&&WMAP.on)drawWmap();if(state==='play'&&POKER.on)drawPoker();}catch(e){}return r;};}
+
+window.__wmap=WMAP;window.__pokerAPI={bestInfo,infoCmp,fiveInfo,sidePots,splitPot,pCard,pokerEquity,pokerSit,pokerLeave,heroAct,startHand,POKER};
 
 </script></body></html>
