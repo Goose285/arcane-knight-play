@@ -13799,6 +13799,7 @@ function placeTapLife(){
     n.spr=a.spr;n.patron=true;n.lines=a.chatter.slice();n.poker=!!a.poker;
     n.x=(tx+.5)*TSZ;n.y=(ty+.65)*TSZ;n.hx=n.x;n.hy=n.y;
   }
+  try{unstickHero();}catch(e){}
 }
 function tapLifeTick(dt){
   if(typeof inTapPx!=='function'||!inTapPx(P.x,P.y)||B){return;}
@@ -14077,9 +14078,29 @@ function pokerTapUI(p){if(!POKER.on)return false;pokerTapAt(p);return true;}
 function pokerDown(id,p){if(!POKER.on)return false;touches.set(id,{kind:'tap'});pokerTapAt(p);return true;}
 {const _od=openDlg;openDlg=function(npc){if(npc&&npc.poker){openPoker();return;}return _od.apply(this,arguments);};}
 {const _sv=saveGame;saveGame=function(why){const r=_sv.apply(this,arguments);if(!r)return r;try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return r;const o=JSON.parse(raw);if(POKER.seated&&POKER.me)o.poker=packPoker();else delete o.poker;localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}return r;};}
-{const _ls=loadSave;loadSave=function(s){const r=_ls.apply(this,arguments);try{if(s&&s.poker)unpackPoker(s.poker);else pokerClear();}catch(e){pokerClear();}return r;};}
+/* A continued save can stand on ground that a later building made solid (the Tap roof grew north onto the old grass by the pen). Step the hero onto the nearest open tile. Level, gold and quests stay. */
+function heroFeetSolid(){return typeof solidTile==='function'&&solidTile(Math.floor(P.x/TS),Math.floor(P.y/TS));}
+let UNSTICK_AT=-9;
+function unstickHero(){
+  if(typeof P==='undefined'||state==='title'||!heroFeetSolid())return false;
+  const tx=Math.floor(P.x/TS),ty=Math.floor(P.y/TS);let best=null,bd=1e9;
+  for(let r=1;r<=12;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+    const x=tx+dx,y=ty+dy;if(solidTile(x,y))continue;
+    const px=(x+.5)*TS,py=(y+.7)*TS;
+    if(typeof bodyBlocked==='function'&&bodyBlocked(px,py))continue;
+    const d=Math.hypot(dx,dy)+(dy>0?-.25:0);
+    if(d<bd){bd=d;best={x:px,y:py};}
+  }
+  if(!best)return false;
+  P.x=best.x;P.y=best.y;if(typeof snapCam==='function')snapCam();
+  if(typeof gtime==='number'&&gtime-UNSTICK_AT>5){UNSTICK_AT=gtime;try{toast('The ground shifted under you. You step clear.',2.2,'#ffe9a0');}catch(e){}}
+  return true;
+}
+{const _ls=loadSave;loadSave=function(s){const r=_ls.apply(this,arguments);try{if(s&&s.poker)unpackPoker(s.poker);else pokerClear();}catch(e){pokerClear();}try{unstickHero();}catch(e){}return r;};}
 {const _ng=startFromTitle;startFromTitle=function(){const it=titleMenu.items[titleMenu.sel];const r=_ng.apply(this,arguments);if(state==='play'&&it!=='Continue'&&it!=='Restore Backup'&&it!=='Fishing Lab')pokerClear();return r;};}
 {const _ex=updateExplore;updateExplore=function(dt){
+  if(heroFeetSolid())try{unstickHero();}catch(e){}
   if((WMAP.on||POKER.on)&&!B){if(WMAP.on)wmapKeys();if(POKER.on){pokerKeys();tapLifeTick(0);}camFollow(dt);return;}
   tapLifeTick(dt);return _ex.apply(this,arguments);
 };}
@@ -14090,6 +14111,6 @@ function pokerDown(id,p){if(!POKER.on)return false;touches.set(id,{kind:'tap'});
 };}
 {const _rn=render;render=function(){const r=_rn.apply(this,arguments);try{if(state==='play'&&WMAP.on)drawWmap();if(state==='play'&&POKER.on)drawPoker();}catch(e){}return r;};}
 
-window.__wmap=WMAP;window.__pokerAPI={bestInfo,infoCmp,fiveInfo,sidePots,splitPot,pCard,pokerEquity,pokerSit,pokerLeave,heroAct,startHand,POKER};
+window.__wmap=WMAP;window.__pokerAPI={bestInfo,infoCmp,fiveInfo,sidePots,splitPot,pCard,pokerEquity,pokerSit,pokerLeave,heroAct,startHand,POKER};window.__unstickHero=unstickHero;
 
 </script></body></html>
