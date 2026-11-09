@@ -10460,7 +10460,7 @@ PM_DRAW.bestiary=function(x,y,w,h){
 };
 const HELP_SECT=[
  ['Controls','Move: WASD / arrows or the left stick.  Shoot: J or SHOT.  Talk / use: E or tap.  Run: hold RUN.  Pause: P or II.  In fights: K cast a card, L next card, X discard, hold J to charge a shot.'],
- ['Town & shops','Brum\'s Smithy (anvil sign): cards and shot upgrades, morning to dusk.  The Inn (mug sign): rest to heal, cure poison and skip to morning - it saves.  Wren\'s Bakery (bread sign).  The Pet Pen (paw sign): adopt a pet.  The Chapel (cross): the priest heals and blesses.  Fisher Tobin (fish sign) buys your fish.  Monsters never follow you into town.'],
+ ['Town & shops','Brum\'s Forge and the Oakvale Tap stand on West Street, on the same side of the river as the inn. Brum (anvil sign): cards, lights and rods, morning to dusk. Mara (the Tap): stew and rumors, noon till late.  The Inn (mug sign): rest to heal, cure poison and skip to morning - it saves.  Wren\'s Bakery (bread sign).  The Pet Pen (paw sign): adopt a pet.  The Chapel (cross): the priest heals and blesses.  Fisher Tobin (fish sign) buys your fish.  Monsters never follow you into town.'],
  ['Waystones','Touch a waystone to wake it. Then travel between woken waystones from WORLD > TRAVEL or by tapping a waystone.'],
  ['Dungeon gates','A gate leads into a dungeon. Monsters you defeat inside stay down until you leave. The boss waits at the far end; the exit rune is at the start.'],
  ['Attack warnings','Every enemy shows what it is about to do, with a colour, a shape and an icon above it:'],
@@ -10590,7 +10590,7 @@ function edGeom(nW,nN,nE,nS){
   const owPx=y=>y>=oOWY0*TS&&y<(oOWY0+oOWH)*TS,owTy=ty=>ty>=oOWY0&&ty<oOWY0+oOWH;
   // 1. shift everything that stands on the overworld (classified with the OLD layout)
   const px=(o,kx,ky)=>{if(o[kx]!=null){o[kx]+=ddx*TS;o[ky]+=ddy*TS;}},tl=(o,kx,ky)=>{if(o[kx]!=null){o[kx]+=ddx;o[ky]+=ddy;}};
-  for(const n of NPCS)if(owPx(n.y)){px(n,'x','y');px(n,'hx','hy');}
+  for(const n of NPCS)if(owPx(n.y)){px(n,'x','y');px(n,'hx','hy');if(n.home)px(n.home,'x','y');if(n.rt){if(n.rt.work)px(n.rt.work,'x','y');if(n.rt.home)px(n.rt.home,'x','y');if(n.rt.path)for(const p of n.rt.path){p[0]+=ddx*TS;p[1]+=ddy*TS;}}}
   for(const e of enemies)if(owPx(e.hy)){px(e,'x','y');px(e,'hx','hy');if(e.terr){e.terr.x0+=ddx*TS;e.terr.x1+=ddx*TS;e.terr.y0+=ddy*TS;e.terr.y1+=ddy*TS;}e.path=null;}
   for(const sp of SPW)if(owPx(sp.y))px(sp,'x','y');
   for(const d of SPAWNER_DEFS)if(owTy(d.ty))tl(d,'tx','ty');
@@ -10604,6 +10604,11 @@ function edGeom(nW,nN,nE,nS){
   CHAPEL.x0+=ddx;CHAPEL.x1+=ddx;CHAPEL.door+=ddx;CHAPEL.cross.x+=ddx;CHAPEL.y0+=ddy;CHAPEL.y1+=ddy;CHAPEL.cross.y+=ddy;
   INN.x0+=ddx;INN.x1+=ddx;INN.door+=ddx;INN.y0+=ddy;INN.y1+=ddy;
   TOWN.x0+=ddx*TS;TOWN.x1+=ddx*TS;TOWN.y0+=ddy*TS;TOWN.y1+=ddy*TS;
+  // PEN / PLANTERS / the shops are const bindings created later in the bundle; a typeof check throws while they are still in the temporal dead zone (south/east grow runs first)
+  try{if(PEN.on&&owTy(PEN.y0)){PEN.x0+=ddx;PEN.x1+=ddx;PEN.y0+=ddy;PEN.y1+=ddy;for(const p of PEN.pets){p.x+=ddx*TS;p.y+=ddy*TS;if(p.tx)p.tx+=ddx*TS;if(p.ty)p.ty+=ddy*TS;}}}catch(e){}
+  try{for(const a of PLANTERS)if(owTy(a[1])){a[0]+=ddx;a[1]+=ddy;}}catch(e){}
+  try{if(TAVERN.box&&owTy(TAVERN.box.y0)){TAVERN.box.x0+=ddx;TAVERN.box.x1+=ddx;TAVERN.box.y0+=ddy;TAVERN.box.y1+=ddy;if(TAVERN.door){TAVERN.door.tx+=ddx;TAVERN.door.wy+=ddy;}}}catch(e){}
+  try{if(SMITH_SHOP.door&&owTy(SMITH_SHOP.door.wy)){SMITH_SHOP.door.tx+=ddx;SMITH_SHOP.door.wy+=ddy;}}catch(e){}
   VILLAGE_POND.x0+=ddx;VILLAGE_POND.x1+=ddx;VILLAGE_POND.y0+=ddy;VILLAGE_POND.y1+=ddy;VILLAGE_FIRE.x+=ddx;VILLAGE_FIRE.y+=ddy;
   for(const r of REGION_LABELS)tl(r,'tx','ty');for(const a of ORCHARD){a[0]+=ddx;a[1]+=ddy;}for(const a of VILLAGE_LANTERNS){a[0]+=ddx;a[1]+=ddy;}
   tl(HOUSE_DOOR,'tx','ty');px(HOUSE_FRONT,'x','y');px(HOUSE_OUT,'x','y');tl(GOBLIN_CAMP,'tx','ty');
@@ -13130,16 +13135,19 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
 
 /* ---------- src/world/t153.js ---------- */
 /* =====================================================================
-   t153u/t154u: OAKVALE RIVERSIDE QUARTER - real Blacksmith (Brum's Forge) and a big tavern (the Oakvale Tap), plus cottages for
-   villagers who had no home. t154u moved it all across the bridge (east of the river), where there is real room: the old west strip
-   was squeezed between the Inn, the pet pen and the map edge. The west is left as it was (Inn + pet pen untouched).
-   Buildings are open-front: the doorway is a floor tile, so you walk straight in (no warp).
+   t153u/t154u/t159u: OAKVALE TOWN SHOPS.
+   t154u built Brum's Forge and the Oakvale Tap in the Riverside Quarter, east of the river. t159u moves both into Oakvale town
+   proper, on the same side of the river as the inn, chapel, bakery and pet pen. The map gains a west common (new columns of land)
+   so the buildings sit on a wide street instead of crowding the inn, the pet pen or the cottages. Cottage Row stays across the
+   river. The old forge and tap tiles, signs and lights are not left behind.
+   Buildings are open-front: the doorway is floor, so you walk straight in (no warp). The tap interior is 10x6.
    ===================================================================== */
 (function t153Town(){
   try{if(typeof SMITH_SHOP!=='undefined')SMITH_SHOP.west=true;if(typeof TAVERN!=='undefined')TAVERN.west=true;}catch(e){}   // t148 carved shops stay off
+  const WEST_N=34;   // extra columns west of the authored map; the common sits in that new land
   const TSZ=()=>typeof TS==='number'?TS:32;
   const tx=x=>(typeof OX==='number'?OX:0)+x,ty=y=>(typeof OY==='number'?OY:0)+y;
-  function put(x,y,id){const X=tx(x),Y=ty(y);if(Y>=0&&Y<MH&&X>=0&&X<MW)map[Y][X]=id;}
+  function put(x,y,id){const X=tx(x),Y=ty(y);if(Y>=OWY0&&Y<OWY0+OW_H&&X>=0&&X<MW)map[Y][X]=id;}
   function get(x,y){const X=tx(x),Y=ty(y);return (Y>=0&&Y<MH&&X>=0&&X<MW)?map[Y][X]:-1;}
   // open-front building: roof row, walls, floor; the doorway on the south wall is FLOOR so the player can walk in
   function shop(x0,y0,w,h,doorX){
@@ -13148,51 +13156,96 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
     return {x0,y0,w,h,door:{tx:tx(doorX),wy:ty(y0+h-1)}};
   }
   function cottage(x0,y,w){for(let x=x0;x<x0+w;x++){put(x,y,T.R);put(x,y+1,T.RL);put(x,y+2,T.H);}const dx=x0+(w>>1);put(dx,y+2,T.D);put(dx,y+3,T.P);return {tx:tx(dx),ty:ty(y+2)};}
-  const Q={x0:27,x1:59,y0:45,y1:59};   // the quarter (local tiles)
-  const STATE={ready:false};
+  const Q={x0:27,x1:59,y0:45,y1:59};   // cottage quarter east of the river (local tiles) — shops no longer live here
+  const FORGE={x0:-30,y0:30,w:8,h:7,door:3};     // door columns door and door+1, facing the west street
+  const TAP={x0:-18,y0:29,w:12,h:8,door:5};      // interior 10 x 6
+  const STATE={ready:false,sig:'',busy:false};
+  function park(n){if(!n)return;n.x=n.hx=-9999;n.y=n.hy=-9999;}
+  // widen the village name westward so the common reads as Oakvale, not Greenmeadow
+  if(typeof regions!=='undefined'&&regions.village&&!regions.village._west){
+    const _v=regions.village;
+    regions.village=function(x,y){if(_v(x,y))return true;const lx=x-(typeof OX==='number'?OX:0),ly=y-(typeof OY==='number'?OY:0);
+      return lx>=-WEST_N&&lx<3&&ly>=28&&ly<=(window.__NOGROW===true?44:62);};
+    regions.village._west=1;
+  }
+  function ensureWest(){
+    if(window.__oakWest||typeof edGeom!=='function')return;
+    edGeom(EXP.W+WEST_N,EXP.N,EXP.E,EXP.S);
+    window.__oakWest=WEST_N;
+  }
+  function frameWest(){
+    const yTop=28,yBot=Math.min(61,(typeof OW_H==='number'?OW_H:48)-2),xMin=-(typeof OX==='number'?OX:WEST_N);
+    for(let y=0;y<(typeof OW_H==='number'?OW_H:48);y++)for(let x=xMin;x<=-1;x++){
+      const edge=x<-WEST_N+2;   // forest frame, plus any editor columns further west of the common
+      if(y<yTop||y>yBot||edge){const t=get(x,y);if(t!==T.W&&t!==T.P&&t!==-1)put(x,y,T.T);}}
+    for(let y=yTop;y<=yBot;y++){if(get(0,y)===T.T)put(0,y,T.G);if(get(1,y)===T.T)put(1,y,T.G);}   // open the old tree border onto the common
+    for(let x=-WEST_N+2;x<=6;x++){put(x,37,T.P);put(x,38,T.P);}   // West Street, joined to Oakvale's main road
+    for(const [x,y] of [[-32,39],[-21,39],[-4,39],[-32,28],[-4,28]])if(get(x,y)===T.G||get(x,y)===T.L)put(x,y,T.LN);
+    if(typeof TOWN!=='undefined'){
+      TOWN.x0=Math.min(TOWN.x0,tx(-WEST_N+2)*TSZ());
+      TOWN.x1=Math.max(TOWN.x1,tx(Q.x1+1)*TSZ());TOWN.y1=Math.max(TOWN.y1,ty(Q.y1+1)*TSZ());
+    }
+  }
   function clearQuarter(){
+    if(ty(Q.y0)<OWY0||ty(Q.y1)>=OWY0+OW_H)return;
     for(let y=Q.y0;y<=Q.y1;y++)for(let x=Q.x0;x<=Q.x1;x++){const t=get(x,y);if(t!==T.W&&t!==T.P&&t!==-1)put(x,y,T.G);}
-    for(let y=44;y<=58;y++){put(31,y,T.P);put(32,y,T.P);}        // Riverside Lane: down from the east road
+    for(let y=44;y<=58;y++){put(31,y,T.P);put(32,y,T.P);}        // Riverside Lane: down from the east road to the cottages
     for(let x=31;x<=58;x++){put(x,53,T.P);put(x,58,T.P);}       // two cross streets
-    for(const [x,y] of [[33,54],[46,54],[57,52],[33,59],[46,59],[57,59]])put(x,y,T.Z);   // street lamps (light at night)
-    if(T.PLB!=null)for(const [x,y] of [[29,46],[29,50],[46,46],[46,49],[57,46],[39,54]])put(x,y,T.PLB);
-    TOWN.x1=Math.max(TOWN.x1,tx(Q.x1+1)*TSZ());TOWN.y1=Math.max(TOWN.y1,ty(Q.y1+1)*TSZ());
-    // any wild monster whose home was in the old woods here moves just outside the new quarter
+    for(const [x,y] of [[33,54],[46,54],[57,54],[33,59],[46,59],[57,59]])if(get(x,y)!==T.W)put(x,y,T.Z);
+    if(T.PLB!=null)for(const [x,y] of [[29,46],[29,50],[46,46],[46,49],[57,46],[39,54]])if(get(x,y)===T.G||get(x,y)===T.L)put(x,y,T.PLB);
     try{for(const e of enemies){if(inTownPx(e.hx,e.hy)||inTownPx(e.x,e.y)){e.hx=e.x=tx(Q.x1+4)*TSZ();e.hy=e.y=Math.min(e.y,ty(Q.y1)*TSZ());}}}catch(e){}
   }
+  // grass over the t154 forge (48,45 8x7) and tap (34,45 12x8) so nothing solid remains across the river
+  function clearOldShops(){
+    for(const [x0,y0,w,h] of [[48,45,8,7],[34,45,12,8]])for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++){
+      const t=get(x,y);if(t===T.W||t===T.P||t===-1)continue;put(x,y,T.G);}
+    park(NPCS.find(q=>q.name==="Brum's Forge Sign"));
+    const oldTap=NPCS.find(q=>q.name==='Tavern Sign');if(oldTap)park(oldTap);
+  }
   function buildSmith(){
-    const b=shop(48,45,8,7,51);   // 8x7: furnace, anvil, weapon racks
-    put(49,46,T.FRN);put(50,46,T.FRN);put(51,48,T.ANV);put(54,46,T.BT);put(54,47,T.BT);put(53,49,T.BT);
-    for(let y=52;y<=53;y++)put(51,y,T.P);
+    const x0=FORGE.x0,y0=FORGE.y0,doorX=x0+FORGE.door;
+    const b=shop(x0,y0,FORGE.w,FORGE.h,doorX);
+    put(doorX+1,y0+FORGE.h-1,T.F);   // two-tile doorway onto West Street
+    put(x0+1,y0+1,T.FRN);put(x0+2,y0+1,T.FRN);   // twin furnaces on the back wall
+    put(x0+5,y0+2,T.ANV);                         // anvil off the door aisle
+    put(x0+6,y0+3,T.BT);put(x0+6,y0+4,T.BT);put(x0+1,y0+4,T.BT);   // weapon racks along the side walls
     const n=NPCS.find(q=>q.name==='Blacksmith Brum');
-    if(n){n.x=(tx(52)+.5)*TSZ();n.y=(ty(48)+.6)*TSZ();n.hx=n.x;n.hy=n.y;n.smith=true;if(n.rt)n.rt.work={x:n.x,y:n.y};
+    if(n){n.x=(tx(x0+2)+.5)*TSZ();n.y=(ty(y0+3)+.6)*TSZ();n.hx=n.x;n.hy=n.y;n.smith=true;
+      n.home={x:(tx(x0+2)+.5)*TSZ(),y:(ty(y0+2)+.6)*TSZ()};   // steps back into the forge at night
+      if(n.rt){n.rt.work={x:n.x,y:n.y};n.rt.home={x:n.home.x,y:n.home.y};}
       n.lines=['Heat and hammer - that is the Brum way.','Need a rod for the river, or a sharper card? The forge is open.','Stay clear of the furnace - she bites hotter than any goblin.'];}
+    park(NPCS.find(q=>q.name==='Smithy Sign'));   // the old yard anvil-sign; the forge has its own sign by the door
     let sg=NPCS.find(q=>q.name==="Brum's Forge Sign");if(!sg){sg={name:"Brum's Forge Sign",spr:'sign',sign:true};NPCS.push(sg);}
-    sg.x=(tx(53)+.5)*TSZ();sg.y=(ty(52)+.4)*TSZ();sg.lines=["BRUM'S FORGE","Open morning to dusk. Rods, cards, and honest steel."];
+    sg.x=(tx(x0+FORGE.w)+.5)*TSZ();sg.y=(ty(y0+FORGE.h-2)+.4)*TSZ();
+    sg.lines=["BRUM'S FORGE","Open morning to dusk. Rods, cards, and honest steel. The door faces West Street."];
     SMITH_SHOP.ready=true;SMITH_SHOP.west=true;SMITH_SHOP.door=b.door;return b;
   }
   function buildTavern(){
-    const b=shop(34,45,12,8,39);   // 12x8 (interior 10x6 = 4x the old 5x3 room)
-    for(let x=36;x<=42;x++)put(x,47,T.BT);                         // the long bar
-    put(35,46,T.Z);put(44,46,T.Z);                                 // hanging lanterns
-    put(43,46,T.FRN);put(44,47,T.FRN);                             // the big stone hearth (east wall)
-    for(const [x,y] of [[36,49],[38,50],[41,49],[43,50],[36,51],[43,48]])put(x,y,T.BT);   // tables (the aisle up from the door stays clear)
-    put(39,53,T.P);
+    const x0=TAP.x0,y0=TAP.y0,doorX=x0+TAP.door;
+    const b=shop(x0,y0,TAP.w,TAP.h,doorX);
+    put(doorX+1,y0+TAP.h-1,T.F);
+    for(let x=x0+2;x<=x0+8;x++)put(x,y0+2,T.BT);                 // the long bar
+    put(x0+1,y0+1,T.Z);put(x0+10,y0+1,T.Z);                     // hanging lanterns in the back corners
+    put(x0+9,y0+1,T.FRN);put(x0+10,y0+2,T.FRN);                 // stone hearth
+    for(const [x,y] of [[x0+2,y0+4],[x0+4,y0+5],[x0+8,y0+4],[x0+9,y0+5],[x0+2,y0+6],[x0+9,y0+3]])put(x,y,T.BT);
     let mara=NPCS.find(q=>q.name==='Mara the Tapster');if(!mara){mara={name:'Mara the Tapster',spr:'inn',lines:[]};NPCS.push(mara);}
     delete mara.inn;mara.tavern=true;mara.oakTap=true;
-    mara.x=(tx(39)+.5)*TSZ();mara.y=(ty(48)+.5)*TSZ();mara.hx=mara.x;mara.hy=mara.y;   // in front of the bar, easy to reach
+    mara.x=(tx(doorX)+.5)*TSZ();mara.y=(ty(y0+3)+.55)*TSZ();mara.hx=mara.x;mara.hy=mara.y;   // in the aisle, in front of the bar
     mara.lines=['Welcome to the Oakvale Tap - stew on the fire, rumors on the house.','Try the River Stew - it puts a shine of luck on your next casts.',
       'Dawn and dusk, the big ones bite. Night brings the glowfish.','Pull up a stool. First bowl is honest gold - not free, mind.'];
-    let sg=NPCS.find(q=>q.name==='Oakvale Tap Sign'||q.name==='Tavern Sign');if(!sg){sg={spr:'sign',sign:true};NPCS.push(sg);}
-    sg.name='Oakvale Tap Sign';sg.x=(tx(41)+.5)*TSZ();sg.y=(ty(53)+.4)*TSZ();sg.lines=['THE OAKVALE TAP','Hot stew, cold ale, warm rumors. Noon till late.'];
-    TAVERN.ready=true;TAVERN.west=true;TAVERN.door=b.door;TAVERN.box={x0:tx(34),y0:ty(45),x1:tx(45),y1:ty(52)};
+    let sg=NPCS.find(q=>q.name==='Oakvale Tap Sign');if(!sg){sg={name:'Oakvale Tap Sign',spr:'sign',sign:true};NPCS.push(sg);}
+    sg.name='Oakvale Tap Sign';sg.x=(tx(x0-1)+.5)*TSZ();sg.y=(ty(y0+TAP.h-2)+.4)*TSZ();
+    sg.lines=['THE OAKVALE TAP','Hot stew, cold ale, warm rumors. Noon till late. The door faces West Street.'];
+    TAVERN.ready=true;TAVERN.west=true;TAVERN.door=b.door;
+    TAVERN.box={x0:tx(x0),y0:ty(y0),x1:tx(x0+TAP.w-1),y1:ty(y0+TAP.h-1)};
     TAVERN.stew={gold:18,name:'River Stew',buff:'luck',dur:120,msg:'The stew warms you - fishing luck up for a while!'};
     return b;
   }
-  // t154u: villagers who had no house of their own get a cottage on Cottage Row (they head home at night like the shopkeepers)
+  // t154u: villagers who had no house of their own keep a cottage on Cottage Row (they head home at night like the shopkeepers)
   const HOMELESS=['Old Tom','Gardener Lyn','Fisher Tobin','Elder Orin'];
   const HOMES={};
   function buildCottages(){
+    if(ty(55)<OWY0||ty(58)>=OWY0+OW_H)return;
     const xs=[34,41,48,54];
     HOMELESS.forEach((nm,i)=>{const d=cottage(xs[i],55,5);HOMES[nm]=d;
       const n=NPCS.find(q=>q.name===nm);if(n)n.home={x:(d.tx+.5)*TSZ(),y:(d.ty+1.35)*TSZ()};
@@ -13206,17 +13259,28 @@ setTimeout(clearStrayForge,120);setTimeout(clearStrayForge,600);
       noAct(){DLG=null;}};
   }
   {const _od=openDlg;openDlg=function(npc){if(npc&&npc.oakTap){try{if(typeof releaseAllTouch==='function')releaseAllTouch();}catch(e){}sfx('talk');openTavern(npc);return;}return _od.apply(this,arguments);};}
-  function run(){
-    if(STATE.ready||typeof map==='undefined'||!map||!map.length||typeof TOWN==='undefined'||typeof T==='undefined'||T.ANV==null)return;
-    try{clearQuarter();buildSmith();buildTavern();buildCottages();if(typeof clearStrayForge==='function')clearStrayForge();STATE.ready=true;
-      if(typeof ROUT!=='undefined'&&ROUT.on&&typeof rtInit==='function')rtInit();}
-    catch(e){try{console.error('t153 town',e);}catch(_){}}
+  function relocateShops(){
+    if(STATE.busy||typeof map==='undefined'||!map.length||typeof TOWN==='undefined'||typeof T==='undefined'||T.ANV==null||typeof edGeom!=='function')return;
+    STATE.busy=true;
+    try{
+      ensureWest();
+      const sig=(typeof OX==='number'?OX:0)+':'+(typeof OY==='number'?OY:0)+':'+(typeof EXP!=='undefined'?EXP.W:0);
+      if(STATE.sig===sig&&STATE.ready)return;
+      frameWest();clearQuarter();clearOldShops();buildSmith();buildTavern();buildCottages();
+      if(typeof clearStrayForge==='function')clearStrayForge();
+      if(!REGION_LABELS.some(r=>r.name==='WEST COMMON'))REGION_LABELS.push({name:'WEST COMMON',tx:tx(-22),ty:ty(34)});
+      if(typeof edMapChanged==='function')edMapChanged();
+      STATE.ready=true;STATE.sig=sig;
+      if(typeof ROUT!=='undefined'&&ROUT.on&&typeof rtInit==='function')rtInit();
+    }catch(e){try{console.error('t159 town',e);}catch(_){}}
+    finally{STATE.busy=false;}
   }
-  // routines: a cottage owner's home is their own cottage door
   if(typeof ROUT_NAMES!=='undefined'){for(const nm of ['Gardener Lyn','Fisher Tobin'])if(!ROUT_NAMES.includes(nm))ROUT_NAMES.push(nm);}
   if(typeof rtInit==='function'){const _ri=rtInit;rtInit=function(){_ri.apply(this,arguments);try{for(const n of ROUT.list)if(n.home&&n.rt)n.rt.home={x:n.home.x,y:n.home.y};}catch(e){}};}
-  setTimeout(run,90);setTimeout(run,450);setTimeout(run,1200);
-  window.__t153Town=run;window.__t154Homes=HOMES;window.__t154Quarter=Q;
+  if(typeof edRebuild==='function'){const _er=edRebuild;edRebuild=function(){window.__oakWest=0;STATE.sig='';const r=_er.apply(this,arguments);try{relocateShops();}catch(e){}return r;};}
+  setTimeout(relocateShops,90);setTimeout(relocateShops,450);setTimeout(relocateShops,1200);
+  window.__t153Town=relocateShops;window.__t154Homes=HOMES;window.__t154Quarter=Q;
+  window.__t159West={N:WEST_N,forge:FORGE,tap:TAP};
 })();
 
 /* ---------- src/world/t154.js ---------- */
