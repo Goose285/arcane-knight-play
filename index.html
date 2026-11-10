@@ -13796,7 +13796,7 @@ function placeTapLife(){
     let n=NPCS.find(q=>q.name===a.name);
     const tx=ox+spec.x0+a.dx,ty=oy+spec.y0+a.dy;
     if(!n){n={name:a.name,spr:a.spr,lines:a.chatter.slice(),patron:true};NPCS.push(n);}
-    n.spr=a.spr;n.patron=true;n.lines=a.chatter.slice();n.poker=!!a.poker;
+    n.spr=a.spr;n.patron=true;n.bench=true;n.lines=a.chatter.slice();n.poker=!!a.poker;
     n.x=(tx+.5)*TSZ;n.y=(ty+.65)*TSZ;n.hx=n.x;n.hy=n.y;
   }
   try{unstickHero();}catch(e){}
@@ -13833,10 +13833,11 @@ function packPoker(){
   if(!POKER.seated||!POKER.me)return null;
   const id=c=>c&&c.id;
   return {on:!!POKER.on,phase:POKER.phase,button:POKER.button|0,street:POKER.street|0,bet:POKER.bet|0,minRaise:POKER.minRaise||2,turn:POKER.turn|0,handN:POKER.handN|0,msg:POKER.msg||'',
+    sessionGold:Number.isFinite(POKER.sessionGold)?POKER.sessionGold:null,
     deck:POKER.deck.slice(),board:POKER.board.map(id),
     players:POKER.players.map(p=>({seat:p.seat|0,name:p.name,human:!!p.human,stack:Math.max(0,p.stack|0),contrib:Math.max(0,p.contrib|0),base:p.base|0,fold:!!p.fold,allin:!!p.allin,acted:!!p.acted,hole:(p.hole||[]).map(id)}))};
 }
-function pokerClear(){POKER.on=false;POKER.seated=false;POKER.me=null;POKER.players=[];POKER.deck=[];POKER.board=[];POKER.phase='offer';POKER.msg='';}
+function pokerClear(){POKER.on=false;POKER.seated=false;POKER.me=null;POKER.players=[];POKER.deck=[];POKER.board=[];POKER.phase='offer';POKER.msg='';POKER.sessionGold=null;}
 function unpackPoker(pk){
   if(!pk||!Array.isArray(pk.players)){pokerClear();return;}
   const card=id=>typeof id==='number'?pCard(id):null;
@@ -13846,6 +13847,7 @@ function unpackPoker(pk){
   POKER.seated=true;POKER.on=pk.on!==false;POKER.phase=pk.phase||'bet';POKER.button=pk.button|0;POKER.street=pk.street|0;
   POKER.bet=pk.bet|0;POKER.minRaise=pk.minRaise||2;POKER.turn=pk.turn|0;POKER.handN=pk.handN|0;POKER.msg=pk.msg||'Hand resumed.';
   POKER.deck=(pk.deck||[]).slice();POKER.board=(pk.board||[]).map(card).filter(Boolean);
+  POKER.sessionGold=Number.isFinite(pk.sessionGold)?pk.sessionGold:null;
 }
 function fiveInfo(cs){
   const rs=cs.map(c=>c.r).sort((a,b)=>a-b),flush=cs.every(c=>c.s===cs[0].s),cnt={};
@@ -13980,6 +13982,7 @@ function startHand(){
 }
 function pokerSit(){
   if(P.gold<POKER.buy){POKER.msg='You need '+POKER.buy+' gold to sit. Nothing was taken.';sfx('clang');return;}
+  if(!Number.isFinite(POKER.sessionGold))POKER.sessionGold=P.gold;
   P.gold-=POKER.buy;
   POKER.seated=true;POKER.players=[
     {seat:0,name:'You',human:true,stack:POKER.buy,contrib:0,hole:[],fold:false,allin:false},
@@ -13994,9 +13997,13 @@ function pokerLeave(){
     const pot=Math.max(0,POKER.me.contrib|0),back=Math.max(0,POKER.me.stack|0);
     if(pot>0)note='You fold out. '+pot+'g already in the pot stays there.';
     P.gold=Math.max(0,Math.round(P.gold+back));
+    if(Number.isFinite(POKER.sessionGold)){
+      const net=P.gold-POKER.sessionGold,n=net>0?'+'+net:String(net);
+      note+=' Session '+(net===0?'even':n+'g')+'. Wallet '+P.gold+'g.';
+    }
   }
   pokerClear();
-  toast(note,1.8,'#ffd23f');sfx('coin');
+  toast(note,3.2,'#ffd23f');sfx('coin');
 }
 function pokerRebuy(){
   if(P.gold<POKER.buy){POKER.msg='Not enough gold to buy in again.';sfx('clang');return;}
@@ -14112,5 +14119,151 @@ function unstickHero(){
 {const _rn=render;render=function(){const r=_rn.apply(this,arguments);try{if(state==='play'&&WMAP.on)drawWmap();if(state==='play'&&POKER.on)drawPoker();}catch(e){}return r;};}
 
 window.__wmap=WMAP;window.__pokerAPI={bestInfo,infoCmp,fiveInfo,sidePots,splitPot,pCard,pokerEquity,pokerSit,pokerLeave,heroAct,startHand,POKER};window.__unstickHero=unstickHero;
+
+/* ---------- src/world/t164.js ---------- */
+/* =====================================================================
+   t164u: six approved additions.
+   1. Beginner warning on the castle approach (toast + a sign). Knights, roads and quest targets stay as they are.
+   2. While Slime Trouble is active, one compact line: defeated slimes return in 55s. Hidden during the fight lesson.
+   3. Door frames and thresholds drawn over the Tap, forge and inn entrances. Tiles and collision are unchanged.
+   4. Poker cash-out states the session net. Gold movement is unchanged. A save from before this field has no invented net.
+   5. Pause > World opens the same full-world map. Close returns to the pause menu and does not walk the hero.
+   6. A felt card table in the Tap, and the existing patrons sit (the bench idle already in the animator).
+   ===================================================================== */
+let CASTLE_WARN_IN=false;
+function placeCastleSign(){
+  if(typeof NPCS==='undefined'||typeof OX!=='number')return;
+  const spots=[[16,17],[15,18],[17,17],[16,18],[14,18],[17,19]];
+  let spot=null;
+  for(const [lx,ly] of spots){
+    const x=OX+lx,y=OY+ly;
+    if(x<1||y<1||x>=MW-1||y>=MH-1)continue;
+    if(typeof solidTile==='function'&&solidTile(x,y))continue;
+    spot={x:(x+.5)*TS,y:(y+.72)*TS};break;
+  }
+  if(!spot)return;
+  let n=NPCS.find(q=>q.castleWarn);
+  if(!n){n={name:'Castle Road Sign',spr:'houseSign',sign:true,castleWarn:true,lines:[
+    'CASTLE AHEAD',
+    'Skeleton knights guard Castle Dracoryn, past the gray wall. They are far stronger than a new knight.',
+    'For Slime Trouble, stay in the open grass west of this road, by the crypt. Those slimes are the safer fight.'
+  ]};NPCS.push(n);}
+  n.x=n.hx=spot.x;n.y=n.hy=spot.y;
+}
+function castleWarnTick(){
+  if(state!=='play'||B||DLG||(typeof WMAP!=='undefined'&&WMAP.on)||(typeof POKER!=='undefined'&&POKER.on))return;
+  const beginner=P.lv<3||(QS.st&&QS.st.slimes&&QS.st.slimes!=='done');
+  if(!beginner)return;
+  const lx=P.x/TS-OX,ly=P.y/TS-OY;
+  if(ly>24)CASTLE_WARN_IN=false;
+  const zone=lx>=12&&lx<=32&&ly<=18&&ly>=11;
+  if(zone&&!CASTLE_WARN_IN){
+    CASTLE_WARN_IN=true;
+    toast('Castle Dracoryn is ahead. Skeleton knights guard the wall. Safer slimes are in the grass west of the road, by the crypt.',4.4,'#ffb0a0');
+  }
+}
+function drawSlimeHint(){
+  window.__t164hint=false;
+  if(typeof FF!=='undefined'&&FF.on)return;
+  if(typeof TRK==='undefined'||!TRK.rect||B)return;
+  if(!QS.st||QS.st.slimes!=='active')return;
+  const r=TRK.rect,h=16,w=Math.min(r.w,210),y=r.y+r.h+2;
+  if(y+h>VH-4||w<80)return;
+  window.__t164hint=true;
+  ctx.fillStyle='rgba(20,12,4,.9)';ctx.fillRect(r.x,y,w,h);
+  ctx.strokeStyle='#e0b44a';ctx.lineWidth=1;ctx.strokeRect(r.x+.5,y+.5,w-1,h-1);
+  txt('Defeated slimes return in 55s',r.x+w/2,y+12,{size:9,align:'center',col:'#fff6d0',lw:2});
+  TRK.rect={x:r.x,y:r.y,w:r.w,h:r.h+h+2};
+}
+function t164GapDoor(tx,wy,kind){
+  const x=tx*TS-Math.round(cam.x),y=wy*TS-Math.round(cam.y),W=TS*2;
+  if(x>VW+16||x<-W-16||y>VH+16||y<-TS-20)return;
+  const wood=kind==='forge'?'#6a5038':'#7a4424',trim=kind==='forge'?'#f0c14a':'#f6d48a',glow=kind==='forge'?'#ff9a3d':'#ffd870';
+  ctx.fillStyle='#2a160c';ctx.fillRect(x-10,y-16,10,TS+16);ctx.fillRect(x+W,y-16,10,TS+16);
+  ctx.fillStyle=wood;ctx.fillRect(x-8,y-14,6,TS+12);ctx.fillRect(x+W+2,y-14,6,TS+12);
+  ctx.fillStyle='#2a160c';ctx.fillRect(x-10,y-18,W+20,12);
+  ctx.fillStyle=trim;ctx.fillRect(x-8,y-16,W+16,8);
+  ctx.fillStyle=glow;ctx.globalAlpha=.7;ctx.fillRect(x+4,y,W-8,5);ctx.globalAlpha=1;
+  ctx.fillStyle='#4a2c14';ctx.fillRect(x+2,y+TS-1,W-4,12);
+  ctx.fillStyle='#c9843a';ctx.fillRect(x+6,y+TS+1,W-12,7);
+  ctx.fillStyle='#f0d090';ctx.fillRect(x+8,y+TS+2,W-16,2);
+  const bx=x-28,by=y-8;
+  ctx.fillStyle='#3a2410';ctx.fillRect(bx,by,22,16);ctx.fillStyle=trim;ctx.fillRect(bx+1,by+1,20,14);
+  ctx.fillStyle='#3a2410';ctx.fillRect(bx+3,by+4,16,8);
+  if(kind==='tap'){ctx.fillStyle='#f4e6c8';ctx.fillRect(bx+8,by+5,5,6);ctx.fillStyle='#fff';ctx.fillRect(bx+8,by+5,5,2);}
+  else {ctx.fillStyle='#5a5a68';ctx.fillRect(bx+4,by+6,14,4);ctx.fillStyle='#2a2a30';ctx.fillRect(bx+8,by+7,4,3);}
+}
+function t164InnMark(){
+  if(typeof INN==='undefined')return;
+  const x=INN.door*TS-Math.round(cam.x),y=INN.y1*TS-Math.round(cam.y);
+  if(x>VW||x<-TS||y>VH||y<-TS*2)return;
+  ctx.strokeStyle='#f0d060';ctx.lineWidth=2;ctx.strokeRect(x+1.5,y+1.5,TS-3,TS-3);
+  ctx.fillStyle='#e0b43a';ctx.beginPath();ctx.moveTo(x+TS/2,y+TS+16);ctx.lineTo(x+8,y+TS+6);ctx.lineTo(x+TS-8,y+TS+6);ctx.closePath();ctx.fill();
+}
+function t164Doors(){
+  if(typeof TAVERN!=='undefined'&&TAVERN.door)t164GapDoor(TAVERN.door.tx,TAVERN.door.wy,'tap');
+  if(typeof SMITH_SHOP!=='undefined'&&SMITH_SHOP.door)t164GapDoor(SMITH_SHOP.door.tx,SMITH_SHOP.door.wy,'forge');
+  t164InnMark();
+}
+function t164Felt(){
+  const sol=NPCS.find(n=>n.name==='Dealer Sol');if(!sol)return;
+  const x=sol.x-Math.round(cam.x)-16,y=sol.y-Math.round(cam.y)+2;
+  if(x<-80||x>VW+80||y<-40||y>VH+40)return;
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='#3a2414';ctx.beginPath();ctx.ellipse(0,2,48,22,0,0,6.283);ctx.fill();
+  ctx.fillStyle='#146b3e';ctx.beginPath();ctx.ellipse(0,0,40,16,0,0,6.283);ctx.fill();
+  ctx.fillStyle='#1f8a52';ctx.beginPath();ctx.ellipse(-6,-2,22,8,0,0,6.283);ctx.fill();
+  ctx.strokeStyle='#e0b44a';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,0,40,16,0,0,6.283);ctx.stroke();
+  ctx.fillStyle='#f7f1e4';ctx.fillRect(-16,-7,10,14);ctx.fillRect(-4,-7,10,14);
+  ctx.fillStyle='#6a1e2e';ctx.fillRect(-15,-6,8,12);ctx.fillRect(-3,-6,8,12);
+  ctx.strokeStyle='#e0b44a';ctx.lineWidth=1;ctx.strokeRect(-15,-6,8,12);ctx.strokeRect(-3,-6,8,12);
+  ctx.fillStyle='#e0b44a';ctx.beginPath();ctx.arc(18,2,6,0,6.283);ctx.fill();ctx.fillStyle='#fff6c8';ctx.beginPath();ctx.arc(18,2,3,0,6.283);ctx.fill();
+  ctx.restore();
+  for(const n of NPCS)if(n.patron){const sx=n.x-Math.round(cam.x),sy=n.y-Math.round(cam.y)+2;
+    ctx.fillStyle='#5a3a1c';ctx.beginPath();ctx.ellipse(sx,sy,7,3,0,0,6.283);ctx.fill();}
+}
+function t164Seat(){for(const n of NPCS)if(n.patron)n.bench=true;}
+function t164StopMove(){
+  try{releaseAllTouch();}catch(e){}
+  if(typeof joy!=='undefined'){joy.on=false;joy.x=joy.y=0;}
+  for(const k of ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyS'])keys[k]=false;
+}
+function t164OpenMap(){
+  if(B||(typeof POKER!=='undefined'&&POKER.on)||typeof WMAP==='undefined')return;
+  WMAP.fromPause=state==='paused';
+  WMAP.on=true;wmapFit();
+  try{releaseAllTouch();}catch(e){}
+  pressed.Enter=false;pressed.Space=false;sfx('select');
+}
+function t164CloseMap(){
+  const from=!!WMAP.fromPause;
+  WMAP.on=false;WMAP.fromPause=false;
+  pressed.Escape=false;pressed.KeyP=false;pressed.Backspace=false;
+  if(from)t164StopMove();
+  sfx('select');
+}
+{const _dw=drawWorld;drawWorld=function(){_dw();try{t164Doors();t164Felt();}catch(e){}};}
+{const _dt=drawTracker;drawTracker=function(){_dt();try{drawSlimeHint();}catch(e){}};}
+{const _wt=wmapTapAt;wmapTapAt=function(p){const was=WMAP.on,from=!!WMAP.fromPause;_wt(p);if(was&&!WMAP.on){WMAP.fromPause=false;if(from)t164StopMove();}};}
+{const _up=update;update=function(dt){
+  if(typeof WMAP!=='undefined'&&WMAP.on&&state==='paused'){
+    if(hit('Escape')||hit('KeyP')||hit('Backspace')){t164CloseMap();return;}
+    wmapKeys();return;
+  }
+  const r=_up(dt);
+  try{if(state==='play')castleWarnTick();}catch(e){}
+  return r;
+};}
+{const _rn=render;render=function(){const r=_rn();try{if(typeof WMAP!=='undefined'&&WMAP.on&&state==='paused')drawWmap();}catch(e){}return r;};}
+if(typeof PM_DRAW!=='undefined'&&PM_DRAW.world){
+  const _tab=PM_DRAW.world;
+  PM_DRAW.world=function(x,y,w,h){
+    _tab(x,y,w,h);
+    pmPill(x+w-158,y-2,150,24,'FULL MAP','map',t164OpenMap,'fullmap',{size:9});
+  };
+}
+setTimeout(placeCastleSign,300);setTimeout(placeCastleSign,900);setTimeout(placeCastleSign,1700);
+if(window.__t153Town){const _rel=window.__t153Town;window.__t153Town=function(){const r=_rel();try{placeCastleSign();t164Seat();}catch(e){}return r;};}
+setTimeout(t164Seat,400);setTimeout(t164Seat,1000);setTimeout(t164Seat,1800);
 
 </script></body></html>
