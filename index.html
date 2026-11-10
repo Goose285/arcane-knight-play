@@ -3171,8 +3171,8 @@ const WHO={orin:{n:'ELDER ORIN',col:'#e8e0c8'},hale:{n:'CAPTAIN HALE',col:'#ff9a
 const CHAPTERS=[
   {id:'c1',name:'Whispers in Oakvale',   hint:'Talk to Elder Orin (reach level 3 or finish "Slime Trouble")'},
   {id:'c2',name:'The Sleepless Guard',   hint:'Talk to the Gate Guard (finish "Goblin Menace" or reach level 5)'},
-  {id:'c3',name:'The Voice in the Dark', hint:'Descend into the Crypt of Hollow Kings'},
-  {id:'c4',name:'The Hollow Crown',      hint:'Defeat the Lich King'},
+  {id:'c3',name:'The Voice in the Dark', hint:'Into the Crypt: descend into the Crypt of Hollow Kings'},
+  {id:'c4',name:'The Hollow Crown',      hint:'Bane of the Hollow King: defeat the Lich King'},
   {id:'c5',name:'What Oakvale Remembers',hint:'Return to Elder Orin'},
 ];
 const VILLAGERS={
@@ -3393,6 +3393,27 @@ function cutSetSteps(d){d.lines=d.steps.map(s=>s.t);}
 function cutEnd(d){
   const id=d.cut;DLG=null;if(CUTS[id])STORY.cutting=null;
   if(d.onEnd)d.onEnd(id);
+  if(id==='c5')openCredits();
+}
+/* short credits after the Hollow Crown ending; E / Space / Enter / Escape / tap returns to play */
+const CREDITS={on:false,t:0};
+const CREDIT_LINES=['ARCANE KNIGHT','Realm of Embers','The Hollow Crown','','Thank you for playing.','Oakvale remembers.'];
+function openCredits(){CREDITS.on=true;CREDITS.t=0;}
+function updateCredits(dt){
+  if(!CREDITS.on)return;
+  CREDITS.t+=dt;
+  if(hit('Escape','Enter','Space','KeyE','KeyJ','Tab'))CREDITS.on=false;
+}
+function drawCredits(){
+  if(!CREDITS.on)return;
+  ctx.fillStyle='rgba(4,4,14,.88)';ctx.fillRect(0,0,VW,VH);
+  let y=Math.round(VH*.26);
+  CREDIT_LINES.forEach((l,i)=>{
+    if(!l){y+=12;return;}
+    txt(l,VW/2,y,{size:i===0?22:i===2?16:13,align:'center',col:i===0?'#ffcf3a':'#e8e0c8',lw:3});
+    y+=i===0?40:24;
+  });
+  if(Math.floor(gtime*2)%2===0)txt(TOUCH?'Tap to return':'Press E to return',VW/2,VH-SB-36,{size:12,align:'center',col:'#ffe14d',lw:2});
 }
 function updateCut(d,dt){
   d.t+=dt;
@@ -4810,17 +4831,40 @@ function drawWarp(){
    OVERWORLD + shared free movement (also used during combat)
    ===================================================================== */
 let EN_AI_I=0;   // t152u: must be declared — bare assign threw every frame and skipped camera follow
-/* E prefers a quest giver or turn-in over a nearer waystone or shopkeeper. */
+/* A ready hand-in, a story scene, or a quest still to give always beats a nearer waystone. */
+function questTalkRank(n){
+  const m=typeof npcMarker==='function'?npcMarker(n):null;
+  if(m==='ready')return 0;if(m==='story')return 1;if(m==='avail')return 2;
+  return 5;
+}
 function nearestTalkNpc(){
-  let best=null,bs=1e9;
+  let best=null,bs=1e9;const lim=typeof NPC_TALK_R==='number'?NPC_TALK_R:58;
   for(const n of NPCS){
     if(!n||n.x<-100||n.retired)continue;
-    const d=Math.hypot(n.x-P.x,n.y-P.y);if(d>=46)continue;
-    const m=typeof npcMarker==='function'?npcMarker(n):null;
-    const pri=m==='ready'?0:m==='story'?1:m==='avail'?2:5;
-    const sc=pri*1000+d;if(sc<bs){bs=sc;best=n;}
+    const d=Math.hypot(n.x-P.x,n.y-P.y);if(d>=lim)continue;
+    const sc=questTalkRank(n)*1000+d;if(sc<bs){bs=sc;best=n;}
   }
   return best;
+}
+/* the quest NPC E would choose, or null when nobody in range has a hand-in or a quest to give */
+function questNpcInRange(){
+  const n=nearestTalkNpc();return n&&questTalkRank(n)<=2?n:null;
+}
+/* a short prompt when a talkable NPC is in range, or just outside it */
+const TALK_HINT_R=96;
+function talkHintNpc(){
+  if(state!=='play'||B||DLG||WARP||(typeof CREDITS!=='undefined'&&CREDITS.on)||(typeof FISH!=='undefined'&&FISH.on))return null;
+  let best=null,bd=TALK_HINT_R;
+  for(const n of NPCS){
+    if(!n||n.x<-100||n.retired)continue;
+    const d=Math.hypot(n.x-P.x,n.y-P.y);
+    if(d<bd){bd=d;best=n;}
+  }
+  return best;
+}
+function talkHintLabel(){
+  if(!talkHintNpc())return null;
+  return (typeof TOUCH!=='undefined'&&TOUCH)?'Tap':'Press E';
 }
 function moveBox(o,dx,dy,hw,h){
   const blocked=(x,y)=>{
@@ -4918,7 +4962,7 @@ function updateExplore(dt){
    if you are out of range you first walk there on a path around obstacles. Any steering input, a fight or a dialog cancels the walk.
    ===================================================================== */
 const GOTO={k:null,ref:null,path:[],i:0,t:0,lx:0,ly:0,st:0};
-const NPC_TALK_R=44;
+const NPC_TALK_R=58;   // same reach as E: a click on someone you are standing beside talks immediately
 function worldTapOk(){return state==='play'&&!B&&!DLG&&!WARP&&!RUSH.on&&!FISH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
 /* what is under a screen point (generous boxes): {k:'npc',ref}|{k:'spot',ref}|null */
 function worldTargetAt(p){
@@ -4960,6 +5004,8 @@ function gotoPath(t){
 }
 function setGoto(t){
   if(!t||!worldTapOk())return false;
+  // a click or tap on the waystone still hands the turn-in to the quest NPC standing in range
+  if(t.k==='npc'&&t.ref&&t.ref.way){const q=typeof questNpcInRange==='function'&&questNpcInRange();if(q)t={k:'npc',ref:q};}
   if(gotoInRange(t)){GOTO.k=null;gotoArrive(t);return true;}
   const path=gotoPath(t);if(!path){toast("You can't reach that from here",1.8,'#ffb0a0');return false;}
   Object.assign(GOTO,{k:t.k,ref:t.ref,path,i:0,t:0,lx:P.x,ly:P.y,st:0});sfx('select');return true;
@@ -5634,6 +5680,9 @@ function killEnemy(e){
   if(e.rush){}
   else if(e.type==='dragon'){bossDown=true;B.boss=true;grantCard('dragonfire',c);}   // felling the dragon unlocks Dragonfire
   else if(e.type==='lich'){lichDown=true;storyOnLich();B.boss=true;B.bossName='LICH KING';grantCard(['meteor','drain','timestop'][RI(0,2)],c);}
+  else if(e.type==='rimegar'){B.boss=true;B.bossName='RIMEGAR';}
+  else if(e.type==='mossback'){B.boss=true;B.bossName='OLD MOSSBACK';}
+  else if(e.type==='colossus'){B.boss=true;B.bossName='THE COLOSSUS';}
   petOnKill(e);trophyOnKill(e);guarOnBossKill(e);
   if(!e.rush){secretOnKill(e);
   rollMats(e).forEach((t,i)=>floatText(c.x+30,c.y-40-i*12,t,'#7df9ff',11));
@@ -6643,11 +6692,15 @@ function updateBattle(dt){
   if(B){B.ens=B.ens.filter(e=>!(e.dying&&!e.alive));if(B.cleared&&B.phase==='fight'&&!B.ens.length)endBattle(true);}
 }
 function endBattle(won){
+  if(!won&&typeof labOn==='function'&&labOn()){labFinish('fell');return;}
   if(!won&&RUSH.on){resetFighters(true);B=null;snapCam();rushFinish('fell');return;}
   if(won){
     P.grace=2.5;
     if(B.boss&&B.bossName==='LICH KING')DLG={name:'NARRATOR',lines:['THE LICH KING CRUMBLES TO DUST!','The Crypt of Hollow Kings falls silent. The valley is safe from the dead - for now.','Return to Elder Orin in Oakvale to claim your reward.'],i:0,c:0};
-    else if(B.boss)DLG={name:'NARRATOR',lines:['EMBERFANG HAS FALLEN!','The kingdom of Dracoryn is saved, and the villagers of Oakvale cheer your name.','Thanks for playing! Keep roaming, level up and fight everything - the dragon will return in time...'],i:0,c:0};
+    else if(B.boss&&B.bossName==='RIMEGAR')DLG={name:'NARRATOR',lines:['RIMEGAR FALLS STILL!','Frosthowl Pass is quiet. The frost titan sleeps under the snow.','The road is yours. Keep going.'],i:0,c:0};
+    else if(B.boss&&B.bossName==='OLD MOSSBACK')DLG={name:'NARRATOR',lines:['OLD MOSSBACK SINKS!','Mirewood Bog grows still. The hydra rests under the green water.','The mire lets you pass.'],i:0,c:0};
+    else if(B.boss&&B.bossName==='THE COLOSSUS')DLG={name:'NARRATOR',lines:['THE COLOSSUS CRUMBLES!','The Sundered Ruins are still. The giant is stone again.','The desert keeps its silence.'],i:0,c:0};
+    else if(B.boss)DLG={name:'NARRATOR',lines:['EMBERFANG HAS FALLEN!','The courtyard is quiet. The dragon was only guarding the stairs.','The Crypt of Hollow Kings lies below. The Lich King is not yet faced.'],i:0,c:0};
     B=null;
   } else {
     const lost=Math.floor(P.gold*.25);P.gold-=lost;P.hp=maxHp();setTimeout(()=>saveGame('respawn'),0);
@@ -8311,6 +8364,7 @@ const inRect=(p,r)=>r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
 const touches=new Map();
 function lpos(t){const r=cv.getBoundingClientRect();return {x:(t.clientX-r.left)/r.width*VW,y:(t.clientY-r.top)/r.height*VH};}
 function tapUI(p){   // taps that act like a click; returns true if consumed
+  if(typeof CREDITS!=='undefined'&&CREDITS.on){CREDITS.on=false;return true;}
   if(typeof wmapTapUI==='function'&&wmapTapUI(p))return true;
   if(typeof pokerTapUI==='function'&&pokerTapUI(p))return true;
   if(typeof revealBusy==='function'&&revealBusy()&&state==='play'){revealTap();return true;}
@@ -8322,6 +8376,10 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     else if(titleMenu.items.filter(x=>x!=='Fishing Lab').length===1){titleMenu.sel=0;pressed.Space=true;}   // single option: tap anywhere to start
     return true;}
   if(TUT.on&&TUT.skipR&&state==='play'&&!DLG&&!B&&inRect(p,TUT.skipR)){tutFinish(true);return true;}
+  // New Game draws Elder Orin under the quest tracker. A click on him must walk/talk, not fold the panel.
+  if(state==='play'&&!B&&typeof worldTargetAt==='function'){const wt=worldTargetAt(p);if(wt&&(wt.k==='npc'||wt.k==='door'))return false;}
+  // Aimed-card clicks must reach the enemy even when the tracker covers them (the first-fight lesson).
+  if(state==='play'&&B&&B.phase==='fight'&&typeof expSelActive==='function'&&expSelActive())return false;
   if(trkTap(p))return true;
   if(fishTap(p))return true;
   if(isUI())return true;     // handled by drag/tap logic in touchDown / mousedown
@@ -8528,7 +8586,7 @@ function drawOverHud(){
   bar(px+8,py+22,160,9,hpf,hpf<.3?'#ff4040':'#44d96a');txt(Math.ceil(P.hp)+'/'+maxHp(),px+8,py+44,{size:9,col:'#fff',lw:2});
   bar(px+8,py+48,160,5,P.xp/xpNeed(),'#58a8ff');
   txt('G '+P.gold,px+170,py+44,{size:11,col:'#ffd23f',align:'right'});
-  if(labOn()){const q=py+66;panel(px,q,178,24,{});txt('COMBAT LAB  (practice)',px+8,q+16,{size:10,col:'#7df9ff',lw:2});}
+  if(labOn()){const q=py+66;panel(px,q,200,24,{});txt('COMBAT LAB   '+labWaveText(),px+8,q+16,{size:10,col:'#7df9ff',lw:2});}
   else if(RUSH.on){const q=py+66;panel(px,q,178,34,{});txt(RUSH.mode==='weekly'?'WEEKLY  F'+(RUSH.round+1)+'/'+WEEKLY_CFG.floors:'BOSS RUSH  R'+(RUSH.round+1),px+8,q+14,{size:10,col:'#ff9a6a',lw:2});txt('SCORE '+RUSH.score,px+170,q+14,{size:10,col:'#ffe14d',align:'right',lw:2});txt(rushTime(RUSH.t),px+8,q+28,{size:9,col:'#f0e2c0',lw:2});txt(RUSH.cur&&!B?'next boss in '+Math.max(0,Math.ceil(RUSH.wait)):RUSH.cur?'':'Get ready...',px+170,q+28,{size:9,col:'#e8c070',align:'right',lw:2,bold:false});}
   // minimap
   const mx=VW-SR-8-128,my=ST+8;panel(mx-2,my-2,132,100,{fill:'#0a0814'});
@@ -8542,9 +8600,19 @@ function drawOverHud(){
   drawMapQuest(mx,my,oy,k2,[mx,my,128,96]);
   if(areaT>0&&INTRO.ph!=='story'){const a=Math.min(1,areaT*1.5,(3-areaT)*3),y=Math.round(VH*.3);ctx.font='bold '+scaleText(22)+'px "Courier New",monospace';const bw=Math.min(VW,ctx.measureText(areaCur).width+60);ctx.fillStyle=`rgba(0,0,0,${.5*a})`;ctx.fillRect(Math.round((VW-bw)/2),y,Math.round(bw),34);txt(areaCur,VW/2,y+25,{size:22,align:'center',col:'#ffe9a0',alpha:a});}
   if(!TOUCH)txt('WASD/Arrows move   J shoot   E / click talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
+  drawTalkHint();
+}
+function drawTalkHint(){
+  const n=typeof talkHintNpc==='function'&&talkHintNpc();if(!n)return;
+  const sx=Math.round(n.x-cam.x),sy=Math.round(n.y-cam.y-42);
+  if(sx<-40||sy<-20||sx>VW+40||sy>VH+20)return;
+  const lab=talkHintLabel()||'Press E',w=lab.length>4?62:40;
+  ctx.fillStyle='rgba(12,10,20,.82)';ctx.fillRect(sx-w/2,sy-12,w,16);
+  txt(lab,sx,sy,{size:10,align:'center',col:'#ffe14d',lw:2});
 }
 function drawRushBar(){
-  if(!RUSH.on||labOn())return;const w=Math.min(250,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8+112;
+  if(labOn()){const w=Math.min(220,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8;panel(x,y,w,20,{});txt(labWaveText(),VW/2,y+14,{size:11,align:'center',col:'#7df9ff',lw:2});return;}
+  if(!RUSH.on)return;const w=Math.min(250,VW-SL-SR-16),x=Math.round((VW-w)/2),y=ST+8+112;
   panel(x,y,w,22,{});txt((RUSH.mode==='weekly'?'WEEKLY F':'RUSH R')+(RUSH.round+1)+'   SCORE '+RUSH.score+'   '+rushTime(RUSH.t),VW/2,y+15,{size:9,align:'center',col:'#ffb070',lw:2});
 }
 function drawToasts(){
@@ -9503,8 +9571,9 @@ function openArenaMaster(){
 
 /* ---------- src/player/lab.js ---------- */
 /* =====================================================================
-   COMBAT LAB: a practice room (the Ember Arena) with training dummies and a few real foes that respawn. Nothing there is saved or
-   rewarded, the hero cannot fall, and it is where the EXPERIMENTAL card system lives:
+   COMBAT LAB: a practice room (the Ember Arena) of real-health waves. Wave 1 is easy; each wave adds more,
+   stronger foes. Nothing there is saved or rewarded except the best wave reached. Falling or leaving ends the run
+   with no gold penalty. It is also where the EXPERIMENTAL card system lives:
      1. a hand of 4 cards at most;
      2. no full-hand refresh when the gauge fills - ONE new card every 2.5s into an empty slot (the timer waits while the hand is full);
      3. tapping an attack card only SELECTS it (reticle + range ring); the next tap / click in the world casts it THERE. Tap the card
@@ -9594,55 +9663,80 @@ function expMark(cw,ch){   // 'AIM' frame on the selected card (drawn inside the
   ctx.save();ctx.globalAlpha=.6+.4*Math.sin(gtime*8);ctx.strokeStyle='#7df9ff';ctx.lineWidth=3;ctx.strokeRect(-1.5,-1.5,cw+3,ch+3);ctx.restore();
   txt('AIM',cw/2,ch-4,{size:9,align:'center',col:'#7df9ff',lw:3});
 }
-/* ---- the lab itself ---- */
-const LAB={set:false,units:[],ret:null};
-const LAB_SPOTS=[['dummy',27,201],['dummy',32,201],['dummy',37,201],['slime',23,198],['knight',41,198],['goblin',32,196]];
-function labMake(kind,tx,ty){
-  const t=kind==='dummy'?'slime':kind,e=mkEnemyObj(t,tx,ty);
+/* ---- the lab itself: real-health waves. Best wave is its own key, never the game save. ---- */
+const LAB_BEST_KEY='arcaneKnight.labBest.v1';
+const LAB_BREAK=2.5;
+const LAB={wave:0,best:0,brk:0,units:[]};
+const LAB_POS=[[28,201],[36,201],[32,199],[26,199],[38,199]];
+function labLoadBest(){try{const n=parseInt(localStorage.getItem(LAB_BEST_KEY),10);return n>0?n:0;}catch(e){return 0;}}
+function labSaveBest(){if((LAB.wave|0)>(LAB.best|0))LAB.best=LAB.wave|0;try{localStorage.setItem(LAB_BEST_KEY,String(LAB.best|0));}catch(e){}}
+function labPlan(w){
+  const n=Math.min(w+1,5),kinds=[];
+  for(let i=0;i<n;i++)kinds.push(w<=1?'slime':['slime','knight','goblin'][i%3]);
+  return {kinds,lv:w};
+}
+function labWaveText(){
+  if(!labOn())return '';
+  if(LAB.brk>0)return 'WAVE '+(LAB.wave+1)+' IN '+Math.max(1,Math.ceil(LAB.brk));
+  return 'WAVE '+(LAB.wave||1);
+}
+function labMake(kind,tx,ty,lv){
+  const e=mkEnemyObj(kind,tx,ty);
   e.rush=true;e.lab=true;e.terr={x0:ARENA_TERR.tx0*TS+10,x1:(ARENA_TERR.tx1+1)*TS-10,y0:ARENA_TERR.ty0*TS+8,y1:(ARENA_TERR.ty1+1)*TS-1};
-  applyLevel(e,kind==='dummy'?1:2);e.baseLv=e.lv;e.xpv=0;e.gm=0;e.mt=1e9;e.lk=1e9;e.elite=null;e.calm=0;
-  if(kind==='dummy'){e.dummy=true;e.mhp=e.maxhp=e.hp=6000;e.title='Training Dummy';e.tname='DUMMY';e.sz=1;e.name='TRAINING DUMMY';}
+  applyLevel(e,lv||1);e.baseLv=e.lv;e.xpv=0;e.gm=0;e.mt=1e9;e.lk=1e9;e.elite=null;e.calm=0;
   return e;
 }
 function labStart(){
   if(RUSH.on||!canTravel())return false;
   Object.assign(RUSH,{mode:'lab',boons:[],on:true,round:0,score:0,t:0,rt:0,wait:0,cur:null,ret:{x:P.x,y:P.y},result:null});
-  LAB.set=false;LAB.units=[];P.hp=maxHp();state='play';UI.mode=null;startWarp(ARENA.start);return true;
+  LAB.wave=0;LAB.brk=0;LAB.units=[];LAB.best=labLoadBest();
+  P.hp=maxHp();state='play';UI.mode=null;startWarp(ARENA.start);return true;
 }
 function labClean(){
   for(let i=enemies.length-1;i>=0;i--)if(enemies[i].lab)enemies.splice(i,1);
-  LAB.units=[];LAB.set=false;
+  LAB.units=[];LAB.wave=0;LAB.brk=0;
 }
-function labLeave(){
+function labFinish(why){
   if(!labOn())return;
-  if(B){resetFighters(true);B=null;}
-  labClean();RUSH.on=false;RUSH.mode='rush';P.hp=maxHp();P.grace=3;const to={x:RUSH.ret.x,y:RUSH.ret.y,dir:'d'};
+  labSaveBest();
+  const best=LAB.best|0,wave=LAB.wave|0,gold=P.gold,ret=RUSH.ret||{x:SPAWN.x,y:SPAWN.y};
+  if(B){try{resetFighters(true);}catch(e){}B=null;}
+  labClean();
+  RUSH.on=false;RUSH.mode='rush';RUSH.cur=null;RUSH.result=null;
+  P.hp=maxHp();P.grace=3;P.gold=gold;
+  DLG={name:'COMBAT LAB',lines:[why==='fell'?'You fall. Practice ends on wave '+wave+'.':'You step out. Practice ends on wave '+wave+'.','Best wave: '+best+'. No gold was lost.'],i:0,c:0};
+  const to={x:ret.x,y:ret.y,dir:'d'};
   if(!WARP)startWarp(to);else{P.x=to.x;P.y=to.y;snapCam();}
 }
-function labKill(e){   // nothing dies for real in the lab: dummies reset, foes fade and respawn
+function labLeave(){labFinish('quit');}
+function labSpawnWave(){
+  LAB.wave=(LAB.wave|0)+1;LAB.brk=0;labSaveBest();
+  for(let i=enemies.length-1;i>=0;i--)if(enemies[i].lab)enemies.splice(i,1);
+  const plan=labPlan(LAB.wave);
+  LAB.units=plan.kinds.map((k,i)=>{const [x,y]=LAB_POS[i];return labMake(k,x,y,plan.lv);});
+  LAB.units.forEach(e=>enemies.push(e));
+  if(B){try{resetFighters(true);}catch(e){}B=null;}
+  const first=LAB.units[0];P.grace=0;startEncounter(first,true);
+  let k=0;for(const o of LAB.units){if(B.ens.includes(o))continue;initCombatEnemy(o,.2+k*.25);B.ens.push(o);k++;}
+  B.total=LAB.units.length;B.fleeT=0;
+}
+function labKill(e){
   const c=ecen(e);
-  if(e.dummy){e.hp=e.maxhp;floatText(c.x,c.y-34,'RESET','#9ad0ff',11);burst(c.x,c.y,'#d9b97a',8,90,.4);return;}
-  e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;
-  B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);
-  sfx('boom');burst(c.x,c.y,'#ffb23f',14,140,.6);floatText(c.x,c.y-30,'DOWN','#ffe14d',12);
+  e.dying=true;e.dyT=0;e.st='idle';e.cur=null;e.guard=0;e.dash=null;e.hp=0;
+  if(B){B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);}
+  sfx('boom');burst(c.x,c.y,'#ffb23f',14,140,.6);
 }
 function updateLab(dt){
   if(!labOn())return;
   RUSH.t+=dt;
   if(WARP||state!=='play'||DLG||zoneOfPx(P.y)!=='arena')return;
-  if(!LAB.set){
-    LAB.set=true;LAB.units=LAB_SPOTS.map(([k,x,y])=>labMake(k,x,y));LAB.units.forEach(e=>enemies.push(e));
-    if(!B){const first=LAB.units[1];P.grace=0;startEncounter(first,true);
-      let k=0;for(const o of LAB.units){if(B.ens.includes(o))continue;initCombatEnemy(o,.2+k*.25);B.ens.push(o);k++;}B.total=LAB.units.length;}
-    return;
-  }
+  if(B&&B.phase==='lose')return;
+  if(!LAB.wave&&LAB.brk<=0){labSpawnWave();return;}
+  if(LAB.brk>0){LAB.brk-=dt;if(LAB.brk<=0)labSpawnWave();return;}
   if(!B)return;
-  P.hp=Math.max(P.hp,maxHp()*.45);B.fleeT=0;                       // the lab keeps you in one piece
-  for(const o of LAB.units)if(!o.alive&&o.respawn>4)o.respawn=4;      // quick respawns
-  for(const o of LAB.units){                                       // respawned foes rejoin the fight
-    if(o.alive&&!o.engaged&&!o.dying&&!B.ens.includes(o)){initCombatEnemy(o,.6);B.ens.push(o);}
-  }
+  B.fleeT=0;
   if(B.xsel>=0&&!B.hand[B.xsel])B.xsel=-1;
+  if(!LAB.units.some(e=>e.alive&&!e.dying)){B=null;LAB.brk=LAB_BREAK;}
 }
 
 /* ---------- src/cards/teleport.js ---------- */
@@ -10028,7 +10122,7 @@ function pauseQuit(){   // save + back to the title screen (second tap confirms)
   if(gtime-PAUSE.qAt>3){PAUSE.qAt=gtime;sfx('select');return;}
   saveGame('menu');
   if(B){resetFighters(false);B=null;}
-  DLG=null;if(labOn())labClean();RUSH.on=false;pauseReset();state='title';titleMenu.items.length=0;releaseAllTouch();sfx('select');
+  DLG=null;if(labOn()){labSaveBest();labClean();}RUSH.on=false;pauseReset();state='title';titleMenu.items.length=0;releaseAllTouch();sfx('select');
 }
 const pauseReadyQ=()=>QUESTS.filter(q=>questStatus(q.id)==='ready').length;
 const pauseStoryNew=()=>NPCS.filter(n=>storyReady(n)).length;
@@ -10052,7 +10146,7 @@ function pauseEntries(page){
     leaf('pets','PETS','paw','#5a2a5a','KeyO','Companions & their house',()=>''),
     leaf('ach','ACHIEVEMENTS','trophy','#7a5a1a','KeyH','Trophies and titles'),
     leaf('daily','DAILY','chest','#8a6a1a','KeyV','Rewards and weekly goals',()=>pauseDaily()?'!':''),
-    leaf('lab',labOn()?'LEAVE COMBAT LAB':'COMBAT LAB','sword','#1f5a7a','KeyU',labOn()?'Back to where you were':'Practice: dummies + the new card system')];
+    leaf('lab',labOn()?'LEAVE COMBAT LAB':'COMBAT LAB','sword','#1f5a7a','KeyU',labOn()?'Back to where you were':'Practice: waves of real foes')];
   if(page==='journal')return [
     leaf('quests','QUESTS','scroll','#2a5a4a','KeyQ','Active and finished',()=>pauseReadyQ()?String(pauseReadyQ()):''),
     leaf('story','CHRONICLE','book','#7a4a2a','KeyB','Stories of the villagers',()=>pauseStoryNew()?String(pauseStoryNew()):'')];
@@ -10551,7 +10645,7 @@ function bestMark(t){if(!t||BEST.seen[t])return;BEST.seen[t]=1;BEST.newT=gtime;}
 function updateBestiary(){if(state!=='play'||!P)return;
   for(const e of enemies){if(!e.alive||e.dying||e.disg&&!e.engaged||BEST.seen[e.type])continue;if(Math.hypot(e.x-P.x,e.y-P.y)<260)bestMark(e.type);}
   if(B)for(const e of B.ens)bestMark(e.type);}
-{const _k=killEnemy;killEnemy=function(e){if(e&&e.type&&!e.tmp&&!e.dummy){BEST.kills[e.type]=(BEST.kills[e.type]|0)+1;bestMark(e.type);}return _k.apply(this,arguments);};}
+{const _k=killEnemy;killEnemy=function(e){if(e&&e.type&&!e.tmp&&!e.dummy&&!e.lab){BEST.kills[e.type]=(BEST.kills[e.type]|0)+1;bestMark(e.type);}return _k.apply(this,arguments);};}
 const packBest=()=>({s:Object.keys(BEST.seen),k:BEST.kills,tips:Object.keys(TIPS.done)});
 function unpackBest(b){BEST.seen={};BEST.kills={};if(!b)return;(b.s||[]).forEach(t=>BEST.seen[t]=1);Object.assign(BEST.kills,b.k||{});TIPS.done={};(b.tips||[]).forEach(k=>TIPS.done[k]=1);}
 const BEST_SIL=new Map();
@@ -12609,6 +12703,7 @@ function render(){
   drawTracker();drawFishingHud();drawTut();drawHome();drawToasts();drawRunBtn();drawFF();drawPoison();drawReveal();drawWarp();
   if(DLG&&!B)drawDlg();
   if(TOUCH)drawTouch();
+  if(typeof drawCredits==='function')drawCredits();
   if(state==='paused')drawPause();
   if(isUI())drawUI();
 }
@@ -12632,6 +12727,7 @@ function update(dt){
   if(isUI()){updateUI(dt);return;}
   if(state==='paused'&&updatePauseKeys())return;
   if(hit('KeyM')){muted=!muted;toast(muted?'Sound off':'Sound on',1);}
+  if(typeof CREDITS!=='undefined'&&CREDITS.on){updateCredits(dt);return;}
   // The fight lesson draws a SKIP button. Escape / Tab dismiss it instead of opening the pause menu
   // (a click on SKIP can miss the small rect, and lesson 4 treats other clicks as aiming).
   if(state==='play'&&typeof FF!=='undefined'&&FF.on&&!DLG&&!FISH.on&&hit('Escape','Tab')){ffFinish(true);return;}
