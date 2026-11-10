@@ -4252,15 +4252,15 @@ function drawDayIcon(x,y){
    SECRETS + FAST TRAVEL STATE: waystones, cracked walls, hidden chests, treasure maps
    ===================================================================== */
 const SEC={ways:{village:true},broken:{},opened:{},maps:{},dug:{}};
-function resetSecrets(){SEC.ways={village:true};SEC.broken={};SEC.opened={};SEC.maps={};SEC.dug={};SEC.chest2={};}
+function resetSecrets(){SEC.ways={village:true};SEC.broken={};SEC.opened={};SEC.maps={};SEC.dug={};SEC.chest2={};SEC.keys=0;SEC.kc={};}
 const keyOf=(tx,ty)=>tx+','+ty;
 function applySecrets(){      // re-apply persistent world changes after load/new game
   for(const k in SEC.broken){const [x,y]=k.split(',').map(Number);if(map[y]&&map[y][x]===T.GB)map[y][x]=T.CV;}
   for(const c of CHESTS)map[c.ty][c.tx]=SEC.opened[c.id]?T.CO:T.CH;
 }
 function resetSecretWorld(){for(const id in ZONE_Y0)map[ZONE_Y0[id]+29][30]=T.GB;}
-function packSecrets(){return {ways:SEC.ways,broken:SEC.broken,opened:SEC.opened,maps:SEC.maps,dug:SEC.dug,chest2:SEC.chest2};}
-function unpackSecrets(s){resetSecretWorld();resetSecrets();if(s){for(const k of ['ways','broken','opened','maps','dug','chest2'])if(s[k]&&typeof s[k]==='object')for(const i in s[k])if(s[k][i])SEC[k][i]=true;SEC.ways.village=true;}applySecrets();}
+function packSecrets(){return {ways:SEC.ways,broken:SEC.broken,opened:SEC.opened,maps:SEC.maps,dug:SEC.dug,chest2:SEC.chest2,keys:SEC.keys|0,kc:SEC.kc||{}};}
+function unpackSecrets(s){resetSecretWorld();resetSecrets();if(s){for(const k of ['ways','broken','opened','maps','dug','chest2','kc'])if(s[k]&&typeof s[k]==='object')for(const i in s[k])if(s[k][i])SEC[k][i]=true;SEC.ways.village=true;if(s.keys>0)SEC.keys=s.keys|0;}applySecrets();}
 function activateWay(id){
   if(SEC.ways[id])return false;SEC.ways[id]=true;
   const w=WAYSTONES.find(q=>q.id===id),n=NPCS.find(q=>q.way===id);
@@ -4299,6 +4299,7 @@ function chestReward(c){
   return lines;
 }
 function tryInteract(){
+  if(typeof tryKeyChest==='function'&&tryKeyChest())return true;
   const [fx,fy]=frontTile();
   for(const [tx,ty] of [[fx,fy],[Math.floor(P.x/TS),Math.floor((P.y-6)/TS)]]){
     if(ty<0||ty>=MH||tx<0||tx>=MW)continue;
@@ -4912,7 +4913,7 @@ function updateExplore(dt){
     const [dx,dy,mag]=moveInput();
     P.moving=!!mag&&playerSpeedMul()>0;
     if(P.moving){
-      const sp=(fighting?122:112)*mag*(B&&B.haste>0?1.45:1)*(B&&B.channel?.6:1)*playerSpeedMul()*runMul()*petPerk('spd');
+      const sp=(fighting?122:112)*mag*(B&&B.haste>0?1.45:1)*(B&&B.channel?.6:1)*playerSpeedMul()*runMul()*petPerk('spd')*(typeof horseMul==='function'?horseMul():1);
       moveBox(P,dx*sp*dt,0,6,7);moveBox(P,0,dy*sp*dt,6,7);
       P.dir=Math.abs(dx)>=Math.abs(dy)?(dx<0?'l':'r'):(dy<0?'u':'d');
       P.aim=Math.atan2(dy,dx);
@@ -8364,6 +8365,7 @@ const inRect=(p,r)=>r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
 const touches=new Map();
 function lpos(t){const r=cv.getBoundingClientRect();return {x:(t.clientX-r.left)/r.width*VW,y:(t.clientY-r.top)/r.height*VH};}
 function tapUI(p){   // taps that act like a click; returns true if consumed
+  if(typeof PHOTO!=='undefined'&&PHOTO.on){PHOTO.on=false;return true;}
   if(typeof CREDITS!=='undefined'&&CREDITS.on){CREDITS.on=false;return true;}
   if(typeof wmapTapUI==='function'&&wmapTapUI(p))return true;
   if(typeof pokerTapUI==='function'&&pokerTapUI(p))return true;
@@ -8586,7 +8588,7 @@ function drawOverHud(){
   bar(px+8,py+22,160,9,hpf,hpf<.3?'#ff4040':'#44d96a');txt(Math.ceil(P.hp)+'/'+maxHp(),px+8,py+44,{size:9,col:'#fff',lw:2});
   bar(px+8,py+48,160,5,P.xp/xpNeed(),'#58a8ff');
   txt('G '+P.gold,px+170,py+44,{size:11,col:'#ffd23f',align:'right'});
-  if(labOn()){const q=py+66;panel(px,q,200,24,{});txt('COMBAT LAB   '+labWaveText(),px+8,q+16,{size:10,col:'#7df9ff',lw:2});}
+  if(labOn()){const q=py+66,extra=typeof labStatusText==='function'?labStatusText():'';panel(px,q,220,extra?36:24,{});txt('COMBAT LAB   '+labWaveText(),px+8,q+16,{size:10,col:'#7df9ff',lw:2});if(extra)txt(extra,px+8,q+30,{size:9,col:'#ffe9a0',lw:2});}
   else if(RUSH.on){const q=py+66;panel(px,q,178,34,{});txt(RUSH.mode==='weekly'?'WEEKLY  F'+(RUSH.round+1)+'/'+WEEKLY_CFG.floors:'BOSS RUSH  R'+(RUSH.round+1),px+8,q+14,{size:10,col:'#ff9a6a',lw:2});txt('SCORE '+RUSH.score,px+170,q+14,{size:10,col:'#ffe14d',align:'right',lw:2});txt(rushTime(RUSH.t),px+8,q+28,{size:9,col:'#f0e2c0',lw:2});txt(RUSH.cur&&!B?'next boss in '+Math.max(0,Math.ceil(RUSH.wait)):RUSH.cur?'':'Get ready...',px+170,q+28,{size:9,col:'#e8c070',align:'right',lw:2,bold:false});}
   // minimap
   const mx=VW-SR-8-128,my=ST+8;panel(mx-2,my-2,132,100,{fill:'#0a0814'});
@@ -9704,9 +9706,10 @@ function labFinish(why){
   labClean();
   RUSH.on=false;RUSH.mode='rush';RUSH.cur=null;RUSH.result=null;
   P.hp=maxHp();P.grace=3;P.gold=gold;
-  DLG={name:'COMBAT LAB',lines:[why==='fell'?'You fall. Practice ends on wave '+wave+'.':'You step out. Practice ends on wave '+wave+'.','Best wave: '+best+'. No gold was lost.'],i:0,c:0};
+  DLG={name:'COMBAT LAB',lines:[why==='fell'?'You fall. Practice ends on wave '+wave+'.':'You step out. Practice ends on wave '+wave+'.','Best wave: '+best+'. No gold was lost.'].concat(typeof labStatusText==='function'&&labStatusText()?[labStatusText()]:[]),i:0,c:0};
   const to={x:ret.x,y:ret.y,dir:'d'};
   if(!WARP)startWarp(to);else{P.x=to.x;P.y=to.y;snapCam();}
+  try{saveGame('lab');}catch(e){}
 }
 function labLeave(){labFinish('quit');}
 function labSpawnWave(){
@@ -9714,6 +9717,7 @@ function labSpawnWave(){
   for(let i=enemies.length-1;i>=0;i--)if(enemies[i].lab)enemies.splice(i,1);
   const plan=labPlan(LAB.wave);
   LAB.units=plan.kinds.map((k,i)=>{const [x,y]=LAB_POS[i];return labMake(k,x,y,plan.lv);});
+  if(typeof labDressWave==='function')labDressWave();
   LAB.units.forEach(e=>enemies.push(e));
   if(B){try{resetFighters(true);}catch(e){}B=null;}
   const first=LAB.units[0];P.grace=0;startEncounter(first,true);
@@ -10111,6 +10115,7 @@ const PAUSE_ITEMS=[
   {k:'KeyF',lab:()=>'FAST TRAVEL',home:'main',act:()=>openTravel()},
   {k:'KeyN',lab:()=>'SETTINGS',home:'main',act:()=>openSettings('paused')},
   {k:'KeyU',lab:()=>labOn()?'LEAVE COMBAT LAB':'COMBAT LAB',home:'character',act:()=>{if(labOn()){pressed.KeyP=true;labLeave();}else{if(!labStart())toast('Cannot start practice right now',1.6,'#ffb0a0');else pauseReset();}}},
+  {k:'Photo',lab:()=>'PHOTO MODE',home:'character',act:()=>{pressed.KeyP=true;if(typeof photoToggle==='function')photoToggle();}},
   {k:'KeyH2',lab:()=>'TELEPORT HOME',home:'main',act:()=>{if(homeBlock()){toast(homeBlock(),1.8,'#ffb0a0');sfx('clang');return;}pressed.KeyP=true;startHome();}},
   {k:'KeyM',lab:()=>'SOUND: '+(muted?'OFF':'ON'),home:'main',act:()=>{muted=!muted;sfx('select');}},
 ];
@@ -10146,7 +10151,8 @@ function pauseEntries(page){
     leaf('pets','PETS','paw','#5a2a5a','KeyO','Companions & their house',()=>''),
     leaf('ach','ACHIEVEMENTS','trophy','#7a5a1a','KeyH','Trophies and titles'),
     leaf('daily','DAILY','chest','#8a6a1a','KeyV','Rewards and weekly goals',()=>pauseDaily()?'!':''),
-    leaf('lab',labOn()?'LEAVE COMBAT LAB':'COMBAT LAB','sword','#1f5a7a','KeyU',labOn()?'Back to where you were':'Practice: waves of real foes')];
+    leaf('lab',labOn()?'LEAVE COMBAT LAB':'COMBAT LAB','sword','#1f5a7a','KeyU',labOn()?'Back to where you were':'Practice: waves of real foes'),
+    leaf('photo','PHOTO MODE','hero','#3a3a5a','Photo','Hide the HUD and freeze the scene')];
   if(page==='journal')return [
     leaf('quests','QUESTS','scroll','#2a5a4a','KeyQ','Active and finished',()=>pauseReadyQ()?String(pauseReadyQ()):''),
     leaf('story','CHRONICLE','book','#7a4a2a','KeyB','Stories of the villagers',()=>pauseStoryNew()?String(pauseStoryNew()):'')];
@@ -12689,6 +12695,7 @@ function render(){
   const sh=B&&B.shake>0?B.shake:0;
   ctx.save();if(sh)ctx.translate(Math.round((Math.random()-.5)*sh*14),Math.round((Math.random()-.5)*sh*10));
   drawWorld();drawChestFx();drawLifeOverlay();
+  if(typeof PHOTO!=='undefined'&&PHOTO.on){ctx.restore();if(typeof drawPhotoChrome==='function')drawPhotoChrome();return;}
   ctx.restore();
   drawLighting();
   if(vign)ctx.drawImage(vign,0,0);
@@ -12727,6 +12734,7 @@ function update(dt){
   if(isUI()){updateUI(dt);return;}
   if(state==='paused'&&updatePauseKeys())return;
   if(hit('KeyM')){muted=!muted;toast(muted?'Sound off':'Sound on',1);}
+  if(typeof PHOTO!=='undefined'&&PHOTO.on){updatePhoto(dt);return;}
   if(typeof CREDITS!=='undefined'&&CREDITS.on){updateCredits(dt);return;}
   // The fight lesson draws a SKIP button. Escape / Tab dismiss it instead of opening the pause menu
   // (a click on SKIP can miss the small rect, and lesson 4 treats other clicks as aiming).
@@ -12738,6 +12746,7 @@ function update(dt){
   updateExplore(dt);
   if(B)updateBattle(dt);
   updateRush(dt);updateLab(dt);updatePet(dt);updateStory();updateDaily(dt);updateAch(dt);updateTut(dt);updateTracker(dt);
+  if(typeof horseTick==='function')horseTick();
 }
 /* ---- sizing: integer pixel scale, fills the whole screen, safe-area aware ---- */
 const probe=document.createElement('div');
@@ -13677,7 +13686,7 @@ const X7_NEW=()=>({jr:{},skins:{},rodSkin:null,foil:{},best:{},stamps:{},login:{
   bounty:{wk:-1,list:[]},ngp:0,ch:{noHeal:false,oneLife:false},chFail:{},badges:{},endings:{},furn:{owned:{},placed:[]},
   garden:[{herb:null,t:0},{herb:null,t:0},{herb:null,t:0}],herbs:0,fr:{},frDay:{},cu:{},mast:{},pet:{walk:{},outfit:{},hats:{}},
   shards:0,meteorDay:-1,meteors:[],fest:{wk:-1,tok:[],got:0,prize:false},derby:{day:-1,on:false,t:0,best:0,trophies:0},
-  depth:{best:0,runs:[]},rematch:{dragon:0,lich:0},cos:{},rumorSeen:-1,newDots:{},ed:{on:false}});
+  depth:{best:0,runs:[]},rematch:{dragon:0,lich:0},felled:{},cos:{},rumorSeen:-1,newDots:{},ed:{on:false}});
 let X7=X7_NEW();
 const x7Day=()=>dayNum(),x7Week=()=>weekNum(),x7Dow=()=>window.__DOW!=null?window.__DOW:new Date(nowMs()).getDay();
 const x7Weekend=()=>{const d=x7Dow();return d===0||d===6;};
@@ -13749,7 +13758,10 @@ function stampSetBonus(){const types=Object.keys(ENEMY).filter(t=>!ENEMY[t].boss
   if(kind==='kill'&&arg&&arg.type&&!arg.tmp){const t=arg.type,s0=stampOf(t);X7.best[t]=(X7.best[t]|0)+1;const s1=stampOf(t);
     if(s1>s0){toast('BESTIARY: '+STAMP_N[s1-1]+' stamp - '+((ENEMY[t]&&ENEMY[t].name)||t),3,STAMP_C[s1-1]);x7Dot('bestiary');}
     bountyKill(arg);if(X7.ngp>0&&Math.random()<.06)x7GoldTrim();
-    if(arg.x7rematch){const k=arg.type==='lich'?'lich':'dragon';X7.rematch[k]++;const c=k==='lich'?'lichcrown':'dragonhorns';if(!X7.pet.hats[c]){X7.pet.hats[c]=1;X7.cos[c]=1;toast('REMATCH WON! Cosmetic: '+HATS[c].n,4,'#ffd23f');sfx('jingleAch');}}}
+    if(arg.def&&arg.def.boss){X7.felled=X7.felled||{};X7.felled[arg.type]=1;}
+    if(arg.x7rematch){const k=arg.type||'dragon';X7.rematch[k]=(X7.rematch[k]|0)+1;if(typeof hardReward==='function')hardReward(arg);
+      const c=k==='lich'?'lichcrown':k==='dragon'?'dragonhorns':null;if(c&&!X7.pet.hats[c]){X7.pet.hats[c]=1;X7.cos[c]=1;toast('REMATCH WON! Cosmetic: '+HATS[c].n,4,'#ffd23f');sfx('jingleAch');}
+      else if(!c&&!X7.cos['hard_'+k]){X7.cos['hard_'+k]=1;toast('REMATCH WON! A mark of the '+k+' fight',3.2,'#ffd23f');sfx('jingleAch');}}}
   return r;};}
 function x7DmgMul(){return (B&&B.mastT>0?1.15:1)*(1+.02*stampSetBonus());}
 function x7GoldTrim(){try{const it=genGear(null,Math.max(5,P.lv+3),'epic',false);it.name='Gold-Trim '+it.name;it.gold=1;addGear(it);toast('NEW GAME+ drop: '+it.name,3.2,'#ffd23f');}catch(e){}}
@@ -13822,12 +13834,17 @@ function chToggle(k){X7.ch[k]=!X7.ch[k];if(X7.ch[k])X7.chFail[k]=false;toast((k=
 function endlessStart(){if(!rushStart('weekly'))return false;X7.ed={on:true,f0:WEEKLY_CFG.floors,round:0};WEEKLY_CFG.floors=999;toast('THE ENDLESS CRYPT: how deep can you go?',3.4,'#9ae0ff');return true;}
 
 /* ======================= 19. BOSS REMATCHES ======================= */
-function rematchStart(type){const e=enemies.find(o=>o.type===type);if(!e)return false;if(type==='dragon'?!bossDown&&!X7.rematch.dragon:!lichDown&&!X7.rematch.lich){toast('Defeat it once first',2,'#ffb0a0');return false;}
-  closeUI&&isUI()&&closeUI();state='play';e.alive=true;e.dying=false;e.respawn=0;e.x=e.hx;e.y=e.hy;P.x=e.x-60;P.y=e.y+4;P.grace=0;snapCam();startEncounter(e,true);
-  if(B){for(const o of B.ens)if(o.type===type){o.x7rematch=true;o.hp=o.maxhp=Math.round(o.maxhp*1.6);o.x7pat=4;}toast((type==='lich'?'LICH KING':'EMBERFANG')+' REMATCH - new tricks!',3,'#ff9a6a');}return true;}
-function rematchTick(dt){if(!B||B.phase!=='fight')return;for(const e of B.ens){if(!e.x7rematch||e.dying)continue;e.x7pat-=dt;if(e.x7pat>0)continue;e.x7pat=e.type==='lich'?7:5;
-  const c=ecen(e);if(e.type==='lich'){try{summonMinions(e,'wraith',2,Math.max(5,(e.lv||16)*.6),{});}catch(_){}floatText(c.x,c.y-50,'GRAVE CALL','#9ae0ff',12);}
-  else{const o=B.owner;B.owner=e;for(let i=0;i<10;i++)fireProj(c.x,c.y,i*Math.PI/5+gtime,150,Math.round(8+P.lv*.6),'fire',7);B.owner=o;floatText(c.x,c.y-50,'EMBER RING','#ff9a3d',12);}}}
+function rematchReady(type){
+  if(type==='dragon')return !!(bossDown||(X7.rematch.dragon|0));
+  if(type==='lich')return !!(lichDown||(X7.rematch.lich|0));
+  return !!(X7.felled&&X7.felled[type]);
+}
+function rematchStart(type){const e=enemies.find(o=>o.type===type);if(!e)return false;if(!rematchReady(type)){toast('Defeat it once first',2,'#ffb0a0');return false;}
+  closeUI&&isUI()&&closeUI();state='play';e.alive=true;e.dying=false;e.respawn=0;e.x=e.hx;e.y=e.hy;P.x=e.x-60;P.y=e.y+4;P.grace=0;snapCam();
+  const hp0=e.maxhp;startEncounter(e,true);
+  if(B){for(const o of B.ens)if(o.type===type){o.x7rematch=true;o.hp=o.maxhp=hp0;o.x7pat=1.2;o.hardMove=null;}toast('HARD REMATCH - new patterns, same health',3,'#ff9a6a');}return true;}
+function rematchTick(dt){if(!B||B.phase!=='fight')return;for(const e of B.ens){if(!e.x7rematch||e.dying)continue;e.x7pat-=dt;if(e.x7pat>0)continue;e.x7pat=e.type==='colossus'?6:5;
+  if(typeof hardTrick==='function')hardTrick(e);}}
 
 /* ======================= 11-13. HOUSE: FURNITURE, GARDEN, VISITORS ======================= */
 const FURN={rug:{n:'Woven Rug',g:60,from:'Mara',col:'#b0503a',w:2,h:1},plant:{n:'Potted Fern',g:40,from:'Mara',col:'#3f8a3a',w:1,h:1},
@@ -14018,8 +14035,8 @@ UI_MODES.codex={title:()=>CODEX_PAGE?'CODEX - '+(CODEX_PAGES.find(p=>p[0]===CODE
     R.push(cxRow('Pet outfits (Weekend Market page)',true,()=>openCodex('market')));R.push(cxRow('Open Pets',true,()=>openPets()));}
   else if(P2==='endgame'){R.push(H('ENDLESS CRYPT - floors never end. Best depth: '+X7.depth.best));R.push(cxRow('Enter the Endless Crypt',true,()=>{closeUI();endlessStart();}));
     X7.depth.runs.forEach(r=>R.push(H('  depth '+r.d)));
-    R.push(H('BOSS REMATCHES - harder, new attacks, a cosmetic each'));
-    R.push(cxRow('Rematch Emberfang (wins: '+X7.rematch.dragon+')',bossDown||X7.rematch.dragon>0,()=>rematchStart('dragon')));R.push(cxRow('Rematch the Lich King (wins: '+X7.rematch.lich+')',lichDown||X7.rematch.lich>0,()=>rematchStart('lich')));
+    R.push(H('HARD REMATCHES - new attack patterns, health stays near normal, better pay'));
+    [['dragon','Emberfang'],['lich','the Lich King'],['rimegar','Rimegar'],['mossback','Old Mossback'],['colossus','the Colossus']].forEach(([t,n])=>R.push(cxRow('Rematch '+n+' (wins: '+(X7.rematch[t]|0)+')',rematchReady(t),()=>rematchStart(t))));
     R.push(H('CARD MASTERY - cast a card 100 times: +15% damage (gold * on the card)'));
     Object.keys(COL).filter(id=>CARD[id]).sort((a,b)=>(X7.cu[b]|0)-(X7.cu[a]|0)).slice(0,14).forEach(id=>R.push(H('  '+CARD[id].name+'  '+Math.min(100,X7.cu[id]|0)+'/100'+(X7.mast[id]?'  MASTERED':'')+(isFoil(id)?'  FOIL':''))));}
   else if(P2==='ngplus'){R.push(H('NEW GAME+ keeps cards, pets, gear, house. Monsters get tougher, Gold-Trim gear drops.'));
@@ -14827,6 +14844,284 @@ if(typeof PM_DRAW!=='undefined'&&PM_DRAW.world){
 setTimeout(placeCastleSign,300);setTimeout(placeCastleSign,900);setTimeout(placeCastleSign,1700);
 if(window.__t153Town){const _rel=window.__t153Town;window.__t153Town=function(){const r=_rel();try{placeCastleSign();t164Seat();}catch(e){}return r;};}
 setTimeout(t164Seat,400);setTimeout(t164Seat,1000);setTimeout(t164Seat,1800);
+
+/* ---------- src/world/v69.js ---------- */
+/* =====================================================================
+   v69: Combat Lab milestones, card forge, keyed chests, hard rematches,
+   Tap games, pet abilities, a horse, and photo mode.
+   New save fields are optional. Old saves still load. The lab best wave
+   stays in arcaneKnight.labBest.v1; rewards use the sibling key below.
+   ===================================================================== */
+const LAB_REW_KEY='arcaneKnight.labRewards.v1';
+const LAB_MILES={
+  10:{back:'ember',name:'Ember Cloth',gold:200,col:'#ff7a3a'},
+  20:{back:'crest',name:'Crest Blue',gold:400,col:'#7ec8ff'},
+  30:{back:'crown',name:'Crown Gold',gold:700,col:'#ffd23f'}
+};
+const LABREW={best:0,got:{},backs:[]};
+function labRewBoot(){
+  try{const o=JSON.parse(localStorage.getItem(LAB_REW_KEY)||'null');
+    if(o&&typeof o==='object'){LABREW.best=o.best|0;LABREW.got=o.got&&typeof o.got==='object'?o.got:{};LABREW.backs=Array.isArray(o.backs)?o.backs.slice():[];}}catch(e){}
+  try{const n=parseInt(localStorage.getItem('arcaneKnight.labBest.v1'),10)||0;if(n>LABREW.best)LABREW.best=n;}catch(e){}
+}
+function labRewSave(){
+  if(typeof LAB!=='undefined'&&(LAB.best|0)>LABREW.best)LABREW.best=LAB.best|0;
+  try{localStorage.setItem(LAB_REW_KEY,JSON.stringify({best:LABREW.best,got:LABREW.got,backs:LABREW.backs}));}catch(e){}
+}
+function labGrantMilestone(w){
+  const m=LAB_MILES[w];if(!m||LABREW.got[w])return false;
+  LABREW.got[w]=1;if(LABREW.backs.indexOf(m.back)<0)LABREW.backs.push(m.back);
+  LABREW.best=Math.max(LABREW.best,w);P.gold+=m.gold;
+  if(typeof addKey==='function')addKey(1);
+  labRewSave();
+  try{toast('Lab wave '+w+': '+m.name+' +'+m.gold+' G and a key',3.2,m.col);}catch(e){}
+  return true;
+}
+function labDressWave(){
+  const w=LAB.wave|0;
+  if(w%5===0&&LAB.units&&LAB.units.length){
+    const pos=typeof LAB_POS!=='undefined'?LAB_POS[0]:[28,201];
+    const b=labMake('knight',pos[0],pos[1],Math.max(1,w));
+    b.mini=true;b.name='LAB WARDEN';b.title='Lab Warden';b.tname='WARDEN';
+    const hp=Math.min(1800,Math.round(b.maxhp*1.2));
+    b.hp=b.maxhp=b.mhp=Math.max(1,hp);
+    LAB.units[0]=b;
+  }
+  labGrantMilestone(w);labRewSave();
+}
+function labStatusText(){
+  const best=Math.max(LABREW.best|0,typeof LAB!=='undefined'?(LAB.best|0):0);
+  const names=LABREW.backs.map(id=>{for(const k in LAB_MILES)if(LAB_MILES[k].back===id)return LAB_MILES[k].name;return id;});
+  return 'BEST '+best+(names.length?'  '+names.join(', '):'');
+}
+function labBackColor(){const id=LABREW.backs[LABREW.backs.length-1];if(!id)return null;for(const k in LAB_MILES)if(LAB_MILES[k].back===id)return LAB_MILES[k].col;return null;}
+labRewBoot();
+if(typeof labSaveBest==='function'){const _lsb=labSaveBest;labSaveBest=function(){_lsb();labRewSave();};}
+if(typeof drawCardFace==='function'){const _dcf=drawCardFace;drawCardFace=function(id,cw,ch,sel,idx){_dcf(id,cw,ch,sel,idx);const col=labBackColor();if(!col)return;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=3;ctx.strokeRect(2,2,cw-4,ch-4);ctx.restore();};}
+
+/* ---------- keys and hidden chests (regions only, once per save) ---------- */
+const KEY_CHESTS=[
+  {id:'kc_snow',tx:22,ty:ZONE_Y0.snow+8,loot:'gold',gold:120},
+  {id:'kc_swamp',tx:22,ty:ZONE_Y0.swamp+8,loot:'card',card:'fire'},
+  {id:'kc_desert',tx:22,ty:ZONE_Y0.desert+8,loot:'mat',mat:'gel',n:2},
+  {id:'kc_crypt',tx:24,ty:CRY0+10,loot:'gold',gold:160},
+  {id:'kc_pass',tx:36,ty:ZONE_Y0.snow+16,loot:'card',card:'heal'}
+];
+function keyChestAt(c){
+  if(c._p)return c._p;
+  let tx=c.tx,ty=c.ty;
+  const solid=typeof solidTile==='function'?solidTile:()=>false;
+  if(solid(tx,ty)){let found=false;for(let r=1;r<=12&&!found;r++)for(let dy=-r;dy<=r&&!found;dy++)for(let dx=-r;dx<=r&&!found;dx++){
+    const x=c.tx+dx,y=c.ty+dy;if(x<1||y<1||y>=MH||x>=MW)continue;if(!solid(x,y)){tx=x;ty=y;found=true;}}}
+  c._p={tx,ty,x:(tx+.5)*TS,y:(ty+.65)*TS};return c._p;
+}
+function nearestKeyChest(lim){
+  let best=null,bd=lim||46;
+  for(const c of KEY_CHESTS){if(SEC.kc&&SEC.kc[c.id])continue;const p=keyChestAt(c),d=Math.hypot(p.x-P.x,p.y-P.y);if(d<bd){bd=d;best=c;}}
+  return best;
+}
+function keyChestInTown(c){const p=keyChestAt(c);return typeof inTownPx==='function'&&inTownPx(p.x,p.y);}
+function addKey(n){SEC.keys=Math.max(0,(SEC.keys|0)+(n|0||1));return SEC.keys|0;}
+function openKeyChest(id){
+  const c=KEY_CHESTS.find(q=>q.id===id);if(!c)return {err:'missing'};
+  SEC.kc=SEC.kc||{};if(SEC.kc[id])return {err:'opened'};
+  if((SEC.keys|0)<1)return {err:'nokey'};
+  SEC.keys--;SEC.kc[id]=true;let got='';
+  if(c.loot==='gold'){P.gold+=c.gold;got=c.gold+' G';}
+  else if(c.loot==='card'){grantCard(c.card);got=(CARD[c.card]&&CARD[c.card].name)||c.card;}
+  else{addMat(c.mat,c.n||1);got=(c.n||1)+' '+((MATS[c.mat]&&MATS[c.mat].n)||c.mat);}
+  try{toast('Locked chest: '+got,2.6,'#ffd23f');saveGame('keychest');}catch(e){}
+  return {ok:true,got,keys:SEC.keys|0,loot:c.loot};
+}
+function tryKeyChest(){
+  const c=nearestKeyChest(42);if(!c)return false;
+  const r=openKeyChest(c.id);
+  if(r.err==='nokey'){toast('Locked. Keys drop from bounties and Combat Lab milestones.',2.4,'#ffb0a0');sfx('clang');return true;}
+  if(r.err)return false;sfx('coin');return true;
+}
+function drawKeyChests(){
+  for(const c of KEY_CHESTS){if(SEC.kc&&SEC.kc[c.id])continue;const p=keyChestAt(c),x=p.x-cam.x,y=p.y-cam.y;if(x<-20||y<-20||x>VW+20||y>VH+20)continue;
+    ctx.fillStyle='#5a3a22';ctx.fillRect(x-8,y-10,16,10);ctx.fillStyle='#e0b44a';ctx.fillRect(x-3,y-8,6,4);ctx.fillStyle='#c9a36a';ctx.fillRect(x-8,y-12,16,3);}
+}
+if(typeof drawWorld==='function'){const _dw=drawWorld;drawWorld=function(){_dw();try{drawKeyChests();}catch(e){}};}
+if(typeof bountyClaim==='function'){const _bc=bountyClaim;bountyClaim=function(b){const had=!!(b&&b.paid),k0=SEC.keys|0;const r=_bc(b);if(b&&b.paid&&!had&&(SEC.keys|0)===k0)addKey(1);return r;};}
+
+/* ---------- card forge at Brum's (shards from duplicate cards) ---------- */
+const MELT_SH={common:2,uncommon:3,rare:5,epic:8,legendary:12};
+function forgeCost(c){const ri=Math.max(0,RAR_ORDER.indexOf(c.rar));return {shards:3+ri*2,gold:40+ri*50};}
+function meltCard(id){
+  const c=CARD[id];if(!c||(COL[id]|0)<2)return 0;
+  COL[id]--;
+  if(typeof DECK!=='undefined'&&typeof deckCount==='function'){while(deckCount(id)>(COL[id]|0)){const i=DECK.indexOf(id);if(i<0)break;DECK.splice(i,1);}}
+  const g=MELT_SH[c.rar]||2;CR.csh=(CR.csh|0)+g;return g;
+}
+function forgeCard(id){
+  const c=CARD[id];if(!c||!(COL[id]>0))return false;if(upgLvl(id)>=UPG_MAX)return false;
+  const cost=forgeCost(c);if((CR.csh|0)<cost.shards||P.gold<cost.gold)return false;
+  CR.csh-=cost.shards;P.gold-=cost.gold;CR.upg[id]=upgLvl(id)+1;return true;
+}
+if(typeof resetCraft==='function'){const _rc=resetCraft;resetCraft=function(){_rc();CR.csh=0;};}
+if(typeof packCraft==='function'){const _pk=packCraft;packCraft=function(){const o=_pk();o.csh=CR.csh|0;return o;};}
+if(typeof unpackCraft==='function'){const _uc=unpackCraft;unpackCraft=function(s){_uc(s);CR.csh=clamp((s&&s.csh)|0,0,999);};}
+function openForge(){openUIMode('forge','play');}
+UI_STATES.push('forge','tapgame','stable');
+function forgeRow(c){
+  const cost=forgeCost(c),canF=(COL[c.id]|0)>0&&upgLvl(c.id)<UPG_MAX&&(CR.csh|0)>=cost.shards&&P.gold>=cost.gold,canM=(COL[c.id]|0)>1;
+  return {sel:true,h:52,act(){if(canM)meltCard(c.id);},tap(){if(canM)meltCard(c.id);},
+    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=c.col;ctx.fillRect(x0,y,3,h);
+      txt(cardFullName(c),x0+12,y+16,{size:11,col:RAR[c.rar].col,lw:2});
+      txt('owned '+(COL[c.id]|0)+'   melt +'+(MELT_SH[c.rar]||2)+' shards',x0+12,y+30,{size:8,col:'#d8c8a8',lw:2});
+      txt(upgLvl(c.id)>=UPG_MAX?'MAX':cost.shards+' shards + '+cost.gold+' G',x0+12,y+44,{size:8,col:canF?'#7dffa0':'#ffb0a0',lw:2});
+      uiButton(x0+W-150,y+12,64,28,'MELT',canM,()=>{UI.sel=si;const n=meltCard(c.id);uiMsg(n?'Melted for '+n+' shards':'Need a duplicate',!n);},{tag:'melt:'+c.id,clip:true,size:9,sel:si});
+      uiButton(x0+W-78,y+12,66,28,upgLvl(c.id)>=UPG_MAX?'MAX':'FORGE',canF,()=>{UI.sel=si;if(forgeCard(c.id)){uiMsg(cardFullName(c)+' forged',false);saveGame('forge');}else uiMsg('Need shards and gold');},{tag:'forge:'+c.id,clip:true,size:9,sel:si});
+    }};
+}
+UI_MODES.forge={title:()=>'CARD FORGE',sub:()=>[CR.csh|0+' shards    '+P.gold+' G','#7df9ff'],rows(){
+  const r=[{t:'head',s:'MELT A DUPLICATE, THEN FORGE +1'}];
+  CARDS.filter(c=>(COL[c.id]|0)>0).sort((a,b)=>a.name.localeCompare(b.name)).forEach(c=>r.push(forgeRow(c)));
+  if(r.length===1)r.push({t:'head',s:'You have no cards to melt yet'});
+  return r;
+}};
+if(UI_MODES.shop&&UI_MODES.shop.rows){const _rows=UI_MODES.shop.rows;UI_MODES.shop.rows=function(){
+  const r=_rows(),go=()=>openForge();
+  r.splice(2,0,{t:'head',s:'CARD FORGE'},{sel:true,h:36,act:go,tap:go,draw(x0,y,W,h,isSel,si){
+    ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+    txt('Melt duplicates, forge +1 cards',x0+12,y+22,{size:11,col:'#ffd23f',lw:2});
+    uiButton(x0+W-78,y+4,66,26,'FORGE',true,()=>{UI.sel=si;go();},{tag:'open-forge',clip:true,size:10,sel:si});
+  }});return r;};}
+
+/* ---------- hard rematch patterns (health stays put; the pattern changes) ---------- */
+const HARD_MOVE={dragon:'CINDER CAGE',lich:'SOUL TETHER',rimegar:'SHATTER',mossback:'MIRE LASH',colossus:'PILLAR FALL'};
+function hardTrick(e){
+  if(!B||!e)return;const c=ecen(e),p=pcen();B.owner=e;e.hardMove=HARD_MOVE[e.type]||'HARD PATTERN';
+  const ring=(n,rad,fx)=>{for(let i=0;i<n;i++){const a=i*6.283/n+0.2;addPool(p.x+Math.cos(a)*rad,p.y+Math.sin(a)*rad,16,1.5,6,fx);}};
+  if(e.type==='dragon'){addPool(p.x,p.y,24,1.8,6,'fire');ring(6,68,'fire');}
+  else if(e.type==='lich'){try{summonMinions(e,'wraith',1,4);}catch(err){}addPool((c.x+p.x)/2,(c.y+p.y)/2,20,1.8,6,'void');}
+  else if(e.type==='rimegar')ring(3,42,'frost');
+  else if(e.type==='mossback'){addPool(p.x,p.y,36,2,5,'mire');try{poisonApply(1.6,'mire');}catch(err){}}
+  else{for(let i=0;i<3;i++)addPool(p.x+(i-1)*40,p.y-14,16,1.2,7,'sand');}
+  floatText(c.x,c.y-50,e.hardMove,'#ff9a6a',12);B.owner=null;
+}
+function hardReward(e){
+  const bonus=250;P.gold+=bonus;let card=null;
+  try{card=typeof x7RareCard==='function'?x7RareCard():null;}catch(err){}
+  if(card)try{grantCard(card);}catch(err){}
+  try{addMat('shard',2);}catch(err){}
+  X7.lastHard={type:e.type,move:e.hardMove||HARD_MOVE[e.type],gold:bonus,card:card||null};
+  try{toast('Hard rematch: +'+bonus+' G'+(card&&CARD[card]?' + '+CARD[card].name:''),3,'#ffd23f');}catch(err){}
+}
+
+/* ---------- Oakvale Tap: dice and arm wrestling, beside Sol. Hold'em is untouched. ---------- */
+const TAPGAME={dice:5,wrestle:8};
+function dicePlay(a,b){
+  if(P.gold<TAPGAME.dice)return {err:'gold',stake:TAPGAME.dice};
+  const you=a!=null?a|0:(1+(Math.random()*6|0))+(1+(Math.random()*6|0));
+  const him=b!=null?b|0:(1+(Math.random()*6|0))+(1+(Math.random()*6|0));
+  let net=0;if(you>him){P.gold+=TAPGAME.dice;net=TAPGAME.dice;}else if(you<him){P.gold-=TAPGAME.dice;net=-TAPGAME.dice;}
+  return {you,him,net,gold:P.gold,stake:TAPGAME.dice};
+}
+function armWrestle(you,him){
+  if(P.gold<TAPGAME.wrestle)return {err:'gold',stake:TAPGAME.wrestle};
+  const y=you!=null?you:(P.lv+(Math.random()*6|0)),h=him!=null?him:(4+(Math.random()*6|0));
+  if(y>=h){P.gold+=TAPGAME.wrestle;return {win:true,net:TAPGAME.wrestle,gold:P.gold,stake:TAPGAME.wrestle,you:y,him:h};}
+  P.gold-=TAPGAME.wrestle;return {win:false,net:-TAPGAME.wrestle,gold:P.gold,stake:TAPGAME.wrestle,you:y,him:h};
+}
+function openTapGames(){openUIMode('tapgame','play');}
+function tapAct(kind){
+  const r=kind==='dice'?dicePlay():armWrestle();
+  if(r.err){uiMsg('Need '+r.stake+' G');return;}
+  uiMsg(kind==='dice'?(r.net>0?'Dice win +'+r.net:(r.net<0?'Dice loss '+r.net:'Dice push')):(r.win?'You pin his arm +'+r.net:'He pins you '+r.net),r.net<0);sfx(r.net>0?'coin':'clang');
+}
+UI_MODES.tapgame={title:()=>'OAKVALE TAP',sub:()=>['Small stakes. Hold\'em is still at Sol\'s table.','#f0e2c0'],rows(){
+  const dice=()=>tapAct('dice'),wrest=()=>tapAct('wrestle');
+  return [
+    {t:'head',s:'HUCK\'S TABLE'},
+    {sel:true,h:48,act:dice,tap:dice,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt('Dice  -  stake '+TAPGAME.dice+' G',x0+12,y+20,{size:12,col:'#ffe9a0',lw:2});txt('Two dice each. High roll takes the stake.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
+      uiButton(x0+W-78,y+10,66,28,'ROLL',P.gold>=TAPGAME.dice,()=>{UI.sel=si;dice();},{tag:'dice',clip:true,size:11,sel:si});}},
+    {sel:true,h:48,act:wrest,tap:wrest,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt('Arm wrestling  -  stake '+TAPGAME.wrestle+' G',x0+12,y+20,{size:12,col:'#ffb07a',lw:2});txt('A short grapple. Win the stake back twice.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
+      uiButton(x0+W-86,y+10,74,28,'WRESTLE',P.gold>=TAPGAME.wrestle,()=>{UI.sel=si;wrest();},{tag:'wrestle',clip:true,size:9,sel:si});}}
+  ];
+}};
+function placeDice(){
+  const sol=NPCS.find(n=>n.name==='Dealer Sol');if(!sol||sol.x<-100)return false;
+  let n=NPCS.find(q=>q.name==='Huck the Dice');
+  if(!n){n={name:'Huck the Dice',spr:'hob',lines:['Five gold on the dice, eight on an arm wrestle.','Sol\'s Hold\'em table is right beside me.']};NPCS.push(n);}
+  n.dice=true;n.spr=n.spr||'hob';n.x=sol.x+34;n.y=sol.y+6;n.hx=n.x;n.hy=n.y;return true;
+}
+
+/* ---------- one extra ability per pet; follow code is unchanged ---------- */
+function petAbilityTick(dt){
+  const id=PET.active;if(!id)return;
+  if(id==='cinder'&&B&&B.phase==='fight'){
+    PET.abC=(PET.abC==null?0:PET.abC)-dt;
+    if(PET.abC<=0){PET.abC=4.5;const e=B.ens&&B.ens.find(o=>o&&!o.dying);if(e){try{damageEnemy(e,Math.max(2,Math.round(3+P.lv*.2)),'pet');}catch(err){}PET.lastAbility='assist';}}
+  }
+  if(B)return;
+  PET.abT=(PET.abT||0)+dt;if(PET.abT<6)return;PET.abT=0;
+  if(id==='pebblin'){addMat('gel',1);PET.lastAbility='dig';}
+  else if(id==='moth'&&P.hp<maxHp()){P.hp=Math.min(maxHp(),P.hp+3);PET.lastAbility='mend';}
+}
+if(typeof updatePet==='function'){const _up=updatePet;updatePet=function(dt){_up(dt);try{petAbilityTick(dt);}catch(e){}};}
+if(typeof fishAward==='function'){const _fa=fishAward;fishAward=function(f,rare){const r=_fa(f,rare);if(f&&!f.junk&&PET.active==='wisp'){P.gold+=8;PET.lastAbility='fish';}return r;};}
+const PET_ABILITY={cinder:'A small extra bite during a fight',wisp:'A little extra gold from fishing',moth:'Mends a little health while you walk',pebblin:'Digs up slime gel now and then'};
+
+/* ---------- stable, horse, photo mode ---------- */
+const HORSE={owned:false,up:false,price:250};
+function horseIndoor(){const z=typeof zoneOfPx==='function'?zoneOfPx(P.y):'';return z==='house'||z==='crypt'||z==='arena';}
+function horseRiding(){return !!(HORSE.owned&&HORSE.up&&!B&&!horseIndoor()&&state==='play');}
+function horseMul(){return horseRiding()?1.75:1;}
+function horseTick(){if(HORSE.up&&(B||horseIndoor()||state!=='play'))HORSE.up=false;}
+function horseBuy(){if(HORSE.owned)return true;if(P.gold<HORSE.price)return false;P.gold-=HORSE.price;HORSE.owned=true;try{saveGame('horse');}catch(e){}return true;}
+function horseToggle(){
+  if(!HORSE.owned)return false;
+  if(HORSE.up){HORSE.up=false;return true;}
+  if(B||horseIndoor()){toast('The horse stays outside',1.6,'#ffb0a0');return false;}
+  HORSE.up=true;toast('You mount up. Faster on the road.',1.6,'#ffe9a0');return true;
+}
+function placeStable(){
+  const brum=NPCS.find(n=>n.name==='Blacksmith Brum');
+  const ox=typeof OX==='number'?OX:0,oy=typeof OY==='number'?OY:0;
+  let tx=ox+8,ty=oy+40;
+  if(brum&&brum.x>0){tx=Math.floor(brum.x/TS)-5;ty=Math.floor(brum.y/TS);}
+  if(typeof solidTile==='function'&&solidTile(tx,ty)){for(let i=1;i<8;i++){if(!solidTile(tx-i,ty)){tx-=i;break;}if(!solidTile(tx+i,ty)){tx+=i;break;}}}
+  let n=NPCS.find(q=>q.name==='Stablehand Ned');
+  if(!n){n={name:'Stablehand Ned',spr:'guard',lines:['A horse for the long roads. Not indoors, and not into a fight.']};NPCS.push(n);}
+  n.stable=true;n.x=(tx+.5)*TS;n.y=(ty+.7)*TS;n.hx=n.x;n.hy=n.y;return n;
+}
+function openStable(){openUIMode('stable','play');}
+UI_MODES.stable={title:()=>'OAKVALE STABLE',sub:()=>[HORSE.owned?(HORSE.up?'Mounted':'On foot'):HORSE.price+' G for a horse','#ffe9a0'],rows(){
+  const buy=()=>{if(horseBuy())uiMsg('The horse is yours',false);else uiMsg('Need '+HORSE.price+' G');};
+  const tog=()=>{if(horseToggle())uiMsg(HORSE.up?'Mounted':'Dismounted',false);else uiMsg(HORSE.owned?'Not here':'Buy the horse first');};
+  return [
+    {t:'head',s:'WEST OF THE FORGE'},
+    {sel:true,h:44,act:buy,tap:buy,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt(HORSE.owned?'Horse owned':'Buy a horse  '+HORSE.price+' G',x0+12,y+26,{size:12,col:'#ffe9a0',lw:2});
+      uiButton(x0+W-74,y+8,64,28,HORSE.owned?'OWNED':'BUY',!HORSE.owned&&P.gold>=HORSE.price,()=>{UI.sel=si;buy();},{tag:'horse-buy',clip:true,size:10,sel:si});}},
+    {sel:true,h:44,act:tog,tap:tog,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt(HORSE.up?'Dismount':'Mount',x0+12,y+26,{size:12,col:'#fff',lw:2});
+      uiButton(x0+W-86,y+8,74,28,HORSE.up?'DISMOUNT':'MOUNT',!!HORSE.owned,()=>{UI.sel=si;tog();},{tag:'horse-mount',clip:true,size:8,sel:si});}}
+  ];
+}};
+if(typeof resetPets==='function'){const _rp=resetPets;resetPets=function(){_rp();HORSE.owned=false;HORSE.up=false;};}
+if(typeof packPets==='function'){const _pp=packPets;packPets=function(){const o=_pp();o.horse=HORSE.owned?1:0;o.horseUp=HORSE.up?1:0;return o;};}
+if(typeof unpackPets==='function'){const _uu=unpackPets;unpackPets=function(s){_uu(s);HORSE.owned=!!(s&&s.horse);HORSE.up=!!(s&&s.horse&&s.horseUp);if(horseIndoor())HORSE.up=false;};}
+const PHOTO={on:false};
+function photoToggle(){PHOTO.on=!PHOTO.on;if(PHOTO.on){try{releaseAllTouch();}catch(e){}}return PHOTO.on;}
+function updatePhoto(){if(hit('Escape','KeyE','Space','Enter'))PHOTO.on=false;}
+function drawPhotoChrome(){
+  const y=VH-(typeof SB==='number'?SB:0)-36;
+  txt(TOUCH?'Tap anywhere to return':'Press E to return',VW/2,y,{size:12,align:'center',col:'#ffe14d',lw:3});
+}
+if(typeof openDlg==='function'){const _od=openDlg;openDlg=function(npc){
+  if(npc&&npc.dice){openTapGames();return;}
+  if(npc&&npc.stable){openStable();return;}
+  return _od.apply(this,arguments);
+};}
+setTimeout(function(){try{placeDice();placeStable();}catch(e){}},400);
+setTimeout(function(){try{placeDice();placeStable();}catch(e){}},1200);
+setTimeout(function(){try{placeDice();placeStable();}catch(e){}},2200);
 
 /* ---------- src/render/hd-cast.js ---------- */
 /* =====================================================================
