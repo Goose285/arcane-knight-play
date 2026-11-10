@@ -2793,7 +2793,7 @@ const ENEMY={
   slime:{name:'Gooey Slime',hp:200,xp:20,gold:[5,12],speed:24,chase:44,aggro:3.4*TS,spr:'slime'},
   knight:{name:'Skeleton Knight',hp:380,xp:45,gold:[14,26],speed:30,chase:68,aggro:5*TS,spr:'knight'},
   goblin:{name:'Goblin Archer',hp:300,xp:38,gold:[10,22],speed:34,chase:56,aggro:6*TS,spr:'goblin'},
-  dragon:{name:'Emberfang the Dragon',hp:1500,xp:400,gold:[160,220],speed:26,chase:50,aggro:5*TS,spr:'dragon',boss:true},
+  dragon:{name:'Emberfang the Dragon',hp:1275,xp:400,gold:[160,220],speed:26,chase:50,aggro:5*TS,spr:'dragon',boss:true},
 };
 // vision: range in px and half-angle of the sight cone (radians)
 ENEMY.slime.vr=105;ENEMY.slime.vh=.9;ENEMY.knight.vr=170;ENEMY.knight.vh=.7;ENEMY.goblin.vr=235;ENEMY.goblin.vh=.6;ENEMY.dragon.vr=300;ENEMY.dragon.vh=.8;
@@ -2828,9 +2828,9 @@ Object.assign(ENEMY,{
   witch:   {name:'Mire Witch',    hp:380,xp:170,gold:[34,56],speed:28,chase:50,aggro:6*TS,spr:'witch',  vr:240,vh:.7,ar:80},
   scorpion:{name:'Dune Scorpion', hp:480,xp:190,gold:[38,60],speed:38,chase:80,aggro:5*TS,spr:'scorpion',vr:190,vh:.8,ar:76},
   mummy:   {name:'Dust Mummy',    hp:760,xp:230,gold:[46,72],speed:24,chase:46,aggro:5*TS,spr:'mummy',  vr:170,vh:.8,ar:76},
-  rimegar: {name:'Rimegar the Frost Titan',hp:3400,xp:1300,gold:[600,760],speed:22,chase:44,aggro:6*TS,spr:'rimegar', boss:true,big:true,vr:330,vh:.9,ar:170},
-  mossback:{name:'Old Mossback the Bog Hydra',hp:4000,xp:1800,gold:[800,980],speed:22,chase:44,aggro:6*TS,spr:'mossback',boss:true,big:true,vr:330,vh:.9,ar:170},
-  colossus:{name:'The Sundered Colossus',hp:4800,xp:2500,gold:[1000,1300],speed:20,chase:40,aggro:6*TS,spr:'colossus',boss:true,big:true,vr:330,vh:.9,ar:170},
+  rimegar: {name:'Rimegar the Frost Titan',hp:2480,xp:1300,gold:[600,760],speed:22,chase:44,aggro:6*TS,spr:'rimegar', boss:true,big:true,vr:330,vh:.9,ar:170},
+  mossback:{name:'Old Mossback the Bog Hydra',hp:2920,xp:1800,gold:[800,980],speed:22,chase:44,aggro:6*TS,spr:'mossback',boss:true,big:true,vr:330,vh:.9,ar:170},
+  colossus:{name:'The Sundered Colossus',hp:3500,xp:2500,gold:[1000,1300],speed:20,chase:40,aggro:6*TS,spr:'colossus',boss:true,big:true,vr:330,vh:.9,ar:170},
 });
 ['wolf','yeti','toad','witch','scorpion','mummy'].forEach(k=>Object.assign(ENEMY[k],{hs:.17,ds:.10,as:.025,ss:.02,rs:.22,freezeImmune:false}));
 ['rimegar','mossback','colossus'].forEach(k=>Object.assign(ENEMY[k],{hs:.07,ds:.05,as:.01,ss:.01,rs:.03,freezeImmune:true,p2at:.66,p3at:.33}));
@@ -3368,12 +3368,12 @@ function updateDlg(dt){
   if(d.c<line.length){d.c=Math.min(line.length,d.c+dt*60);if(((d.c|0)%3)===0&&Math.random()<.4)sfx('talk');}
   const isChoice=d.choice&&d.i===d.lines.length-1&&d.c>=line.length;
   if(isChoice){
-    if(hit('Enter','KeyY')){const af=d.after;d.choice();DLG=af?af():null;return;}
-    if(hit('Escape','KeyN')){const f=d.noAct;DLG=null;if(f)f();return;}
+    if(hit('Enter','KeyY')){const af=d.after;d.choice();DLG=af?af():null;if(!DLG&&typeof storyAfterDlg==='function')storyAfterDlg();return;}
+    if(hit('Escape','KeyN')){const f=d.noAct;DLG=null;if(f)f();if(!DLG&&typeof storyAfterDlg==='function')storyAfterDlg();return;}
   } else if(hit('Enter','KeyE','Space','KeyJ')){
     if(d.c<line.length)d.c=line.length;
     else if(d.i<d.lines.length-1){d.i++;d.c=0;}
-    else DLG=null;
+    else{DLG=null;if(typeof storyAfterDlg==='function')storyAfterDlg();}
   }
 }
 
@@ -3393,7 +3393,8 @@ function cutSetSteps(d){d.lines=d.steps.map(s=>s.t);}
 function cutEnd(d){
   const id=d.cut;DLG=null;if(CUTS[id])STORY.cutting=null;
   if(d.onEnd)d.onEnd(id);
-  if(id==='c5')openCredits();
+  const paid=typeof storyPayAfter==='function'&&storyPayAfter();
+  if(id==='c5'){if(paid)STORY_CRED_WAIT=true;else openCredits();}
 }
 /* short credits after the Hollow Crown ending; E / Space / Enter / Escape / tap returns to play */
 const CREDITS={on:false,t:0};
@@ -4607,7 +4608,26 @@ function storyReady(npc){
   if(npc.name==='Gate Guard'&&ch===1&&(QS.st.goblins==='done'||P.lv>=5))return 'c2';
   return null;
 }
-function storyTalk(npc){const id=storyReady(npc);if(!id)return false;return storyStart(id);}
+let STORY_PAY=null,STORY_CRED_WAIT=false;
+function storyTalk(npc){
+  const id=storyReady(npc);if(!id)return false;
+  const rd=typeof QUESTS!=='undefined'&&QUESTS.find(q=>q.giver===npc.name&&typeof questStatus==='function'&&questStatus(q.id)==='ready');
+  STORY_PAY=rd?{id:rd.id,npc:npc.name}:null;
+  const ok=storyStart(id);if(!ok)STORY_PAY=null;return ok;
+}
+/* a ready turn-in that shared this scene is paid as the next lines of the same conversation */
+function storyPayAfter(){
+  const p=STORY_PAY;STORY_PAY=null;
+  if(!p||typeof questStatus!=='function'||questStatus(p.id)!=='ready')return false;
+  const q=QUEST_BY_ID[p.id],rw=questComplete(p.id);
+  DLG={name:p.npc,lines:q.done.concat(rw),i:0,c:0};
+  const nx=QUESTS.find(x=>x.giver===p.npc&&questStatus(x.id)==='avail');
+  if(nx){const smith=NPCS.some(n=>n.name===p.npc&&n.smith);
+    DLG.lines=DLG.lines.concat(nx.offer,['New quest: '+nx.name+' - '+questGoalText(nx)+'. Reward: '+questRewardText(nx.reward)+'. Accept?']);
+    DLG.yes='ACCEPT';DLG.no=smith?'SHOP':'LATER';DLG.noAct=smith?()=>openShop():null;DLG.choice=()=>questStart(nx.id);}
+  return true;
+}
+function storyAfterDlg(){if(STORY_CRED_WAIT&&!DLG){STORY_CRED_WAIT=false;if(typeof openCredits==='function')openCredits();}}
 /* per-frame: queued scenes (crypt entry, Lich King's fall) */
 function updateStory(){
   if(DLG||B||WARP||state!=='play'||RUSH.on)return;
@@ -8588,7 +8608,7 @@ function drawOverHud(){
   bar(px+8,py+22,160,9,hpf,hpf<.3?'#ff4040':'#44d96a');txt(Math.ceil(P.hp)+'/'+maxHp(),px+8,py+44,{size:9,col:'#fff',lw:2});
   bar(px+8,py+48,160,5,P.xp/xpNeed(),'#58a8ff');
   txt('G '+P.gold,px+170,py+44,{size:11,col:'#ffd23f',align:'right'});
-  if(labOn()){const q=py+66,extra=typeof labStatusText==='function'?labStatusText():'';panel(px,q,220,extra?36:24,{});txt('COMBAT LAB   '+labWaveText(),px+8,q+16,{size:10,col:'#7df9ff',lw:2});if(extra)txt(extra,px+8,q+30,{size:9,col:'#ffe9a0',lw:2});}
+  if(labOn()){const lines=typeof labPanelLines==='function'?labPanelLines():[];const q=py+66,h=24+lines.length*12;panel(px,q,250,h,{});txt('COMBAT LAB   '+labWaveText(),px+8,q+16,{size:10,col:'#7df9ff',lw:2});lines.forEach((s,i)=>txt(s,px+8,q+30+i*12,{size:8,col:'#ffe9a0',lw:2}));}
   else if(RUSH.on){const q=py+66;panel(px,q,178,34,{});txt(RUSH.mode==='weekly'?'WEEKLY  F'+(RUSH.round+1)+'/'+WEEKLY_CFG.floors:'BOSS RUSH  R'+(RUSH.round+1),px+8,q+14,{size:10,col:'#ff9a6a',lw:2});txt('SCORE '+RUSH.score,px+170,q+14,{size:10,col:'#ffe14d',align:'right',lw:2});txt(rushTime(RUSH.t),px+8,q+28,{size:9,col:'#f0e2c0',lw:2});txt(RUSH.cur&&!B?'next boss in '+Math.max(0,Math.ceil(RUSH.wait)):RUSH.cur?'':'Get ready...',px+170,q+28,{size:9,col:'#e8c070',align:'right',lw:2,bold:false});}
   // minimap
   const mx=VW-SR-8-128,my=ST+8;panel(mx-2,my-2,132,100,{fill:'#0a0814'});
@@ -8736,7 +8756,7 @@ function drawCombatHud(){
     if(b.t>1.6){ctx.fillStyle=`rgba(0,0,0,${clamp((b.t-1.6)/.7,0,1)})`;ctx.fillRect(0,0,VW,VH);}}
   if(b.phase==='reward'){
     const loot=b.drops.filter(d=>d&&d.item),nl=Math.min(loot.length,4,Math.max(1,Math.floor((VH-ST-SB-(b.levels?190:150)-50)/34)));
-    const w=Math.min(340,VW-24),h=(b.levels?190:150)+12+(nl?20+nl*34:0),x=(VW-w)/2,y=Math.max(ST+10,(VH-h)/2-30);
+    const hardH=b.hardPay?48:0,w=Math.min(340,VW-24),h=(b.levels?190:150)+12+hardH+(nl?20+nl*34:0),x=(VW-w)/2,y=Math.max(ST+10,(VH-h)/2-30);
     panel(x,y,w,h,{});
     txt('VICTORY!',VW/2,y+30,{size:24,align:'center',col:'#ffe14d'});
     const parts=Object.keys(b.defeated).map(k=>b.defeated[k]+' '+SHORT[k][0]+SHORT[k].slice(1).toLowerCase()+(b.defeated[k]>1?'s':''));
@@ -8745,6 +8765,7 @@ function drawCombatHud(){
     txt('XP    +'+b.gainXp,x+36,y+90,{size:15,col:'#9ad0ff'});
     txt('GOLD  +'+b.gainGold,x+36,y+112,{size:15,col:'#ffd23f'});
     let yy=y+134;
+    if(b.hardPay){const hr=b.hardPay;txt('REMATCH  +'+hr.gold+' G',x+36,yy,{size:13,col:'#ffd23f'});txt(hr.card?('CARD  '+hr.card):'CARD  —',x+36,yy+16,{size:12,col:'#c9b6ff'});txt('SHARDS  +'+(hr.shards|0),x+36,yy+32,{size:12,col:'#7df9ff'});yy+=48;}
     if(nl){txt('LOOT'+(loot.length>nl?'  (+'+(loot.length-nl)+' more in backpack)':''),x+36,yy+4,{size:11,col:'#ffe14d'});
       loot.slice(0,nl).forEach((d,i)=>{const it=d.item,c=GEAR_RAR[it.rar].col,ly=yy+22+i*34;
         ctx.fillStyle=c;ctx.fillRect(x+28,ly-10,3,28);draw(gearIcon(it),x+36,ly-8,1.5);
@@ -10298,8 +10319,10 @@ function drawPause(){
   if(page==='character'){
     if(lay.hdr>=120){const px=cx-lay.W/2;satWell(px,top+38,lay.W,84);
       ctx.fillStyle='#1e140c';ctx.fillRect(px+8,top+46,68,68);ctx.strokeStyle='#e0b44a';ctx.lineWidth=2;ctx.strokeRect(px+9,top+47,66,66);draw(SP.port.hero,px+10,top+48,2.75);
-      txt('HERO',px+88,top+64,{size:15,col:'#ffe9a0',lw:3});txt('Sun Paladin   Lv '+P.lv,px+88,top+82,{size:11,col:'#f6e6c0',lw:3});
-      txt('HP '+Math.max(0,P.hp|0)+'/'+maxHp()+'    '+P.gold+' G',px+88,top+98,{size:11,col:'#9be8a0',lw:3});txt('Foes beaten: '+kills,px+88,top+112,{size:9,col:'#d8b888',lw:2});}
+      txt('HERO',px+88,top+58,{size:14,col:'#ffe9a0',lw:3});txt('Lv '+P.lv+'   '+P.gold+' G',px+88,top+74,{size:10,col:'#9be8a0',lw:3});
+      const miles=typeof labMilePreview==='function'?labMilePreview():null;
+      if(miles)miles.forEach((s,i)=>txt(s,px+88,top+90+i*11,{size:7,col:s.indexOf('claimed')>=0&&s.indexOf('unclaimed')<0?'#7dffa0':'#f6e6c0',lw:2}));
+      else txt('Foes beaten: '+kills,px+88,top+96,{size:9,col:'#d8b888',lw:2});}
     else txt(info,cx,top+44,{size:11,align:'center',col:'#f6e6c0',lw:3});
   }
   if(page!=='character'){const sb=page==='skills'?[skillPoints()+' skill point'+(skillPoints()===1?'':'s')+' to spend',skillPoints()?'#ffe27a':'#d8b888']:[pauseReadyQ()+' quest'+(pauseReadyQ()===1?'':'s')+' ready to turn in',pauseReadyQ()?'#ffe27a':'#d8b888'];txt(sb[0],cx,top+46,{size:11,align:'center',col:sb[1],lw:3});}
@@ -13842,9 +13865,12 @@ function rematchReady(type){
 function rematchStart(type){const e=enemies.find(o=>o.type===type);if(!e)return false;if(!rematchReady(type)){toast('Defeat it once first',2,'#ffb0a0');return false;}
   closeUI&&isUI()&&closeUI();state='play';e.alive=true;e.dying=false;e.respawn=0;e.x=e.hx;e.y=e.hy;P.x=e.x-60;P.y=e.y+4;P.grace=0;snapCam();
   const hp0=e.maxhp;startEncounter(e,true);
-  if(B){for(const o of B.ens)if(o.type===type){o.x7rematch=true;o.hp=o.maxhp=hp0;o.x7pat=1.2;o.hardMove=null;}toast('HARD REMATCH - new patterns, same health',3,'#ff9a6a');}return true;}
-function rematchTick(dt){if(!B||B.phase!=='fight')return;for(const e of B.ens){if(!e.x7rematch||e.dying)continue;e.x7pat-=dt;if(e.x7pat>0)continue;e.x7pat=e.type==='colossus'?6:5;
-  if(typeof hardTrick==='function')hardTrick(e);}}
+  if(B){for(const o of B.ens)if(o.type===type){o.x7rematch=true;o.hp=o.maxhp=hp0;o.dm=(o.dm||1)*1.18;o.as=(o.as||1)*1.18;o.x7pat=1.2;o.hardMove=null;o.hardRage=false;o.hardGap=3.2;}toast('HARD REMATCH - faster, and angry below 40%',3,'#ff9a6a');}return true;}
+function rematchTick(dt){if(!B||B.phase!=='fight')return;for(const e of B.ens){if(!e.x7rematch||e.dying)continue;
+  if(!e.hardRage&&e.hp<=e.maxhp*.4){e.hardRage=true;setBanner('ENRAGED!',1.1,'#ff6b6b');floatText(ecen(e).x,ecen(e).y-46,'ENRAGED','#ff6b6b',13);}
+  e.x7pat-=dt;if(e.x7pat>0)continue;e.hardGap=e.hardRage?2.1:3.2;e.x7pat=e.hardGap;
+  if(typeof hardTrick==='function')hardTrick(e);
+  if(typeof hardCombo==='function')hardCombo(e);}}
 
 /* ======================= 11-13. HOUSE: FURNITURE, GARDEN, VISITORS ======================= */
 const FURN={rug:{n:'Woven Rug',g:60,from:'Mara',col:'#b0503a',w:2,h:1},plant:{n:'Potted Fern',g:40,from:'Mara',col:'#3f8a3a',w:1,h:1},
@@ -14897,7 +14923,18 @@ function labStatusText(){
 function labBackColor(){const id=LABREW.backs[LABREW.backs.length-1];if(!id)return null;for(const k in LAB_MILES)if(LAB_MILES[k].back===id)return LAB_MILES[k].col;return null;}
 labRewBoot();
 if(typeof labSaveBest==='function'){const _lsb=labSaveBest;labSaveBest=function(){_lsb();labRewSave();};}
-if(typeof drawCardFace==='function'){const _dcf=drawCardFace;drawCardFace=function(id,cw,ch,sel,idx){_dcf(id,cw,ch,sel,idx);const col=labBackColor();if(!col)return;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=3;ctx.strokeRect(2,2,cw-4,ch-4);ctx.restore();};}
+function labMilePreview(){
+  return [10,20,30].map(w=>{const m=LAB_MILES[w],got=!!(LABREW.got&&LABREW.got[w]);
+    return 'Wave '+w+': '+m.name+' card back, '+m.gold+' G, key — '+(got?'claimed':'unclaimed');});
+}
+function labPanelLines(){
+  if(typeof labOn!=='function'||!labOn())return [];
+  if(!(typeof LAB!=='undefined'&&(LAB.wave|0))&&typeof labMilePreview==='function')return labMilePreview();
+  const s=typeof labStatusText==='function'?labStatusText():'';return s?[s]:[];
+}
+if(typeof drawCardFace==='function'){const _dcf=drawCardFace;drawCardFace=function(id,cw,ch,sel,idx){_dcf(id,cw,ch,sel,idx);
+  const lv=typeof upgLvl==='function'?upgLvl(id):0;if(lv)txt('+'+lv*15+'%',cw-6,ch-6,{size:8,align:'right',col:'#7dffa0',lw:2});
+  const col=labBackColor();if(!col)return;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=3;ctx.strokeRect(2,2,cw-4,ch-4);ctx.restore();};}
 
 /* ---------- keys and hidden chests (regions only, once per save) ---------- */
 const KEY_CHESTS=[
@@ -14965,13 +15002,14 @@ if(typeof packCraft==='function'){const _pk=packCraft;packCraft=function(){const
 if(typeof unpackCraft==='function'){const _uc=unpackCraft;unpackCraft=function(s){_uc(s);CR.csh=clamp((s&&s.csh)|0,0,999);};}
 function openForge(){openUIMode('forge','play');}
 UI_STATES.push('forge','tapgame','stable');
+function forgeBlurb(c){const lv=upgLvl(c.id)|0;return {keep:(COL[c.id]|0)>1?'Melt one. You will keep 1.':'Need a duplicate to melt',bonus:lv?'+'+lv*15+'% damage':''};}
 function forgeRow(c){
-  const cost=forgeCost(c),canF=(COL[c.id]|0)>0&&upgLvl(c.id)<UPG_MAX&&(CR.csh|0)>=cost.shards&&P.gold>=cost.gold,canM=(COL[c.id]|0)>1;
+  const cost=forgeCost(c),canF=(COL[c.id]|0)>0&&upgLvl(c.id)<UPG_MAX&&(CR.csh|0)>=cost.shards&&P.gold>=cost.gold,canM=(COL[c.id]|0)>1,blurb=forgeBlurb(c);
   return {sel:true,h:52,act(){if(canM)meltCard(c.id);},tap(){if(canM)meltCard(c.id);},
-    draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=c.col;ctx.fillRect(x0,y,3,h);
+    draw(x0,y,W,h,isSel,si){const b=forgeBlurb(c);ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle=c.col;ctx.fillRect(x0,y,3,h);
       txt(cardFullName(c),x0+12,y+16,{size:11,col:RAR[c.rar].col,lw:2});
-      txt('owned '+(COL[c.id]|0)+'   melt +'+(MELT_SH[c.rar]||2)+' shards',x0+12,y+30,{size:8,col:'#d8c8a8',lw:2});
-      txt(upgLvl(c.id)>=UPG_MAX?'MAX':cost.shards+' shards + '+cost.gold+' G',x0+12,y+44,{size:8,col:canF?'#7dffa0':'#ffb0a0',lw:2});
+      txt(b.keep,x0+12,y+30,{size:8,col:'#d8c8a8',lw:2});
+      txt(b.bonus||(upgLvl(c.id)>=UPG_MAX?'MAX':cost.shards+' shards + '+cost.gold+' G'),x0+12,y+44,{size:8,col:b.bonus?'#7dffa0':canF?'#7dffa0':'#ffb0a0',lw:2});
       uiButton(x0+W-150,y+12,64,28,'MELT',canM,()=>{UI.sel=si;const n=meltCard(c.id);uiMsg(n?'Melted for '+n+' shards':'Need a duplicate',!n);},{tag:'melt:'+c.id,clip:true,size:9,sel:si});
       uiButton(x0+W-78,y+12,66,28,upgLvl(c.id)>=UPG_MAX?'MAX':'FORGE',canF,()=>{UI.sel=si;if(forgeCard(c.id)){uiMsg(cardFullName(c)+' forged',false);saveGame('forge');}else uiMsg('Need shards and gold');},{tag:'forge:'+c.id,clip:true,size:9,sel:si});
     }};
@@ -14994,31 +15032,41 @@ if(UI_MODES.shop&&UI_MODES.shop.rows){const _rows=UI_MODES.shop.rows;UI_MODES.sh
 const HARD_MOVE={dragon:'CINDER CAGE',lich:'SOUL TETHER',rimegar:'SHATTER',mossback:'MIRE LASH',colossus:'PILLAR FALL'};
 function hardTrick(e){
   if(!B||!e)return;const c=ecen(e),p=pcen();B.owner=e;e.hardMove=HARD_MOVE[e.type]||'HARD PATTERN';
-  const ring=(n,rad,fx)=>{for(let i=0;i<n;i++){const a=i*6.283/n+0.2;addPool(p.x+Math.cos(a)*rad,p.y+Math.sin(a)*rad,16,1.5,6,fx);}};
-  if(e.type==='dragon'){addPool(p.x,p.y,24,1.8,6,'fire');ring(6,68,'fire');}
-  else if(e.type==='lich'){try{summonMinions(e,'wraith',1,4);}catch(err){}addPool((c.x+p.x)/2,(c.y+p.y)/2,20,1.8,6,'void');}
+  const dmg=Math.round(6*1.18);
+  const ring=(n,rad,fx)=>{for(let i=0;i<n;i++){const a=i*6.283/n+0.2;addPool(p.x+Math.cos(a)*rad,p.y+Math.sin(a)*rad,16,1.4,dmg,fx);}};
+  if(e.type==='dragon'){addPool(p.x,p.y,24,1.6,dmg,'fire');ring(6,68,'fire');}
+  else if(e.type==='lich'){try{summonMinions(e,'wraith',1,4);}catch(err){}addPool((c.x+p.x)/2,(c.y+p.y)/2,20,1.6,dmg,'void');}
   else if(e.type==='rimegar')ring(3,42,'frost');
-  else if(e.type==='mossback'){addPool(p.x,p.y,36,2,5,'mire');try{poisonApply(1.6,'mire');}catch(err){}}
-  else{for(let i=0;i<3;i++)addPool(p.x+(i-1)*40,p.y-14,16,1.2,7,'sand');}
+  else if(e.type==='mossback'){addPool(p.x,p.y,36,1.8,dmg,'mire');try{poisonApply(1.6,'mire');}catch(err){}}
+  else{for(let i=0;i<3;i++)addPool(p.x+(i-1)*40,p.y-14,16,1.1,dmg,'sand');}
   floatText(c.x,c.y-50,e.hardMove,'#ff9a6a',12);B.owner=null;
+}
+function hardCombo(e){
+  if(!B||!e||e.dying||e.st==='windup')return;
+  const book=typeof BOSS_BOOK!=='undefined'&&BOSS_BOOK[e.type];if(!book||!book.length)return;
+  const name=book[(e.hardN|0)%book.length][0];e.hardN=(e.hardN|0)+1;e.hardCombo=name;
+  try{B.owner=e;const a=bossMove(e,name);if(a)startAttack(e,a);}catch(err){e.hardCombo=null;}
 }
 function hardReward(e){
   const bonus=250;P.gold+=bonus;let card=null;
   try{card=typeof x7RareCard==='function'?x7RareCard():null;}catch(err){}
   if(card)try{grantCard(card);}catch(err){}
   try{addMat('shard',2);}catch(err){}
+  const pay={gold:bonus,card:card&&CARD[card]?CARD[card].name:null,shards:2};
   X7.lastHard={type:e.type,move:e.hardMove||HARD_MOVE[e.type],gold:bonus,card:card||null};
-  try{toast('Hard rematch: +'+bonus+' G'+(card&&CARD[card]?' + '+CARD[card].name:''),3,'#ffd23f');}catch(err){}
+  if(B)B.hardPay=pay;
+  try{toast('Hard rematch: +'+bonus+' G'+(pay.card?' + '+pay.card:'')+' +2 shards',3,'#ffd23f');}catch(err){}
 }
 
 /* ---------- Oakvale Tap: dice and arm wrestling, beside Sol. Hold'em is untouched. ---------- */
-const TAPGAME={dice:5,wrestle:8};
-function dicePlay(a,b){
-  if(P.gold<TAPGAME.dice)return {err:'gold',stake:TAPGAME.dice};
+const TAPGAME={dice:5,high:25,wrestle:8};
+function dicePlay(a,b,stake){
+  const st=stake||TAPGAME.dice;
+  if(P.gold<st)return {err:'gold',stake:st};
   const you=a!=null?a|0:(1+(Math.random()*6|0))+(1+(Math.random()*6|0));
   const him=b!=null?b|0:(1+(Math.random()*6|0))+(1+(Math.random()*6|0));
-  let net=0;if(you>him){P.gold+=TAPGAME.dice;net=TAPGAME.dice;}else if(you<him){P.gold-=TAPGAME.dice;net=-TAPGAME.dice;}
-  return {you,him,net,gold:P.gold,stake:TAPGAME.dice};
+  let net=0;if(you>him){P.gold+=st;net=st;}else if(you<him){P.gold-=st;net=-st;}
+  return {you,him,net,gold:P.gold,stake:st};
 }
 function armWrestle(you,him){
   if(P.gold<TAPGAME.wrestle)return {err:'gold',stake:TAPGAME.wrestle};
@@ -15028,17 +15076,21 @@ function armWrestle(you,him){
 }
 function openTapGames(){openUIMode('tapgame','play');}
 function tapAct(kind){
-  const r=kind==='dice'?dicePlay():armWrestle();
+  const r=kind==='high'?dicePlay(null,null,TAPGAME.high):kind==='dice'?dicePlay():armWrestle();
   if(r.err){uiMsg('Need '+r.stake+' G');return;}
-  uiMsg(kind==='dice'?(r.net>0?'Dice win +'+r.net:(r.net<0?'Dice loss '+r.net:'Dice push')):(r.win?'You pin his arm +'+r.net:'He pins you '+r.net),r.net<0);sfx(r.net>0?'coin':'clang');
+  const dice=kind==='dice'||kind==='high';
+  uiMsg(dice?(r.net>0?'Dice win +'+r.net:(r.net<0?'Dice loss '+r.net:'Dice push')):(r.win?'You pin his arm +'+r.net:'He pins you '+r.net),r.net<0);sfx(r.net>0?'coin':'clang');
 }
 UI_MODES.tapgame={title:()=>'OAKVALE TAP',sub:()=>['Small stakes. Hold\'em is still at Sol\'s table.','#f0e2c0'],rows(){
-  const dice=()=>tapAct('dice'),wrest=()=>tapAct('wrestle');
+  const dice=()=>tapAct('dice'),high=()=>tapAct('high'),wrest=()=>tapAct('wrestle');
   return [
     {t:'head',s:'HUCK\'S TABLE'},
     {sel:true,h:48,act:dice,tap:dice,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
       txt('Dice  -  stake '+TAPGAME.dice+' G',x0+12,y+20,{size:12,col:'#ffe9a0',lw:2});txt('Two dice each. High roll takes the stake.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
       uiButton(x0+W-78,y+10,66,28,'ROLL',P.gold>=TAPGAME.dice,()=>{UI.sel=si;dice();},{tag:'dice',clip:true,size:11,sel:si});}},
+    {sel:true,h:48,act:high,tap:high,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt('High stakes  -  '+TAPGAME.high+' G',x0+12,y+20,{size:12,col:'#ffd23f',lw:2});txt('Same dice. The winner takes '+TAPGAME.high+' G.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
+      uiButton(x0+W-78,y+10,66,28,'ROLL',P.gold>=TAPGAME.high,()=>{UI.sel=si;high();},{tag:'dice25',clip:true,size:11,sel:si});}},
     {sel:true,h:48,act:wrest,tap:wrest,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
       txt('Arm wrestling  -  stake '+TAPGAME.wrestle+' G',x0+12,y+20,{size:12,col:'#ffb07a',lw:2});txt('A short grapple. Win the stake back twice.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
       uiButton(x0+W-86,y+10,74,28,'WRESTLE',P.gold>=TAPGAME.wrestle,()=>{UI.sel=si;wrest();},{tag:'wrestle',clip:true,size:9,sel:si});}}
@@ -15063,6 +15115,14 @@ function petAbilityTick(dt){
   if(id==='pebblin'){addMat('gel',1);PET.lastAbility='dig';}
   else if(id==='moth'&&P.hp<maxHp()){P.hp=Math.min(maxHp(),P.hp+3);PET.lastAbility='mend';}
 }
+function labWardenTick(dt){
+  if(!B||B.phase!=='fight'||typeof LAB==='undefined')return;
+  const w=(LAB.units||[]).find(e=>e&&e.mini&&e.alive&&!e.dying);if(!w)return;
+  w.wcd=(w.wcd==null?1.6:w.wcd)-dt;if(w.wcd>0)return;w.wcd=4.2;
+  const p=pcen(),z=Z.circle(p.x,p.y,48,7);B.owner=w;warnZones([z],.9);w.telegraph=true;
+  schedule(.9,()=>{if(!B||B.phase!=='fight'||w.dying)return;hitZones([z],Math.round(16*(w.dm||1)),'arcane');const c=ecen(w);floatText(c.x,c.y-42,'HEAVY SWING','#ffb070',13);w.swung=(w.swung|0)+1;});
+}
+if(typeof updateLab==='function'){const _ul=updateLab;updateLab=function(dt){_ul(dt);try{labWardenTick(dt);}catch(e){}};}
 if(typeof updatePet==='function'){const _up=updatePet;updatePet=function(dt){_up(dt);try{petAbilityTick(dt);}catch(e){}};}
 if(typeof fishAward==='function'){const _fa=fishAward;fishAward=function(f,rare){const r=_fa(f,rare);if(f&&!f.junk&&PET.active==='wisp'){P.gold+=8;PET.lastAbility='fish';}return r;};}
 const PET_ABILITY={cinder:'A small extra bite during a fight',wisp:'A little extra gold from fishing',moth:'Mends a little health while you walk',pebblin:'Digs up slime gel now and then'};
@@ -15090,19 +15150,20 @@ function placeStable(){
   if(!n){n={name:'Stablehand Ned',spr:'guard',lines:['A horse for the long roads. Not indoors, and not into a fight.']};NPCS.push(n);}
   n.stable=true;n.x=(tx+.5)*TS;n.y=(ty+.7)*TS;n.hx=n.x;n.hy=n.y;return n;
 }
+function horseOutdoors(){return !B&&!horseIndoor();}
 function openStable(){openUIMode('stable','play');}
-UI_MODES.stable={title:()=>'OAKVALE STABLE',sub:()=>[HORSE.owned?(HORSE.up?'Mounted':'On foot'):HORSE.price+' G for a horse','#ffe9a0'],rows(){
+UI_MODES.stable={title:()=>'OAKVALE STABLE',sub:()=>['250 gold, faster on the road, not indoors or in a fight','#ffe9a0'],rows(){
   const buy=()=>{if(horseBuy())uiMsg('The horse is yours',false);else uiMsg('Need '+HORSE.price+' G');};
-  const tog=()=>{if(horseToggle())uiMsg(HORSE.up?'Mounted':'Dismounted',false);else uiMsg(HORSE.owned?'Not here':'Buy the horse first');};
-  return [
-    {t:'head',s:'WEST OF THE FORGE'},
+  const tog=()=>{if(horseToggle())uiMsg(HORSE.up?'Dismounted':'Mounted',false);else uiMsg(HORSE.owned?'Not here':'Buy the horse first');};
+  const rows=[{t:'head',s:'250 gold, faster on the road, not indoors or in a fight'},
     {sel:true,h:44,act:buy,tap:buy,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
-      txt(HORSE.owned?'Horse owned':'Buy a horse  '+HORSE.price+' G',x0+12,y+26,{size:12,col:'#ffe9a0',lw:2});
-      uiButton(x0+W-74,y+8,64,28,HORSE.owned?'OWNED':'BUY',!HORSE.owned&&P.gold>=HORSE.price,()=>{UI.sel=si;buy();},{tag:'horse-buy',clip:true,size:10,sel:si});}},
-    {sel:true,h:44,act:tog,tap:tog,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt(HORSE.owned?'Horse owned':'Buy a horse  '+HORSE.price+' G',x0+12,y+18,{size:12,col:'#ffe9a0',lw:2});
+      txt('250 gold, faster on the road, not indoors or in a fight',x0+12,y+34,{size:8,col:'#d8c8a8',lw:2});
+      uiButton(x0+W-74,y+8,64,28,HORSE.owned?'OWNED':'BUY',!HORSE.owned&&P.gold>=HORSE.price,()=>{UI.sel=si;buy();},{tag:'horse-buy',clip:true,size:10,sel:si});}}];
+  if(HORSE.owned&&horseOutdoors())rows.push({id:'horse-mount',sel:true,h:44,act:tog,tap:tog,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
       txt(HORSE.up?'Dismount':'Mount',x0+12,y+26,{size:12,col:'#fff',lw:2});
-      uiButton(x0+W-86,y+8,74,28,HORSE.up?'DISMOUNT':'MOUNT',!!HORSE.owned,()=>{UI.sel=si;tog();},{tag:'horse-mount',clip:true,size:8,sel:si});}}
-  ];
+      uiButton(x0+W-86,y+8,74,28,HORSE.up?'DISMOUNT':'MOUNT',true,()=>{UI.sel=si;tog();},{tag:'horse-mount',clip:true,size:8,sel:si});}});
+  return rows;
 }};
 if(typeof resetPets==='function'){const _rp=resetPets;resetPets=function(){_rp();HORSE.owned=false;HORSE.up=false;};}
 if(typeof packPets==='function'){const _pp=packPets;packPets=function(){const o=_pp();o.horse=HORSE.owned?1:0;o.horseUp=HORSE.up?1:0;return o;};}
