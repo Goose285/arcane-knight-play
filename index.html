@@ -3281,6 +3281,8 @@ const BOONS=[
 const WEEKLY_NAMES=['Ashen','Gloam','Cinder','Hollow','Rime','Briar','Dusk','Umber','Pale','Vesper'],WEEKLY_NAMES2=['Vault','Catacomb','Descent','Ossuary','Labyrinth','Barrow','Warren','Depths'];
 /* ---- achievements: {id,n,d,gold,t:()=>bool, p?:()=>[cur,max]} ---- */
 const ACHS=[
+  {id:'quest1', n:'First Quest',     d:'Complete a quest',                 gold:40, t:()=>Object.keys(QS.st).some(id=>QS.st[id]==='done')},
+  {id:'boss1',  n:'First Boss',      d:'Defeat a boss',                    gold:80, t:()=>!!(bossDown||lichDown||(typeof X7!=='undefined'&&X7.felled&&Object.keys(X7.felled).some(k=>X7.felled[k])))},
   {id:'blood',  n:'First Blood',     d:'Defeat a monster',                 gold:25, p:()=>[kills,1]},
   {id:'hunter', n:'Monster Hunter',  d:'Defeat 100 monsters',              gold:100,p:()=>[kills,100]},
   {id:'slayer', n:'Realm Slayer',    d:'Defeat 500 monsters',              gold:300,p:()=>[kills,500]},
@@ -3305,9 +3307,12 @@ const ACHS=[
   {id:'daily3', n:'Daily Grind',     d:'Complete 3 daily challenges',      gold:100,p:()=>[DAILY.total,3]},
   {id:'streak', n:'Week of Embers',  d:'Reach a 7-day login streak',       gold:300,p:()=>[ACH.s.streakBest,7]},
   {id:'crypt3', n:'Crypt Wanderer',  d:'Reach floor 3 of a weekly crypt',  gold:100,p:()=>[ACH.s.bestFloor,3]},
-  {id:'fish1',  n:'First Catch',     d:'Catch a fish',                     gold:30, p:()=>[ACH.s.fish,1]},
+  {id:'fish1',  n:'First Catch',     d:'Catch a fish',                     gold:30, p:()=>[Math.max(ACH.s.fish|0,(typeof FSH!=='undefined'&&FSH.caught)|0),1]},
   {id:'fish25', n:'Seasoned Angler', d:'Catch 25 fish',                    gold:150,p:()=>[ACH.s.fish,25]},
-  {id:'fishlv', n:'Master Angler',   d:'Reach Fishing level 8',            gold:250,p:()=>[fishLv(),8]},
+  {id:'fish100',n:'Hundred Hooks',   d:'Catch 100 fish',                   gold:200,p:()=>[ACH.s.fish,100]},
+  {id:'fish250',n:'River Regular',   d:'Catch 250 fish',                   gold:350,p:()=>[ACH.s.fish,250]},
+  {id:'fish500',n:'Deep Pool',       d:'Catch 500 fish',                   gold:600,p:()=>[ACH.s.fish,500]},
+  {id:'fishlv', n:'Master Angler',   d:'Reach Fishing level 8. Levels keep going.', gold:250,p:()=>[Math.min(fishLv(),8),8]},
   {id:'fish1000',n:'Legend of the Lake',d:'Catch 1000 fish',                 gold:1500,p:()=>[ACH.s.fish,1000]},   // t154u
   {id:'boots25', n:'Boot Collector',  d:'Fish up 25 Old Boots',              gold:250,p:()=>[ACH.s.boots|0,25]},   // t154u
   {id:'spw1',   n:'Spawner Smasher', d:'Destroy a monster spawner',        gold:100,p:()=>[ACH.s.spw,1]},
@@ -3496,6 +3501,26 @@ function questGoalText(q){const o=q.obj;
 const rewardCards=r=>r.cards||(r.card?[r.card]:[]);
 function questRewardText(r){
   const p=[];if(r.gold)p.push(r.gold+' G');if(r.xp)p.push(r.xp+' XP');for(const k of rewardCards(r))p.push('card: '+CARD[k].name);if(r.gear)p.push((r.gear.rar||'random')+(r.gear.slot?' '+r.gear.slot:' gear'));return p.join(', ');}
+/* why a quest is still locked, or null once it can be accepted or is underway */
+function questLockReason(q){
+  if(!q)return null;
+  const raw=QS.st[q.id];
+  if(raw==='active'||raw==='ready'||raw==='done')return null;
+  const bits=[];
+  if(q.req&&QS.st[q.req]!=='done'){const rq=QUEST_BY_ID[q.req];bits.push('finish '+(rq?rq.name:'an earlier quest'));}
+  if(q.x7hearts&&(typeof hearts!=='function'||hearts(q.giver)<q.x7hearts))bits.push('earn '+q.x7hearts+' hearts with '+q.giver);
+  if(q.x7night&&(typeof x7Night!=='function'||!x7Night()))bits.push('talk to '+q.giver+' at night');
+  if(!bits.length&&questStatus(q.id)==='locked')bits.push('not available yet');
+  return bits.length?bits.join(', '):null;
+}
+function questLockLine(q){const w=questLockReason(q);return w?q.name+' — '+w:null;}
+function worldGateNotes(){
+  const o=[];
+  if(typeof x7Weekend==='function'&&!x7Weekend())o.push('Weekend market — Zell visits on Saturday and Sunday');
+  if(typeof festKind==='function'&&!festKind())o.push('Festivals — Harvest Festival or Lantern Night on weekends');
+  if(typeof meteorNight==='function'&&!meteorNight())o.push('Meteor night — about one night in four, after dark');
+  return o;
+}
 function questCheckReady(q){
   if(QS.st[q.id]!=='active')return;
   if(questProgress(q)>=questNeed(q)){QS.st[q.id]='ready';toast(`QUEST READY: ${q.name} - return to ${q.giver}`,3.4,'#7dffa0');sfx('level');}
@@ -3685,8 +3710,10 @@ const LIGHT_BY={};LIGHTS.forEach(l=>{LIGHT_BY[l.id]=l;});
 /* =====================================================================
    FISHING DATA: fish, rods, levels. Catches sell for gold, can be cooked & eaten to heal, and drop Silver Scales for crafting.
    ===================================================================== */
-const FISH_MAX_LV=70;   // t148u: fishing is its own skill, capped at 70
-const fishNeed=l=>Math.round(28+10*(l-1)+.12*(l-1)*(l-1));   // t148u: gentle early, steeper later toward 70
+/* Levels 1–69 use the original curve, so every unlock through Mythfin (68) is unchanged.
+   From 70 on there is no cap: each further level costs the last classic step plus 28 XP. */
+const fishNeedClassic=l=>Math.round(28+10*(l-1)+.12*(l-1)*(l-1));
+const fishNeed=l=>l<70?fishNeedClassic(l):fishNeedClassic(69)+(l-69)*28;
 const FISHES=[
   {id:'minnow',n:'Silverscale Minnow',tier:0,lv:1,w:10,price:6,  heal:.06,xp:6, dif:.8, rar:0,col:'#cfe3ff'},
   {id:'carp',  n:'Mudfin Carp',       tier:0,lv:1,w:8, price:11, heal:.10,xp:9, dif:1.0,rar:0,col:'#b08a5a'},
@@ -3800,18 +3827,42 @@ const FSH={rod:-1,xp:0,caught:0,fish:{}};
 function resetFish(){FSH.rod=-1;FSH.xp=0;FSH.caught=0;FSH.fish={};}
 function packFish(){return {rod:FSH.rod,xp:FSH.xp,caught:FSH.caught,fish:FSH.fish};}
 function unpackFish(s){resetFish();if(!s||typeof s!=='object')return;
-  FSH.rod=clamp(s.rod|0,-1,RODS.length-1);FSH.xp=clamp(s.xp|0,0,99999);FSH.caught=clamp(s.caught|0,0,99999);
+  FSH.rod=clamp(s.rod|0,-1,RODS.length-1);
+  const xp=Number(s.xp);FSH.xp=(Number.isFinite(xp)&&xp>0)?Math.min(xp,1e15):0;
+  FSH.caught=clamp(s.caught|0,0,99999);
   if(s.fish&&typeof s.fish==='object')for(const k in s.fish)if(FISH_BY[k])FSH.fish[k]=clamp(s.fish[k]|0,0,99);}
-function fishLv(){let l=1,x=FSH.xp;while(l<FISH_MAX_LV&&x>=fishNeed(l)){x-=fishNeed(l);l++;}return l;}
-function fishXpInto(){let l=1,x=FSH.xp;while(l<FISH_MAX_LV&&x>=fishNeed(l)){x-=fishNeed(l);l++;}return [l>=FISH_MAX_LV?fishNeed(l-1):x,l>=FISH_MAX_LV?fishNeed(l-1):fishNeed(l)];}
+function fishLv(){let l=1,x=FSH.xp>0?FSH.xp:0,g=0;while(x>=fishNeed(l)&&g++<1000000){x-=fishNeed(l);l++;}return l;}
+function fishXpInto(){let l=1,x=FSH.xp>0?FSH.xp:0,g=0;while(x>=fishNeed(l)&&g++<1000000){x-=fishNeed(l);l++;}return [x,fishNeed(l)];}
+function fishNum(n){n=Math.max(0,Math.floor(Number(n)||0));if(n>=1000000){const v=n/1000000;return (v>=10?Math.round(v):Math.round(v*10)/10)+'m';}if(n>=10000){const v=n/1000;return (v>=100?Math.round(v):Math.round(v*10)/10)+'k';}return String(n);}
+const fishSellLv=()=>Math.min(70,fishLv());
 const fishCount=()=>Object.values(FSH.fish).reduce((a,b)=>a+b,0);
 const rodPrice=r=>storyGold(r.price);
 function buyRod(i){const r=RODS[i];if(!r||i<=FSH.rod)return false;const p=rodPrice(r);if(P.gold<p)return false;P.gold-=p;FSH.rod=i;return true;}
-function addFishXp(n){const l0=fishLv();FSH.xp+=n;const l1=fishLv();if(l1>l0){
-  // t148u: banner-style popup (same as area-enter), plus a short toast for unlocks
+const FISH_TINTS=['#7dffb0','#7df9ff','#c58aff','#ffd23f','#ff9a6a','#fff3a0'];
+const FISH_BADGES=['Reed','Brook','River','Lake','Tide','Crown','Myth','Star','Deep','Eternal'];
+function fishBadgeText(){const m=FSH.marks&&FSH.marks.length?FSH.marks[FSH.marks.length-1]:0;if(!m)return '';const i=m/10-8;const name=FISH_BADGES[((i%FISH_BADGES.length)+FISH_BADGES.length)%FISH_BADGES.length];return name+' '+m;}
+function fishLevelReward(lv){
+  if(lv<=70)return;
+  FSH.kit=FSH.kit||{};
+  if(lv%10===0){
+    const i=lv/10-8,tint=FISH_TINTS[((i%FISH_TINTS.length)+FISH_TINTS.length)%FISH_TINTS.length];
+    const name=FISH_BADGES[((i%FISH_BADGES.length)+FISH_BADGES.length)%FISH_BADGES.length]+' '+lv;
+    FSH.marks=FSH.marks||[];if(FSH.marks.indexOf(lv)<0)FSH.marks.push(lv);
+    FSH.rodTint=tint;P.gold+=80;
+    toast('Fishing '+lv+' — '+name+' badge  +80 G',3.2,tint);sfx('jingleAch');return;
+  }
+  if(lv%3===0&&typeof FISH_BAITS!=='undefined'){
+    const tack=FISH_BAITS.concat(FISH_BOBBERS),item=tack[(lv-71)%tack.length];
+    FSH.kit[item.id]=(FSH.kit[item.id]|0)+1;
+    toast('Fishing '+lv+' — '+item.n,2.2,'#7dffb0');return;
+  }
+  const g=30+5*((lv-70)%10);P.gold+=g;toast('Fishing '+lv+' — +'+g+' G',2,'#ffe9a0');
+}
+function addFishXp(n){const l0=fishLv();FSH.xp=Math.min(1e15,(FSH.xp||0)+Math.max(0,Math.round(n)));const l1=fishLv();if(l1>l0){
   areaCur='FISHING  Lv '+l1;areaT=3.2;sfx('level');
-  const extra=[];if(FISH_SPOTS.some(s=>s.lv===l1))extra.push('new spot');if(FISHES.some(f=>f.lv===l1))extra.push('new fish');
+  const extra=[];if(FISH_SPOTS.some(s=>s.lv>l0&&s.lv<=l1))extra.push('new spot');if(FISHES.some(f=>!f.way&&f.lv>l0&&f.lv<=l1))extra.push('new fish');
   if(extra.length)toast('Unlocked: '+extra.join(' + '),2.8,'#7dffb0');
+  for(let lv=Math.max(71,l0+1);lv<=l1;lv++)fishLevelReward(lv);
 }}
 const spotCenter=s=>s.pond?{x:(s.pond.x+s.pond.w/2)*TS,y:(s.pond.y+s.pond.h/2)*TS}:{x:s.tx*TS+TS/2,y:s.ty*TS+TS/2};
 const FISH_REACH=66;
@@ -3838,16 +3889,17 @@ function fishWeighted(pool,spot,rod){
   return pool[0];
 }
 function fishPick(spot){   // the plain mixed pick (kept for tests / tools)
-  const rod=RODS[FSH.rod]||RODS[0];
+  const rod=RODS[FSH.rod]||RODS[0],jm=typeof bootJunkMul==='function'?bootJunkMul():1;
   if(Math.random()<.015+rod.luck*.02)return FISH_BY.pearl;
-  if(Math.random()<.08)return FISH_BY.boot;
+  if(Math.random()<.08*jm)return FISH_BY.boot;
   return fishWeighted(fishPool(spot),spot,rod);
 }
 function fishPickAuto(spot){   // an ordinary catch: the everyday fish of this water (a little junk now and then)
-  const rod=RODS[FSH.rod]||RODS[0],pool=fishPool(spot);
+  const rod=RODS[FSH.rod]||RODS[0],pool=fishPool(spot),jm=typeof bootJunkMul==='function'?bootJunkMul():1;
   if(Math.random()<.012+rod.luck*.02)return FISH_BY.pearl;
-  if(Math.random()<.06)return FISH_BY.boot;
+  if(Math.random()<.06*jm)return FISH_BY.boot;
   let p=pool.filter(f=>!fishIsRareBite(f));if(!p.length)p=pool.slice().sort((a,b)=>a.price-b.price).slice(0,Math.max(1,Math.ceil(pool.length/2)));
+  if(FISH.hot>0&&typeof baitMatches==='function'){const b=FSH.bait&&typeof FISH_BAIT_BY!=='undefined'&&FISH_BAIT_BY[FSH.bait];if(b){const hit=p.filter(f=>baitMatches(f,b));if(hit.length&&Math.random()<.75)p=hit;}}
   return fishWeighted(p,spot,rod);
 }
 function fishPickRare(spot){   // what a Rare bite lands: the best fish this water holds at your level
@@ -3926,14 +3978,15 @@ function updateFishing(dt){
   const act=F.tap||hit('Space','KeyE','Enter','KeyJ');F.tap=false;
   if(!spot||B||state!=='play'){endFishing();return;}
   if(hit('Escape')){endFishing('You reel in.');return;}
-  const mv=moveInput();if(mv[2]>.3){endFishing('You stop fishing.');return;}
+  const mv=moveInput();if(mv[2]>.3&&!(typeof BOAT!=='undefined'&&BOAT.on)){endFishing('You stop fishing.');return;}
   P.moving=false;P.anim=0;F.t+=dt;
+  if(typeof fishHotTick==='function')fishHotTick(dt);
   for(const q of F.fx){q.t+=dt;if(!q.ring&&!q.txt&&!q.fish){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=(q.spark?60:420)*dt;}}F.fx=F.fx.filter(q=>q.t<q.life);
   if(F.yank>0)F.yank=Math.max(0,F.yank-dt);
   if(F.ph==='on'){if(!F.sh)F.sh={t:99,dur:1.2,nx:R(6,10),d:1,step:false};F.sh.nx-=dt;if(F.sh.t<F.sh.dur)F.sh.t+=dt;if(F.sh.nx<=0){F.sh.t=0;F.sh.step=Math.random()<.4;F.sh.dur=F.sh.step?.6:R(1.1,1.6);F.sh.d=-F.sh.d;F.sh.nx=R(7,12);}
     if(!F.fid)F.fid={t:99,dur:.9,nx:R(3,6)};F.fid.nx-=dt;if(F.fid.t<F.fid.dur)F.fid.t+=dt;if(F.fid.nx<=0){F.fid.t=0;F.fid.dur=R(.7,1.1);F.fid.nx=R(5,9);}}
   if(F.flash){F.flash.t+=dt;if(F.flash.t>=F.flash.dur)F.flash=null;}
-  const gap=()=>R(C.catch[0],C.catch[1])*rod.waitMul,rareGap=()=>R(C.rare[0],C.rare[1])/(1+rod.luck);
+  const gap=()=>R(C.catch[0],C.catch[1])*rod.waitMul*(F.hot>0?.42:1),rareGap=()=>R(C.rare[0],C.rare[1])/(1+rod.luck);
   switch(F.ph){
     case 'cast':if(F.t>=C.cast){F.ph='on';F.t=0;F.next=gap();F.rare=rareGap();sfx('talk');}break;
     case 'on':
@@ -3968,6 +4021,7 @@ function drawFishSpot(f){
     const locked=fishLv()<f.lv,by=sy-36+Math.round(Math.sin(gtime*3)*2);
     draw(SP.rodIcon,sx-16,by-26,2);
     txt(locked?'FISH Lv '+f.lv:(FSH.rod<0?'needs rod':(TOUCH?'TAP':'E')),sx,by+12,{size:10,align:'center',col:locked||FSH.rod<0?'#ff9a9a':'#7df9ff',lw:3});
+    if(!locked&&FSH.rod>=0&&typeof spotWindowLine==='function')txt(spotWindowLine(f),sx,by+26,{size:7,align:'center',col:'#d7f4ff',lw:3});
   }
 }
 function drawFishingWorld(){
@@ -3991,7 +4045,8 @@ function drawFishingWorld(){
   if(inWater){
     for(let i=0;i<2;i++){const k=((gtime*.7)+i*.5)%1;ctx.globalAlpha=(1-k)*.5;ctx.strokeStyle='#dff4ff';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(bx,by+4,3+k*(F.ph==='rare'?20:11),(3+k*(F.ph==='rare'?20:11))*.42,0,0,6.283);ctx.stroke();}ctx.globalAlpha=1;
     if(F.ph==='rare'){for(let i=0;i<2;i++){const k=(gtime*2+i*.5)%1;ctx.globalAlpha=1-k;ctx.strokeStyle='#ffd23f';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(bx,by+3,4+k*16,(4+k*16)*.45,0,0,6.283);ctx.stroke();}ctx.globalAlpha=1;}}
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by,4,0,6.283);ctx.fill();ctx.fillStyle='#e2403a';ctx.beginPath();ctx.arc(bx,by-1.5,4,Math.PI,0);ctx.fill();ctx.fillStyle='#14182c';ctx.fillRect(bx-4,by-1,8,1);
+  ctx.fillStyle=F.hot>0?'#ffd23f':'#fff';ctx.beginPath();ctx.arc(bx,by,F.hot>0?5:4,0,6.283);ctx.fill();ctx.fillStyle=F.hot>0?'#ff9a3a':'#e2403a';ctx.beginPath();ctx.arc(bx,by-1.5,F.hot>0?5:4,Math.PI,0);ctx.fill();ctx.fillStyle='#14182c';ctx.fillRect(bx-4,by-1,8,1);
+  if(F.hot>0)txt('HOT',bx,by-14,{size:8,align:'center',col:'#ffd23f',lw:3});
   // catch: splash ring + droplets, the fish arcing out of the water into the hero's hands, sparkles (rare), floating "+Name"
   for(const q of F.fx){const k=q.t/q.life;
     if(q.ring){ctx.globalAlpha=(1-k)*.8;ctx.strokeStyle=q.col;ctx.lineWidth=2;const r=4+k*18;ctx.beginPath();ctx.ellipse(q.x-cam.x,q.y-cam.y+4,r,r*.45,0,0,6.283);ctx.stroke();ctx.globalAlpha=1;}
@@ -4008,21 +4063,26 @@ function drawFishingHud(){
   const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=VW>=700?ST+6:Math.round(Math.max(ST+120,VH*.17)),spot=F.spot;   // wide (landscape) screens: up in the top middle so the water + angler stay visible
   const rod=RODS[FSH.rod]||RODS[0],act=TOUCH?'TAP':'SPACE';
   const h=F.ph==='rare'?78:84;
-  panel(x,y,w,h,{border:F.ph==='rare'?'#ffd23f':'#7dd0ff'});
-  txt(spot.name+'   Fishing Lv '+fishLv(),x+w/2,y+16,{size:10,align:'center',col:'#9ad0ff',lw:2});
+  panel(x,y,w,h,{border:F.hot>0||F.ph==='rare'?'#ffd23f':'#7dd0ff'});
+  txt(spot.name+'   Fishing Lv '+fishNum(fishLv()),x+w/2,y+16,{size:10,align:'center',col:'#9ad0ff',lw:2});
   if(F.ph==='cast')txt('Casting...',x+w/2,y+44,{size:14,align:'center',col:'#fff'});
   else if(F.ph==='rare'){
     const fl=Math.floor(gtime*6)%2,fr=1-F.t/F.win;
     txt('RARE BITE!  '+act+' NOW!',x+w/2,y+42,{size:15,align:'center',col:fl?'#ffd23f':'#fff',lw:4});
     bar(x+14,y+54,w-28,6,fr,'#ffb43a');txt(Math.ceil(F.win-F.t)+'s',x+w/2,y+72,{size:9,align:'center',col:'#ffe9a0',lw:2});
   } else {
-    txt('Relaxing by the water'+'.'.repeat(1+Math.floor(gtime*1.5)%3),x+w/2,y+34,{size:11,align:'center',col:'#cfe3ff',lw:3});
+    txt(F.hot>0?('HOT BITE  '+Math.ceil(F.hot)+'s'):('Relaxing by the water'+'.'.repeat(1+Math.floor(gtime*1.5)%3)),x+w/2,y+34,{size:11,align:'center',col:F.hot>0?'#ffd23f':'#cfe3ff',lw:3});
     if(F.log.length){F.log.forEach((e,i)=>txt((e.rare?'* ':'')+e.n,x+10,y+49+i*11,{size:8,col:e.col,lw:2,alpha:1-i*.25}));}
     else txt('A fish bites every few seconds',x+10,y+49,{size:8,col:'#8a96b8',bold:false,lw:2});
     txt('caught '+F.session,x+w-8,y+49,{size:8,align:'right',col:'#9dffb0',lw:2});
   }
   // REEL IN button
   F.stopR={x:x+w-96,y:y+h+6,w:96,h:26};panel(F.stopR.x,F.stopR.y,96,26,{fill:'#3a1c1c'});txt(TOUCH?'REEL IN':'ESC: reel in',F.stopR.x+48,F.stopR.y+18,{size:10,align:'center',lw:2});
+  if(typeof fishGoalLines==='function'){
+    const lines=fishGoalLines(spot).slice(0,5),gh=8+lines.length*11,gy=F.stopR.y+30;
+    panel(x,gy,w,gh,{border:F.hot>0?'#ffd23f':'#3a6a44'});
+    lines.forEach((s,i)=>txt(s,x+8,gy+12+i*11,{size:7,col:i===3&&F.hot>0?'#ffd23f':'#e7f6ea',lw:2}));
+  }
 }
 
 /* ---------- src/player/church.js ---------- */
@@ -4636,6 +4696,7 @@ function updateStory(){
 }
 function storyOnLich(){if(STORY.ch<4)STORY.queue='c4';}
 function storyNextHint(){const c=CHAPTERS[STORY.ch];return c?c.hint:'The story is complete.';}
+function storyCleared(){return (STORY.ch|0)>=5||!!STORY.ending;}
 
 /* ---------- src/player/daily.js ---------- */
 /* =====================================================================
@@ -4925,6 +4986,8 @@ function updateExplore(dt){
   if(WARP){updateWarp(dt);camFollow(dt);return;}
   if(DLG&&!fighting){updateDlg(dt);camFollow(dt);return;}   // t152u: camera still follows during dialog
   updateSpawners(dt);updateGoto(dt);
+  if(typeof spearActive==='function'&&spearActive()){spearTick(dt);camFollow(dt);return;}
+  if(typeof boatActive==='function'&&boatActive()){boatTick(dt);camFollow(dt);return;}
   if(FISH.on&&!fighting){updateFishing(dt);camFollow(dt);return;}
   statusTick(dt);
   if(!frozen&&dashTick(dt)){}
@@ -7520,7 +7583,7 @@ function drawUI(){
     ctx.fillStyle=c.col;ctx.fillRect(x0+7,y+9,34,34);ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x0+7,y+9,34,8);
     draw(SP.ic[c.id],x0+8,y+10,2);
     txt(c.name,x0+48,y+17,{size:10,col:'#fff',lw:2});
-    txt(`${rc.n}${c.pow?'  PWR '+Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id)):''}`,x0+48,y+29,{size:8,col:rc.col,lw:2});
+    txt(`${rc.n}${c.pow?'  PWR '+Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id)):''}${typeof masteryLabel==='function'?'  '+masteryLabel(c.id):''}`,x0+48,y+29,{size:8,col:rc.col,lw:2});
     txt(c.desc,x0+48,y+42,{size:8,col:'#d8c8a8',bold:false});
     if(r.t==='card'){
       const n=deckCount(r.id),lim=deckLimit(r.id),bx=x0+W-100;
@@ -7667,7 +7730,7 @@ function qStatusKind(id){
   return 'new';   // avail / locked
 }
 function qCol(kind){return kind==='done'?'#5dcf6a':kind==='prog'?'#ffe14d':'#e8504a';}
-function qLabel(kind,s){return kind==='done'?'Completed':s==='ready'?'Ready to hand in':kind==='prog'?'In progress':'Not started';}
+function qLabel(kind,s){return kind==='done'?'Completed':s==='ready'?'Ready to hand in':kind==='prog'?'In progress':s==='locked'?'Locked':'Not started';}
 function questStory(q){
   if(q.story)return q.story;
   if(q.offer&&q.offer.length)return q.offer[0];
@@ -7684,7 +7747,8 @@ function questDetail(q){
     const lines=wrapText(questStory(q),W-24,'bold '+scaleText(10)+'px "Courier New",monospace').slice(0,3);
     lines.forEach((l,i)=>txt(l,x0+12,y+52+i*14,{size:10,col:'#f0e2c0',bold:false,out:false}));
     const goal=typeof questGoalText==='function'?questGoalText(q):(q.obj&&q.obj.k)||'';
-    txt('Objective: '+goal,x0+12,y+100,{size:9,col:'#ffe9a0',lw:2});
+    const why=typeof questLockReason==='function'?questLockReason(q):null;
+    txt(why?('Locked: '+why):('Objective: '+goal),x0+12,y+100,{size:9,col:why?'#e8a0a0':'#ffe9a0',lw:2});
     if(st==='active'||st==='ready'){
       const prog=questProgress(q),need=questNeed(q),bw=W-24;
       ctx.fillStyle='#140c08';ctx.fillRect(x0+12,y+110,bw,8);ctx.fillStyle=col;ctx.fillRect(x0+12,y+110,Math.round(bw*prog/Math.max(1,need)),8);
@@ -7697,14 +7761,15 @@ function questDetail(q){
   }};
 }
 function questListRow(q){
-  const st=questStatus(q.id),kind=qStatusKind(q.id),col=qCol(kind),main=typeof isMainQuest==='function'&&isMainQuest(q);
-  return {h:28,sel:true,act:()=>{QUESTR.sel=q.id;},tap:()=>{QUESTR.sel=q.id;},draw(x0,y,W,hh,isSel){
+  const st=questStatus(q.id),kind=qStatusKind(q.id),col=qCol(kind);
+  const why=typeof questLockReason==='function'?questLockReason(q):null;
+  return {h:why?40:28,sel:true,act:()=>{QUESTR.sel=q.id;},tap:()=>{QUESTR.sel=q.id;},draw(x0,y,W,hh,isSel){
     ctx.fillStyle=isSel||QUESTR.sel===q.id?'#2a1a10':'#171008';ctx.fillRect(x0,y,W,hh);
     ctx.fillStyle=col;ctx.fillRect(x0,y,4,hh);
-    // OSRS-ish bullet
-    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x0+14,y+hh/2,4,0,6.283);ctx.fill();
-    txt(q.name,x0+24,y+18,{size:11,col:kind==='done'?'#8a9a7a':'#fff3d0',lw:2});
-    txt(qLabel(kind,st),x0+W-10,y+18,{size:9,align:'right',col,lw:2});
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x0+14,y+(why?14:hh/2),4,0,6.283);ctx.fill();
+    txt(q.name,x0+24,y+(why?16:18),{size:11,col:kind==='done'?'#8a9a7a':'#fff3d0',lw:2});
+    if(why)txt(why,x0+24,y+32,{size:8,col:'#e8a0a0',lw:2});
+    else txt(qLabel(kind,st),x0+W-10,y+18,{size:9,align:'right',col,lw:2});
   }};
 }
 UI_MODES.quests={title:()=>'QUEST LIST',sub:()=>{
@@ -7721,6 +7786,10 @@ UI_MODES.quests={title:()=>'QUEST LIST',sub:()=>{
   if(!main.length)r.push({t:'head',s:'  (none yet)'});
   r.push({t:'head',s:'SIDE QUESTS'});
   order(side).forEach(q=>r.push(questListRow(q)));
+  const gates=typeof worldGateNotes==='function'?worldGateNotes():[];
+  if(gates.length){r.push({t:'head',s:'NOT YET'});gates.forEach(s=>r.push({h:28,draw(x0,y,W,hh){
+    ctx.fillStyle='#171008';ctx.fillRect(x0,y,W,hh);ctx.fillStyle='#e8a0a0';ctx.fillRect(x0,y,4,hh);
+    txt(s,x0+12,y+18,{size:9,col:'#f0d0c0',lw:2});}}));}
   // story chapter + dailies as trackable extras under side
   const ex=typeof trkEntries==='function'?trkEntries().filter(e=>e.kind==='story'||e.kind==='daily'):[];
   if(ex.length){r.push({t:'head',s:'STORY & DAILY'});ex.forEach(e=>{
@@ -7834,7 +7903,7 @@ UI_STATES.push('fish');
 const FSH_SHOP={on:false};
 function openFishing(from,shop){FSH_SHOP.on=!!shop;openUIMode('fish',from);}
 function sellFish(id,all){
-  const f=FISH_BY[id],n=FSH.fish[id]|0;if(!f||n<=0)return 0;if(!FSH_SHOP.on){uiMsg('Sell fish to Fisher Tobin, the fishmonger by the river');sfx('clang');return 0;}const k=all?n:1,g=Math.round(f.price*k*(f.junk?1:1+.04*fishLv()));
+  const f=FISH_BY[id],n=FSH.fish[id]|0;if(!f||n<=0)return 0;if(!FSH_SHOP.on){uiMsg('Sell fish to Fisher Tobin, the fishmonger by the river');sfx('clang');return 0;}const k=all?n:1,g=Math.round(f.price*k*(f.junk?1:1+.04*fishSellLv()));
   FSH.fish[id]=n-k;if(!FSH.fish[id])delete FSH.fish[id];P.gold+=g;sfx('coin');saveGame('fish');return g;
 }
 function eatFish(id){
@@ -7842,9 +7911,9 @@ function eatFish(id){
   if(P.hp>=maxHp())return -2;
   const h=Math.max(1,Math.ceil(maxHp()*f.heal));P.hp=Math.min(maxHp(),P.hp+h);FSH.fish[id]--;if(!FSH.fish[id])delete FSH.fish[id];sfx('heal');saveGame('fish');return h;
 }
-const sellAllValue=()=>Object.keys(FSH.fish).reduce((a,k)=>{const f=FISH_BY[k];return a+(f?Math.round(f.price*FSH.fish[k]*(f.junk?1:1+.04*fishLv())):0);},0);
+const sellAllValue=()=>Object.keys(FSH.fish).reduce((a,k)=>{const f=FISH_BY[k];return a+(f?Math.round(f.price*FSH.fish[k]*(f.junk?1:1+.04*fishSellLv())):0);},0);
 function fishRow(f){
-  const n=FSH.fish[f.id]|0,val=Math.round(f.price*(f.junk?1:1+.04*fishLv()));
+  const n=FSH.fish[f.id]|0,val=Math.round(f.price*(f.junk?1:1+.04*fishSellLv()));
   const sell=()=>{const g=sellFish(f.id,false);if(g)uiMsg('Sold '+f.n+' for '+g+' G',false);};
   const eat=()=>{const h=eatFish(f.id);if(h===-2){uiMsg('You are already at full health');sfx('clang');}else if(h>0)uiMsg('Cooked & ate '+f.n+'  +'+h+' HP',false);};
   return {sel:true,h:52,act:which=>{if(which==='minus')eat();else sell();},tap:sell,
@@ -7857,8 +7926,9 @@ function fishRow(f){
       if(!f.junk)uiButton(x0+W-150,y+11,70,30,'COOK',P.hp<maxHp(),()=>{UI.sel=si;eat();},{tag:'eat:'+f.id,clip:true,size:9,sel:si,bg:'#7a4a1a',bd:'#ffb86b'});
       uiButton(x0+W-74,y+11,66,30,FSH_SHOP.on?'SELL '+val:val+' G',FSH_SHOP.on,()=>{UI.sel=si;sell();},{tag:'sell:'+f.id,clip:true,size:9,sel:si});}};
 }
-UI_MODES.fish={title:()=>'FISHING',sub:()=>{const [a,b]=fishXpInto();return [`Lv ${fishLv()}${fishLv()>=FISH_MAX_LV?' (MAX)':'   XP '+a+'/'+b}   Rod: ${FSH.rod>=0?RODS[FSH.rod].n:'none (Brum sells them)'}   Gold ${P.gold}`,'#7df9ff'];},rows(){
+UI_MODES.fish={title:()=>'FISHING',sub:()=>{const [a,b]=fishXpInto(),badge=typeof fishBadgeText==='function'?fishBadgeText():'';return [`Lv ${fishNum(fishLv())}   XP ${fishNum(a)}/${fishNum(b)}${badge?'   '+badge:''}   Rod: ${FSH.rod>=0?RODS[FSH.rod].n:'none (Brum sells them)'}   Gold ${P.gold}`,'#7df9ff'];},rows(){
   const r=[];
+  r.push({t:'head',s:'No level cap. Past 70: gold or tackle each level, a badge and rod tint every 10.'});
   r.push({t:'head',s:'FISHING SPOTS  (tap rippling water: cast once, fish bite on their own)'});
   FISH_SPOTS.forEach(s=>r.push({t:'head',s:'  '+(fishLv()>=s.lv?'+ ':'- ')+s.name+'  -  Lv '+s.lv+(fishLv()>=s.lv?'':'  (locked)')}));
   r.push({t:'head',s:FSH_SHOP.on?'YOUR CATCH  (Tobin buys fish - rarer fish pay more)':'YOUR CATCH  (cook & eat to heal - sell them to Fisher Tobin for gold)'});
@@ -7891,7 +7961,7 @@ function rodRow(i){
    spot mastery ★, dawn/dusk/night catches, aquarium/trophy shelf,
    cooking meals (buffs), tackle box (bait/bobber), weekly biggest-catch.
    ===================================================================== */
-Object.assign(FSH,{spots:{},bait:null,bobber:null,tank:[],week:{id:'',best:0,fish:'',name:''},meals:0});
+Object.assign(FSH,{spots:{},bait:null,bobber:null,tank:[],week:{id:'',best:0,fish:'',name:''},meals:0,charm:0,kit:{},orders:null,board:{}});
 const FISH_BAITS=[
   {id:'worm',n:'River Worms',gold:8,fam:'river',bias:1.35,desc:'Favours river fish.'},
   {id:'dough',n:'Dough Ball',gold:12,fam:'pond',bias:1.4,desc:'Pond & still-water bait.'},
@@ -7927,7 +7997,7 @@ function spotStars(id){const s=FSH.spots[id];if(!s)return 0;const c=s.caught|0;r
 const FISH_COSMETIC={}; // spotId -> unlocked cosmetic id
 function spotMasterNote(spot){
   const st=spotStars(spot.id);
-  if(st>=5)return '★★★★★ Mastery — rare cosmetics unlocked here';
+  if(st>=5)return '★★★★★ Mastery — rare fish bite a little more often here';
   if(st>=1)return '★'.repeat(st)+'☆'.repeat(5-st)+'  ('+(FSH.spots[spot.id].caught|0)+' caught)';
   return '☆☆☆☆☆  (catch 3 here to earn a star)';
 }
@@ -8000,8 +8070,8 @@ function fishWeekSubmit(f,weight){
 }
 
 /* ---- tackle purchase (Tobin / Brum) ---- */
-function buyBait(id){const b=FISH_BAIT_BY[id];if(!b)return false;if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.bait=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
-function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.bobber=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
+function buyBait(id){const b=FISH_BAIT_BY[id];if(!b)return false;FSH.kit=FSH.kit||{};if((FSH.kit[id]|0)>0){FSH.bait=id;toast('Equipped '+b.n,1.8,'#7dffb0');return true;}if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.kit[id]=1;FSH.bait=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
+function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;FSH.kit=FSH.kit||{};if((FSH.kit[id]|0)>0){FSH.bobber=id;toast('Equipped '+b.n,1.8,'#7dffb0');return true;}if(P.gold<b.gold){toast('Need '+b.gold+' G',1.6,'#ffb0a0');return false;}P.gold-=b.gold;FSH.kit[id]=1;FSH.bobber=id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');return true;}
 
 /* ---- wrap catch pipeline ---- */
 {const _pool=fishPool;fishPool=function(spot){
@@ -8018,7 +8088,7 @@ function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;if(P.gold<b.go
   const spot=FISH.spot;_aw(f,rare);
   if(f&&f.id==='boot'){ACH.s.boots=(ACH.s.boots|0)+1;}   // t154u: Boot Collector achievement
   if(spot&&spot.id){const s=FSH.spots[spot.id]||(FSH.spots[spot.id]={caught:0});s.caught++;
-    const st=spotStars(spot.id);if(st>=1&&s.caught===[3,8,20,40,80][st-1]){toast(spot.name+' ★'+st+'!',2.4,'#ffe14d');if(st>=5&&!FISH_COSMETIC[spot.id]){FISH_COSMETIC[spot.id]='lure_'+spot.id;FSH.cosmetics=FSH.cosmetics||{};FSH.cosmetics[spot.id]=1;toast('Cosmetic lure unlocked for '+spot.name+'!',3,'#c58aff');sfx('level');}}}
+    const st=spotStars(spot.id);if(st>=1&&s.caught===[3,8,20,40,80][st-1]){toast(spot.name+' ★'+st+'!',2.4,'#ffe14d');if(st>=5&&!FISH_COSMETIC[spot.id]){FISH_COSMETIC[spot.id]='lure_'+spot.id;FSH.cosmetics=FSH.cosmetics||{};FSH.cosmetics[spot.id]=1;toast(spot.name+' mastered — rare fish bite more often here',3,'#c58aff');sfx('level');}}}
   if(f&&!f.junk)fishWeekSubmit(f);
   // auto-offer tank for rar>=3
   if(f&&!f.junk&&(f.rar|0)>=3&&FSH.tank.length<FISH_TANK_MAX&&!FSH.tank.includes(f.id)){
@@ -8038,6 +8108,7 @@ function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;if(P.gold<b.go
       if(bait.fam==='pond'&&(f.id==='carp'||f.id==='bass'||f.id==='koi'||f.id==='gill'))m=bait.bias;
       if(bait.fam==='night'&&(f.tod==='night'||f.id==='glowfish'||f.id==='gill'))m=bait.bias;
       if(bait.fam==='legend'&&(f.rar|0)>=3)m=bait.bias;
+      if(m>1&&typeof fishBaitLean==='function')m=fishBaitLean();
       return Object.assign({},f,{w:Math.max(.5,f.w*m)});
     });
   }
@@ -8046,12 +8117,13 @@ function buyBobber(id){const b=FISH_BOB_BY[id];if(!b)return false;if(P.gold<b.go
 {const _xp=addFishXp;addFishXp=function(n){return _xp(Math.round(n*mealXpMul()));};}
 
 /* ---- save hooks ---- */
-{const _pf=packFish;packFish=function(){const o=_pf();o.spots=FSH.spots;o.bait=FSH.bait;o.bobber=FSH.bobber;o.tank=FSH.tank.slice();o.week=FSH.week;o.meals=FSH.meals|0;o.cosmetics=FSH.cosmetics||{};return o;};
+{const _pf=packFish;packFish=function(){const o=_pf();o.spots=FSH.spots;o.bait=FSH.bait;o.bobber=FSH.bobber;o.tank=FSH.tank.slice();o.week=FSH.week;o.meals=FSH.meals|0;o.cosmetics=FSH.cosmetics||{};o.charm=FSH.charm|0;o.kit=FSH.kit||{};o.orders=FSH.orders||null;o.board=FSH.board||{};return o;};
  const _uf=unpackFish;unpackFish=function(s){_uf(s);if(!s||typeof s!=='object')return;
   FSH.spots=(s.spots&&typeof s.spots==='object')?s.spots:{};FSH.bait=s.bait||null;FSH.bobber=s.bobber||null;
   FSH.tank=Array.isArray(s.tank)?s.tank.filter(id=>FISH_BY[id]).slice(0,FISH_TANK_MAX):[];
-  FSH.week=(s.week&&typeof s.week==='object')?s.week:{id:'',best:0,fish:'',name:''};FSH.meals=s.meals|0;FSH.cosmetics=(s.cosmetics&&typeof s.cosmetics==='object')?s.cosmetics:{};Object.assign(FISH_COSMETIC,FSH.cosmetics);fishWeekEnsure();};
- const _rf=resetFish;resetFish=function(){_rf();FSH.spots={};FSH.bait=null;FSH.bobber=null;FSH.tank=[];FSH.week={id:'',best:0,fish:'',name:''};FSH.meals=0;FSH.cosmetics={};for(const k in FISH_COSMETIC)delete FISH_COSMETIC[k];};}
+  FSH.week=(s.week&&typeof s.week==='object')?s.week:{id:'',best:0,fish:'',name:''};FSH.meals=s.meals|0;FSH.cosmetics=(s.cosmetics&&typeof s.cosmetics==='object')?s.cosmetics:{};Object.assign(FISH_COSMETIC,FSH.cosmetics);fishWeekEnsure();
+  FSH.charm=clamp(s.charm|0,0,3);FSH.kit=(s.kit&&typeof s.kit==='object')?s.kit:{};FSH.orders=(s.orders&&typeof s.orders==='object')?s.orders:null;FSH.board=(s.board&&typeof s.board==='object')?s.board:{};};
+ const _rf=resetFish;resetFish=function(){_rf();FSH.spots={};FSH.bait=null;FSH.bobber=null;FSH.tank=[];FSH.week={id:'',best:0,fish:'',name:''};FSH.meals=0;FSH.cosmetics={};FSH.charm=0;FSH.kit={};FSH.orders=null;FSH.board={};for(const k in FISH_COSMETIC)delete FISH_COSMETIC[k];};}
 
 /* ---- fishing screen extras (rows) ---- */
 function fishActRow(label,on,go){
@@ -8673,6 +8745,7 @@ function drawCardFace(id,cw,ch,sel,idx){
   ctx.fillStyle=c.col;ctx.fillRect(x+4,y+4,cw-8,ih);ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x+4,y+4,cw-8,7);
   draw(SP.ic[id],x+cw/2-(TOUCH?12:16),y+(TOUCH?5:6),TOUCH?1.5:2);
   txt(cardLabel(c),x+cw/2,y+ch-(TOUCH?19:24),{size:TOUCH?7:9,align:'center',col:'#fff',lw:2});
+  if(typeof masteryLabel==='function'){const ml=masteryLabel(c.id);if(ml)txt(ml,x+cw-4,y+12,{size:7,align:'right',col:ml==='Mastered'?'#ffd23f':'#cfe6ff',lw:2});}
   txt(c.pow?String(Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id))):'--',x+cw/2,y+ch-(TOUCH?6:9),{size:TOUCH?10:12,align:'center',col:'#ffe14d',lw:2});
   if(!TOUCH&&idx!=null)txt(String(idx+1),x+7,y+14,{size:9,col:'#000',out:false});
   {const rc=RAR[c.rar];ctx.fillStyle=rc.col;ctx.fillRect(x+cw-9,y+3,6,6);if(c.rar!=='common'){ctx.strokeStyle=rc.col;ctx.globalAlpha=.55+.3*Math.sin(gtime*5);ctx.lineWidth=c.rar==='legendary'?2:1;ctx.strokeRect(x+1.5,y+1.5,cw-3,ch-3);ctx.globalAlpha=1;}}
@@ -9352,6 +9425,7 @@ function loadSave(s){
   if(lichDown){const d=enemies.find(o=>o.type==='lich');if(d){d.alive=false;d.respawn=240;}}
   try{sanitizeWorld('load');}catch(e){}
   snapCam();
+  try{if(typeof achTick==='function'&&!window.__NOACH&&!(typeof metaOff==='function'&&metaOff()))achTick();}catch(e){}
 }
 function clearSave(){try{backupSave(localStorage.getItem(SAVE_KEY));localStorage.removeItem(SAVE_KEY);}catch(e){}}   // New Game keeps the old save as a backup
 let saveTimer=0;
@@ -9588,7 +9662,10 @@ function rushLeave(){if(!RUSH.on||B)return;rushFinish('quit');}
 /* the Arena Master in Oakvale */
 NPCS.push({name:'Arena Master',x:16.5*TS,y:41.6*TS,spr:'guard',rush:true,lines:[]});
 function openArenaMaster(){
-  DLG={name:'ARENA MASTER',lines:['Welcome to the Ember Arena! Five champions, one after another, each lap stronger.','Heal only a little between rounds. Fall, and your score is posted on the board. Ready?'],i:0,c:0,yes:'ENTER',no:'BOARD',
+  const done=typeof storyCleared==='function'&&storyCleared();
+  const lines=['Welcome to the Ember Arena! Five champions, one after another, each lap stronger.','Heal only a little between rounds. Fall, and your score is posted on the board. Ready?'];
+  if(done)lines.push('The story is told. The board now offers the Endless Crypt beside the boss rematches.');
+  DLG={name:'ARENA MASTER',lines,i:0,c:0,yes:'ENTER',no:'BOARD',
     choice(){rushStart();},noAct(){openUIMode('rush','play');}};
 }
 
@@ -9911,6 +9988,20 @@ UI_MODES.rush={title:()=>'EMBER ARENA',sub:()=>['Boss rush  -  best scores on th
       txt('ENTER THE ARENA',x0+10,y+19,{size:11,col:'#ffcf9a',lw:2});txt('Full heal on entry, +35% between rounds',x0+10,y+34,{size:8,col:'#e8c070',bold:false});
       uiButton(x0+W-92,y+7,84,30,'START',true,()=>{UI.sel=si;if(!rushStart())uiMsg('Cannot enter right now');},{tag:'rush:start',clip:true,size:12,bg:'#8a3a1a',bd:'#ffb070',sel:si});}});
   r.push({t:'head',s:'WEEKLY ROGUELIKE CRYPT   (new seed every Monday)'},weeklyRow());
+  if(typeof storyCleared==='function'&&storyCleared()){
+    r.push({t:'head',s:'AFTER THE ENDING'});
+    r.push({id:'rush-crypt',sel:true,h:44,act(){closeUI();endlessStart();},tap(){this.act();},
+      draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#7ec8ff';ctx.fillRect(x0,y,3,h);
+        txt('ENDLESS CRYPT',x0+10,y+18,{size:11,col:'#cfe6ff',lw:2});txt('Floors that do not end. Best '+(typeof X7!=='undefined'?X7.depth.best:0),x0+10,y+34,{size:8,col:'#d8c8a8',bold:false});
+        uiButton(x0+W-84,y+7,76,30,'ENTER',true,()=>{UI.sel=si;closeUI();endlessStart();},{tag:'rush:crypt',clip:true,size:11,sel:si});}});
+    [['dragon','Emberfang'],['lich','Lich King'],['rimegar','Rimegar'],['mossback','Mossback'],['colossus','Colossus']].forEach(([t,n])=>{
+      const on=typeof rematchReady==='function'&&rematchReady(t);
+      r.push({id:'rush-rematch-'+t,sel:true,h:36,act(){if(on){closeUI();rematchStart(t);}},tap(){this.act();},
+        draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+          txt('Rematch '+n,x0+10,y+22,{size:11,col:on?'#ffb07a':'#8a7050',lw:2});
+          uiButton(x0+W-84,y+4,76,26,on?'FIGHT':'LOCKED',on,()=>{UI.sel=si;if(on){closeUI();rematchStart(t);}},{tag:'rush:rematch:'+t,clip:true,size:9,sel:si});}});
+    });
+  }
   r.push({t:'head',s:'LEADERBOARD'});
   if(!RUSHLB.length)r.push({h:30,draw(x0,y,W,h){ctx.fillStyle='#1e120a';ctx.fillRect(x0,y,W,h);txt('No runs yet - be the first!',x0+10,y+19,{size:10,col:'#e8c070',bold:false});}});
   RUSHLB.forEach((e,i)=>r.push({h:30,draw(x0,y,W,h){ctx.fillStyle=i===0?'#2a2410':'#1e120a';ctx.fillRect(x0,y,W,h);ctx.fillStyle=i===0?'#ffd23f':i===1?'#cfd8e8':i===2?'#d89a5a':'#7a5a30';ctx.fillRect(x0,y,3,h);
@@ -13736,19 +13827,33 @@ Object.assign(SFXT,{
 
 /* ======================= 1. FISH JOURNAL + 6. FISH OF THE WEEK + 26. DERBY ======================= */
 const FISH_PAGES=[0,1,2,3,4].map(t=>({t,n:['Brook & Pond','River Runs','Deep Pools','Lake Lords','Legends'][t],skin:['#7ac060','#6ab8ff','#c58aff','#ff9a3d','#ffe14d'][t]}));
-const fishOfPage=t=>FISHES.filter(f=>f.tier===t);
-function rodSkinCol(){return X7.rodSkin!=null&&X7.skins[X7.rodSkin]?FISH_PAGES[X7.rodSkin].skin:null;}
+function fishOfPage(t){return FISHES.filter(f=>f.tier===t&&!f.way);}
+function rodSkinCol(){if(X7.rodSkin!=null&&X7.skins[X7.rodSkin])return FISH_PAGES[X7.rodSkin].skin;return (typeof FSH!=='undefined'&&FSH.rodTint)||null;}
 function fotw(){const L=FISHES.filter(f=>!f.junk&&f.lv<=30);return L[x7Week()%L.length];}
 function derbySpot(){return FISH_SPOTS[x7Day()%FISH_SPOTS.length];}
-const DERBY_SECS=180,DERBY_TARGET=()=>12+(x7Day()%5)*3;
-function derbyStart(){const d=X7.derby;if(d.day===x7Day()){toast('Today\'s derby is done - come back tomorrow!',2.4,'#ffb0a0');return false;}
-  d.day=x7Day();d.on=true;d.t=DERBY_SECS;d.best=0;toast('FISHING DERBY at '+derbySpot().name+'! Heaviest fish in 3 minutes. Beat '+DERBY_TARGET()+' lb!',4,'#7df9ff');sfx('level');return true;}
+const DERBY_SECS=180;
+/* Heaviest fish that bites at this spot all day, once you meet the spot's level.
+   The old flat 12–24 lb bar sat above the village river (a full 3 minutes there topped out under 6 lb). */
+function derbyCeiling(spot){
+  if(!spot)return 4;
+  const lv=spot.lv|0,pool=FISHES.filter(f=>!f.junk&&!f.todOnly&&f.lv<=lv&&f.tier<=spot.tier&&f.tier>=spot.tier-1);
+  const auto=pool.filter(f=>f.w>4&&(f.rar|0)<4),use=auto.length?auto:pool;
+  let best=0;for(const f of use){const w=1+(4+f.price/18)*(1+(f.rar|0)*.3);if(w>best)best=w;}
+  return best||4;
+}
+const DERBY_TARGET=()=>{const cap=derbyCeiling(derbySpot()),frac=.55+(x7Day()%5)*.03;return Math.max(2,Math.round(cap*frac*10)/10);};
+function derbyStart(){const d=X7.derby,sp=derbySpot();
+  if(fishLv()<sp.lv){toast(sp.name+' derby needs Fishing Lv '+sp.lv+' (you are Lv '+fishLv()+')',3.2,'#ffd98a');sfx('clang');return false;}
+  if(d.day===x7Day()){toast('Today\'s derby is done - come back tomorrow!',2.4,'#ffb0a0');return false;}
+  d.day=x7Day();d.on=true;d.t=DERBY_SECS;d.best=0;toast('FISHING DERBY at '+sp.name+'! Heaviest fish in 3 minutes. Beat '+DERBY_TARGET()+' lb!',4,'#7df9ff');sfx('level');return true;}
 function derbyTick(dt){const d=X7.derby;if(!d.on)return;d.t-=dt;if(d.t<=0){d.on=false;
   if(d.best>=DERBY_TARGET()){d.trophies++;P.gold+=150;toast('DERBY WON! '+d.best+' lb  - Derby Trophy +150 G',4,'#ffe14d');sfx('jingleAch');}
   else toast('Derby over - best '+d.best+' lb (needed '+DERBY_TARGET()+')',3,'#cfd0ff');saveGame('derby');}}
 {const _aw=fishAward;fishAward=function(f,rare){_aw(f,rare);if(!f||f.junk)return;
   const spot=FISH.spot,w=Math.round((1+Math.random()*(4+f.price/18)*(1+(f.rar|0)*.3))*10)/10,j=X7.jr[f.id]||(X7.jr[f.id]={n:0,big:0,where:''});
-  const first=!j.n;j.n++;if(w>j.big){j.big=w;j.where=spot?spot.name:'?';}
+  const first=!j.n,prevBig=j.big|0,had=j.n|0;j.n++;if(w>j.big){j.big=w;j.where=spot?spot.name:'?';}
+  if(had&&w>prevBig){try{fishRecordPay(f,w);}catch(e){}}
+  try{if(spot)fishBoardNote(spot,f,w);}catch(e){}
   if(first){x7Dot('journal');toast('NEW in your Fish Journal: '+f.n,2.6,f.col);}
   if((f.rar|0)>=3)sfx('jingleFish');
   if(fotw()&&f.id===fotw().id){P.gold+=f.price;try{fishWeekSubmit(f,w*2);}catch(e){}toast('Fish of the Week! double pay +'+f.price+' G',2.4,'#ffe14d');}
@@ -13761,6 +13866,7 @@ const FOIL_CHANCE=.04,MASTER_USES=100;
 {const _g=grantCard;grantCard=function(id,at){const r=_g(id,at);if(CARD[id]&&!window.__NOFOIL&&Math.random()<FOIL_CHANCE)x7Foil(id);return r;};}
 function x7Foil(id){X7.foil[id]=(X7.foil[id]|0)+1;x7Dot('cards');toast('*** FOIL '+CARD[id].name+'! ***',3.4,'#fff6a0');sfx('jingleFoil');}
 const isFoil=id=>(X7.foil[id]|0)>0,isMastered=id=>!!X7.mast[id];
+function masteryLabel(id){if(!id||typeof X7==='undefined')return '';return isMastered(id)?'Mastered':((X7.cu[id]|0)+'/'+MASTER_USES);}
 {const _uc=useCard;useCard=function(i){const id=B&&B.hand[i];
   if(id==='heal'&&X7.ch.noHeal){floatText(P.x,P.y-40,'NO-HEAL CHALLENGE','#ffb0a0',11);sfx('clang');return;}
   const before=B&&B.hand[i];_uc(i);if(!B||!before||B.hand[i]===before)return;   // cast actually happened
@@ -13825,6 +13931,13 @@ function equipHat(id){if(!PET.active){toast('Pick an active pet first (Marlo)',2
 
 /* ======================= 8. NEW GAME+  9. CHALLENGES  10. ENDING CARDS ======================= */
 const ngpReady=()=>!!(STORY.ending||lichDown);
+function confirmNGPlus(){
+  if(!ngpReady())return false;
+  try{if(typeof closeUI==='function'&&isUI())closeUI();}catch(e){}
+  DLG={name:'NEW GAME+',lines:['New Game+ resets the story and your quests.','You keep cards, pets, gear, the house, and your gold.','Monsters get tougher. Cancel to stay in this story.'],i:0,c:0,yes:'BEGIN',no:'CANCEL',
+    choice(){startNGPlus();},noAct(){}};
+  return true;
+}
 function startNGPlus(){if(!ngpReady())return false;X7.ngp++;
   if(STORY.ending)X7.endings[STORY.ending]=1;
   if(X7.ch.noHeal&&!X7.chFail.noHeal){X7.badges.ascetic=1;toast('Badge earned: THE ASCETIC',3,'#ffd23f');}
@@ -14046,7 +14159,7 @@ UI_MODES.codex={title:()=>CODEX_PAGE?'CODEX - '+(CODEX_PAGES.find(p=>p[0]===CODE
       R.push(cxRow((own?(PET.active&&X7.pet.outfit[PET.active]===id?'[WORN] ':'[OWNED] '):'')+h.n+(own?'':'  '+(h.g?h.g+' G ':'')+(h.sh?h.sh+' shards':'')),true,()=>own?equipHat(id):buyHat(id),own?'Tap to put on / take off your active pet':'Pet outfit'));});}
   else if(P2==='events'){const k=festKind();R.push(H(k?(k==='harvest'?'HARVEST FESTIVAL':'LANTERN NIGHT')+' this weekend! Find 6 '+(k==='harvest'?'golden acorns':'paper stars')+' around town ('+(X7.fest.got|0)+'/6)':'Festivals: Harvest Festival / Lantern Night on alternating weekends'));
     R.push(H(meteorNight()?'METEOR NIGHT tonight! Shards left: '+X7.meteors.filter(m=>!m.got).length:'Meteor nights: some nights stars fall - shards buy fancy hats'));
-    const sp=derbySpot();R.push(H('FISHING DERBY today at '+sp.name+': heaviest fish in 3 min, beat '+DERBY_TARGET()+' lb'));
+    const sp=derbySpot();R.push(H('FISHING DERBY today at '+sp.name+': heaviest fish in 3 min, beat '+DERBY_TARGET()+' lb'+(fishLv()<sp.lv?'  -  needs Fishing Lv '+sp.lv:'')));
     R.push(cxRow(X7.derby.on?'Derby running: '+Math.ceil(X7.derby.t)+'s  best '+X7.derby.best+' lb':X7.derby.day===x7Day()?'Today\'s derby is done':'Start today\'s derby',!X7.derby.on&&X7.derby.day!==x7Day(),derbyStart,'Derby trophies: '+X7.derby.trophies));
     R.push(H('Mara\'s rumor today: '+rumorToday().slice(0,60)+'...'));}
   else if(P2==='house'){R.push(H('FURNITURE - Brum and Mara deliver to your house (decor makes visitors happier)'));
@@ -14066,7 +14179,7 @@ UI_MODES.codex={title:()=>CODEX_PAGE?'CODEX - '+(CODEX_PAGES.find(p=>p[0]===CODE
     R.push(H('CARD MASTERY - cast a card 100 times: +15% damage (gold * on the card)'));
     Object.keys(COL).filter(id=>CARD[id]).sort((a,b)=>(X7.cu[b]|0)-(X7.cu[a]|0)).slice(0,14).forEach(id=>R.push(H('  '+CARD[id].name+'  '+Math.min(100,X7.cu[id]|0)+'/100'+(X7.mast[id]?'  MASTERED':'')+(isFoil(id)?'  FOIL':''))));}
   else if(P2==='ngplus'){R.push(H('NEW GAME+ keeps cards, pets, gear, house. Monsters get tougher, Gold-Trim gear drops.'));
-    R.push(cxRow(ngpReady()?'Begin New Game+ '+(X7.ngp+1):'Finish the story (beat the Lich King) to unlock',ngpReady(),startNGPlus));
+    R.push(cxRow(ngpReady()?'Begin New Game+ '+(X7.ngp+1):'Finish the story (beat the Lich King) to unlock',ngpReady(),confirmNGPlus));
     R.push(H('CHALLENGES (earn title-screen badges)'));R.push(cxRow((X7.ch.noHeal?'[ON] ':'')+'No Healing Cards',true,()=>chToggle('noHeal'),'Finish the story with it on: The Ascetic'));
     R.push(cxRow((X7.ch.oneLife?'[ON] ':'')+'One-Life Arena',true,()=>chToggle('oneLife'),'Reach Arena round 10: Iron Gladiator'));
     Object.keys(BADGES).forEach(k=>R.push(H((X7.badges[k]?'[EARNED] ':'[ ] ')+BADGES[k].n+' - '+BADGES[k].d)));
@@ -14077,8 +14190,416 @@ UI_STATES.push('codex');
 PAUSE_ITEMS.push({k:'KeyX',lab:()=>'CODEX'+(x7AnyDot()?'  (new!)':''),home:'journal',act:()=>openCodex()});
 // discovery hooks: the Notice Board gets a bounty line, the fishing screen links the journal / derby / fish of the week
 {const p=()=>{if(UI_MODES.daily&&!UI_MODES.daily.rows._x7){const r0=UI_MODES.daily.rows;UI_MODES.daily.rows=function(){const r=r0.apply(this,arguments);r.push(H('MORE'));r.push(cxRow('Weekly Bounty Board',true,()=>openCodex('bounty')));r.push(cxRow('Login Calendar'+(loginReady()?' (reward!)':''),true,()=>openCodex('daily')));r.push(cxRow('Events, Derby & Festivals',true,()=>openCodex('events')));return r;};UI_MODES.daily.rows._x7=1;}
-  if(UI_MODES.fish&&!UI_MODES.fish.rows._x7){const r1=UI_MODES.fish.rows;UI_MODES.fish.rows=function(){const r=r1.apply(this,arguments);const f=fotw();r.splice(0,0,H('FISH OF THE WEEK: '+(f?f.n:'-')+'  -  DERBY today at '+derbySpot().name),cxRow('Fish Journal ('+Object.keys(X7.jr).length+'/'+FISHES.length+')',true,()=>openCodex('journal')),cxRow(X7.derby.on?'Derby: '+Math.ceil(X7.derby.t)+'s left, best '+X7.derby.best+' lb':'Fishing Derby',true,()=>openCodex('events')));return r;};UI_MODES.fish.rows._x7=1;UI_MODES.fish.rows._t153=1;}};
+  if(UI_MODES.fish&&!UI_MODES.fish.rows._x7){const r1=UI_MODES.fish.rows;UI_MODES.fish.rows=function(){const r=r1.apply(this,arguments);const f=fotw(),sp=derbySpot(),lock=fishLv()<sp.lv;r.splice(0,0,H('FISH OF THE WEEK: '+(f?f.n:'-')+'  -  DERBY today at '+sp.name+(lock?' (Fishing Lv '+sp.lv+')':'')),cxRow('Fish Journal ('+Object.keys(X7.jr).length+'/'+FISHES.length+')',true,()=>openCodex('journal')),cxRow(X7.derby.on?'Derby: '+Math.ceil(X7.derby.t)+'s left, best '+X7.derby.best+' lb':'Fishing Derby',true,()=>openCodex('events')));return r;};UI_MODES.fish.rows._x7=1;UI_MODES.fish.rows._t153=1;}};
  setTimeout(p,400);setTimeout(p,1200);}
+
+/* ---------- src/player/fish-goals.js ---------- */
+/* =====================================================================
+   Fishing goals (v71): lifetime milestones on the panel, one daily order
+   per spot, bite windows, boot charms, personal records, hot-bite streaks.
+   Optional save fields only. Old saves load with the defaults.
+   ===================================================================== */
+const FISH_MILES=[25,100,250,500,1000];
+const BOOT_CHARM_CAP=3;
+function fishMileNext(n){n=n|0;for(const m of FISH_MILES)if(n<m)return m;return 1000;}
+function bootJunkMul(){return 1-.28*Math.min(BOOT_CHARM_CAP,FSH.charm|0);}
+function mendBoots(){
+  if((FSH.charm|0)>=BOOT_CHARM_CAP){toast('The boot charm is as strong as it gets',2,'#ffb0a0');return false;}
+  if((FSH.fish.boot|0)<5){toast('Need 5 Old Boots to mend a charm',2,'#ffb0a0');sfx('clang');return false;}
+  FSH.fish.boot-=5;if(FSH.fish.boot<=0)delete FSH.fish.boot;
+  FSH.charm=(FSH.charm|0)+1;
+  toast('Boot charm '+FSH.charm+'/'+BOOT_CHARM_CAP+' — junk bites less often',2.6,'#c58aff');sfx('level');return true;
+}
+function baitMatches(f,b){
+  if(!f||!b)return false;
+  if(b.fam==='river')return f.id==='trout'||f.id==='pike'||f.id==='salmon'||f.id==='minnow';
+  if(b.fam==='pond')return f.id==='carp'||f.id==='bass'||f.id==='koi'||f.id==='gill';
+  if(b.fam==='night')return f.tod==='night'||f.id==='glowfish'||f.id==='gill';
+  if(b.fam==='legend')return (f.rar|0)>=3;
+  return false;
+}
+function fishBaitLean(){
+  const b=FSH.bait&&FISH_BAIT_BY[FSH.bait];if(!b)return 1;
+  return b.bias*((FISH.hot>0)?6:2.6);
+}
+function fishHotTick(dt){
+  const F=FISH;
+  if(F.hot>0){F.hot-=dt;if(F.hot<=0){F.hot=0;F.hotIn=110+Math.random()*50;toast('The bite eases off',1.6,'#cfe3ff');}return;}
+  if(!(F.hotIn>0)){F.hotIn=70+Math.random()*40;return;}
+  F.hotIn-=dt;
+  if(F.hotIn<=0){F.hot=20;const b=FSH.bait&&FISH_BAIT_BY[FSH.bait];toast('HOT BITE'+(b?' — '+b.n:''),2.4,'#ffd23f');sfx('warn');if(F.next>3.4)F.next=2.4+Math.random()*1.2;}
+}
+function fishOrderSpec(spot,day){
+  if(!spot)return null;
+  day=day==null?x7Day():day|0;
+  let h=day|0;for(let i=0;i<spot.id.length;i++)h=x7Hash(h,spot.id.charCodeAt(i));
+  const commons=FISHES.filter(f=>!f.junk&&!f.way&&!f.todOnly&&f.lv<=(spot.lv|0)+1&&f.tier<=spot.tier&&f.tier>=spot.tier-1&&f.w>4&&(f.rar|0)<4);
+  const pays=FISH_BAITS.concat(FISH_BOBBERS),pay=pays[h%pays.length].id;
+  if(commons.length&&(h%4)!==0){const f=commons[h%commons.length];return {k:'fish',id:f.id,name:f.n,n:3+(h%3),pay};}
+  return {k:'rare',n:1,pay,name:'a rare bite'};
+}
+function fishOrders(){
+  const day=x7Day();
+  if(!FSH.orders||FSH.orders.day!==day)FSH.orders={day,prog:{},done:{}};
+  FSH.orders.prog=FSH.orders.prog||{};FSH.orders.done=FSH.orders.done||{};
+  return FSH.orders;
+}
+function fishOrderView(spot){
+  const o=fishOrders(),spec=fishOrderSpec(spot,o.day);if(!spec)return null;
+  const key=spec.k==='rare'?spot.id+'#r':spot.id;
+  return Object.assign({},spec,{cur:o.prog[key]|0,done:!!o.done[spot.id]});
+}
+function grantTackle(id){
+  const b=FISH_BAIT_BY[id]||FISH_BOB_BY[id];if(!b)return false;
+  FSH.kit=FSH.kit||{};FSH.kit[id]=(FSH.kit[id]|0)+1;
+  if(FISH_BAIT_BY[id]&&!FSH.bait)FSH.bait=id;
+  if(FISH_BOB_BY[id]&&!FSH.bobber)FSH.bobber=id;
+  toast('Tackle earned: '+b.n,2.4,'#7dffb0');sfx('coin');return true;
+}
+function fishOrderCatch(f,rare){
+  const spot=FISH.spot;if(!spot||!spot.id)return;
+  const v=fishOrderView(spot);if(!v||v.done)return;
+  const o=fishOrders(),key=v.k==='rare'?spot.id+'#r':spot.id;
+  if(v.k==='rare'){if(rare)o.prog[key]=(o.prog[key]|0)+1;}
+  else if(f&&!f.junk&&f.id===v.id)o.prog[key]=(o.prog[key]|0)+1;
+  if((o.prog[key]|0)>=v.n){o.done[spot.id]=1;grantTackle(v.pay);toast('Order done at '+spot.name,2.4,'#ffe14d');}
+}
+function fishRecordPay(f,w){
+  const g=Math.max(8,Math.round((f.price||10)*.2));P.gold+=g;
+  toast('New record! '+w+' lb '+f.n+'  +'+g+' G',2.6,'#ffe14d');sfx('coin');
+}
+function fishBoardNote(spot,f,w){
+  if(!spot||!spot.id||!f||f.junk)return;
+  FSH.board=FSH.board||{};
+  const id=(typeof BOAT!=='undefined'&&BOAT.on&&BOAT.deep)?spot.id+':deep':spot.id;
+  const list=FSH.board[id]||(FSH.board[id]=[]);
+  list.push({id:f.id,w:w,n:f.n});list.sort((a,b)=>b.w-a.w);FSH.board[id]=list.slice(0,3);
+}
+function spotWindowLine(spot){
+  if(!spot)return '';
+  const bits=[];
+  for(const tod of ['dawn','dusk','night']){
+    const f=FISHES.find(q=>q.todOnly&&q.tod===tod&&q.tier<=spot.tier+1&&q.tier>=spot.tier-1);
+    if(f)bits.push(tod+': '+f.n);
+  }
+  const now=typeof fishTimeBucket==='function'?fishTimeBucket():'day';
+  const live=FISHES.find(q=>q.todOnly&&q.tod===now&&q.lv<=fishLv()&&q.tier<=spot.tier+1&&q.tier>=spot.tier-1);
+  const head=live?(live.n+' biting now ('+now+')'):(now+' bite');
+  return head+(bits.length?' · '+bits.join(' · '):'');
+}
+function fishBitingNow(spot){
+  if(!spot||typeof fishPool!=='function')return 'Day bite';
+  const tod=fishTimeBucket(),pool=fishPool(spot).filter(f=>f&&!f.junk);
+  const special=pool.filter(f=>f.todOnly&&f.tod===tod);
+  if(special.length)return special[0].n+' biting now ('+tod+')';
+  const names=pool.filter(f=>!(typeof fishIsRareBite==='function'&&fishIsRareBite(f))).slice(0,3).map(f=>f.n);
+  return (tod==='day'?'Day bite':tod+' bite')+(names.length?' — '+names.join(', '):'');
+}
+function fishJournalGap(spot){
+  if(typeof fishOfPage!=='function'||typeof X7==='undefined')return 'journal';
+  let f=null;const page=spot?Math.max(0,Math.min(4,spot.tier|0)):0;
+  const miss=t=>fishOfPage(t).find(q=>!(X7.jr&&X7.jr[q.id]));
+  f=miss(page);for(let t=0;t<5&&!f;t++)f=miss(t);
+  if(!f)return 'journal complete';
+  const names=[...new Set(FISH_SPOTS.filter(s=>f.tier<=s.tier+1&&f.tier>=s.tier-1).map(s=>s.name))].slice(0,2);
+  const when=f.todOnly?f.tod:'any time',how=(typeof fishIsRareBite==='function'&&fishIsRareBite(f))?'rare bite':'any bite';
+  return f.n+' · '+(names.join(', ')||'the river')+' · '+when+' · '+how;
+}
+function fishGoalLines(spot){
+  const mile=fishMileNext(ACH.s.fish|0),star=(()=>{const have=spot&&FSH.spots[spot.id]?FSH.spots[spot.id].caught|0:0;const nxt=[3,8,20,40,80].find(x=>have<x);return (spot?spot.name:'Spot')+' ★ '+(nxt?have+'/'+nxt:'mastered');})();
+  const ord=spot?fishOrderView(spot):null;
+  const pay=ord&&(FISH_BAIT_BY[ord.pay]||FISH_BOB_BY[ord.pay]);
+  const ordLine=ord?(ord.done?'Order done — '+(pay?pay.n:'tackle'):(ord.k==='rare'?'Order: rare bite '+ord.cur+'/1':'Order: '+ord.cur+'/'+ord.n+' '+ord.name)+(pay?' — '+pay.n:'')):'';
+  const top=spot&&FSH.board&&FSH.board[spot.id]&&FSH.board[spot.id][0];
+  const rec=top?('Record: '+top.w+' lb '+(FISH_BY[top.id]?FISH_BY[top.id].n:top.n)):'Record: none yet';
+  return ['Fish '+(ACH.s.fish|0)+'/'+mile+'   Boots '+(ACH.s.boots|0)+'/25',star,'Journal: '+fishJournalGap(spot),fishBitingNow(spot),ordLine+'   '+rec].filter(Boolean);
+}
+{const _aw=fishAward;fishAward=function(f,rare){const r=_aw(f,rare);try{fishOrderCatch(f,!!rare);}catch(e){}return r;};}
+function patchFishGoalRows(){
+  if(typeof UI_MODES==='undefined'||!UI_MODES.fish||UI_MODES.fish.rows._goals)return;
+  const prev=UI_MODES.fish.rows;
+  UI_MODES.fish.rows=function(){
+    const r=prev.apply(this,arguments);
+    r.push({t:'head',s:'TODAY\'S ORDERS  (one per spot, paid in tackle)'});
+    FISH_SPOTS.forEach(s=>{const v=fishOrderView(s);if(!v)return;const pay=FISH_BAIT_BY[v.pay]||FISH_BOB_BY[v.pay];
+      const label=v.done?'done':(v.k==='rare'?v.cur+'/1 rare bite':v.cur+'/'+v.n+' '+v.name);
+      r.push({t:'head',s:'  '+s.name+': '+label+'  —  '+(pay?pay.n:'tackle')});});
+    r.push({t:'head',s:'BITE WINDOWS'});
+    FISH_SPOTS.forEach(s=>r.push({t:'head',s:'  '+s.name+'  '+spotWindowLine(s)}));
+    r.push({t:'head',s:'STILL MISSING  '+fishJournalGap(null)});
+    r.push({t:'head',s:'SPOT RECORDS'});
+    FISH_SPOTS.forEach(s=>{const b=FSH.board&&FSH.board[s.id];const line=b&&b.length?b.map(e=>e.w+' lb '+(FISH_BY[e.id]?FISH_BY[e.id].n:e.id)).join(', '):'no catches yet';
+      r.push({t:'head',s:'  '+s.name+': '+line});});
+    const can=(FSH.fish.boot|0)>=5&&(FSH.charm|0)<BOOT_CHARM_CAP;
+    if(typeof fishActRow==='function')r.push(fishActRow('Mend Boot Charm ('+(FSH.charm|0)+'/'+BOOT_CHARM_CAP+') — 5 Old Boots',can,()=>mendBoots()));
+    return r;
+  };
+  UI_MODES.fish.rows._goals=1;
+}
+setTimeout(patchFishGoalRows,1600);setTimeout(patchFishGoalRows,2400);
+
+/* ---------- src/player/fish-ways.js ---------- */
+/* =====================================================================
+   Four more ways to fish (v71): crab traps, a rowboat over deep water,
+   spearfishing in the shallows, and a cast net for bait.
+   New species are marked f.way so the rod pages and their skins stay put.
+   Every landed fish still goes through fishAward (XP, journal, lifetime
+   count, achievements, and the daily order at that spot).
+   ===================================================================== */
+const TRAP_CAP=3,TRAP_PRICE=45,TRAP_MS=3*60*1000,BOAT_PRICE=180,NET_CD=45*1000;
+const WAY={trapR:null,netR:null,spearR:null,boatR:null};
+const BOAT={on:false,spot:null,x:-1,deep:false,rowR:null,backR:null,dockR:null};
+const SPEAR={on:false,spot:null,t:0,left:0,fish:[],band:null};
+function addWayFish(f){f.heal=f.heal||.1;f.dif=f.dif||1;if(FISH_BY[f.id])return;FISHES.push(f);FISH_BY[f.id]=f;}
+addWayFish({id:'mudcrab',n:'Mud Crab',way:'trap',tier:1,lv:1,w:8,price:16,heal:.12,xp:14,rar:1,col:'#c4844a'});
+addWayFish({id:'bluecrab',n:'Blueclaw Crab',way:'trap',tier:2,lv:4,w:5,price:42,heal:.2,xp:26,rar:2,col:'#4a8ec4'});
+addWayFish({id:'silvereel',n:'Silver Eel',way:'trap',tier:2,lv:3,w:4,price:48,heal:.22,xp:30,rar:2,col:'#d0d8e4'});
+addWayFish({id:'relic',n:'Bottle Relic',way:'trap',tier:2,lv:1,w:2,price:70,heal:0,xp:18,rar:3,col:'#e8d090'});
+addWayFish({id:'darter',n:'Stream Darter',way:'shallow',tier:0,lv:1,w:8,price:9,heal:.08,xp:10,rar:0,col:'#9ad07a'});
+addWayFish({id:'shad',n:'Silver Shad',way:'shallow',tier:0,lv:2,w:6,price:18,heal:.12,xp:14,rar:1,col:'#e4e8f0'});
+addWayFish({id:'lamprey',n:'Brook Lamprey',way:'shallow',tier:1,lv:3,w:4,price:36,heal:.16,xp:22,rar:2,col:'#8a6a7a'});
+addWayFish({id:'lunker',n:'Lake Lunker',way:'deep',tier:3,lv:8,w:6,price:240,heal:.5,xp:90,rar:2,col:'#6a9a4a'});
+addWayFish({id:'oarfish',n:'Ribbon Oarfish',way:'deep',tier:3,lv:10,w:3,price:520,heal:.6,xp:150,rar:4,col:'#f0c8a0'});
+addWayFish({id:'gloom',n:'Gloom Sturgeon',way:'deep',tier:4,lv:12,w:4,price:380,heal:.55,xp:120,rar:3,col:'#6a7088'});
+{const _pool=fishPool;fishPool=function(spot){
+  if(BOAT.on&&BOAT.deep)return FISHES.filter(f=>f.way==='deep'&&f.lv<=fishLv());
+  return _pool(spot).filter(f=>!f.way);
+};}
+function wayAward(spot,f,rare){
+  if(!spot||!f)return false;
+  const prev=FISH.spot;FISH.spot=spot;
+  try{fishAward(f,!!rare);}finally{if(!FISH.on)FISH.spot=prev;}
+  return true;
+}
+/* ---- traps: real time, so they fill while you are away ---- */
+function trapSpotOk(s){return !!(s&&(s.id==='bog'||!s.pond));}
+function trapOwned(){return (FSH.trapBag|0)+(FSH.traps?FSH.traps.length:0);}
+function buyTrap(){
+  FSH.traps=FSH.traps||[];
+  if(trapOwned()>=TRAP_CAP){toast('Three traps is the limit',2,'#ffb0a0');return false;}
+  const scales=(typeof CR!=='undefined'&&CR.mat&&CR.mat.fscale)|0;
+  if(scales>=3){CR.mat.fscale-=3;FSH.trapBag=(FSH.trapBag|0)+1;toast('Wove a trap from 3 Silver Scales',2.2,'#c8a060');sfx('craft');return true;}
+  if(P.gold<TRAP_PRICE){toast('Need '+TRAP_PRICE+' G, or 3 Silver Scales',2,'#ffb0a0');return false;}
+  P.gold-=TRAP_PRICE;FSH.trapBag=(FSH.trapBag|0)+1;toast('Bought a crab trap',2,'#c8a060');sfx('coin');return true;
+}
+function trapTable(baitId){
+  const b=baitId&&typeof FISH_BAIT_BY!=='undefined'&&FISH_BAIT_BY[baitId];
+  return [
+    {id:'mudcrab',w:b&&b.fam==='pond'?10:4},
+    {id:'bluecrab',w:b&&b.fam==='pond'?6:2},
+    {id:'silvereel',w:b&&b.fam==='river'?8:2},
+    {id:'relic',w:1},
+    {id:'boot',w:b?1:4}
+  ];
+}
+function trapPick(baitId){
+  const pool=trapTable(baitId);let t=0;pool.forEach(p=>t+=p.w);let r=Math.random()*t;
+  for(const p of pool){r-=p.w;if(r<=0)return p.id;}return pool[0].id;
+}
+function placeTrap(spot,bait){
+  spot=spot||(typeof fishSpotNear==='function'?fishSpotNear():null);
+  FSH.traps=FSH.traps||[];
+  if(!trapSpotOk(spot)){toast('Set traps in a river or the bog, not a deep pond',2.2,'#ffb0a0');return false;}
+  if(FSH.traps.some(t=>t.id===spot.id)){toast('A trap is already at '+spot.name,1.8,'#ffb0a0');return false;}
+  if((FSH.trapBag|0)<1){toast('Buy or weave a trap first',1.8,'#ffb0a0');return false;}
+  if(FSH.traps.length>=TRAP_CAP)return false;
+  FSH.trapBag--;
+  FSH.traps.push({id:spot.id,at:nowMs(),bait:bait||FSH.bait||null});
+  toast('Trap set at '+spot.name+(FSH.bait?' with '+((FISH_BAIT_BY[FSH.bait]||{}).n||'bait'):''),2.4,'#c8a060');sfx('craft');return true;
+}
+function trapLeft(t){return TRAP_MS-(nowMs()-(+t.at||0));}
+function trapCheck(spotId){
+  FSH.traps=FSH.traps||[];
+  const t=FSH.traps.find(x=>x.id===spotId);if(!t)return {err:'none'};
+  const left=trapLeft(t);if(left>0)return {err:'wait',left};
+  const spot=FISH_SPOTS.find(s=>s.id===spotId);if(!spot)return {err:'none'};
+  const ids=[trapPick(t.bait),trapPick(t.bait)];
+  ids.forEach(id=>{const f=FISH_BY[id];if(!f)return;wayAward(spot,f,f.way==='trap'&&(f.rar|0)>=2);});
+  t.at=nowMs();
+  toast('The trap at '+spot.name+' gives up its catch',2.2,'#7dffb0');sfx('catch');
+  return {ok:true,ids};
+}
+function trapTake(spotId){
+  FSH.traps=FSH.traps||[];
+  const i=FSH.traps.findIndex(t=>t.id===spotId);if(i<0)return false;
+  FSH.traps.splice(i,1);FSH.trapBag=(FSH.trapBag|0)+1;toast('You haul the trap in',1.8,'#c8a060');return true;
+}
+/* ---- rowboat: row out, then the line uses a deeper pool ---- */
+function boatActive(){return BOAT.on;}
+function boatBuy(){
+  if(FSH.boat){toast('You already own the rowboat',1.6,'#9ad0ff');return true;}
+  if(P.gold<BOAT_PRICE){toast('A rowboat is '+BOAT_PRICE+' G',2,'#ffb0a0');return false;}
+  P.gold-=BOAT_PRICE;FSH.boat=1;toast('The rowboat is yours',2.2,'#9ad0ff');sfx('coin');return true;
+}
+function boatBoard(spot){
+  spot=spot||(typeof fishSpotNear==='function'?fishSpotNear():null);
+  if(!spot||(spot.id!=='wood'&&spot.id!=='oasis')){toast('The dock is at the Whisperwood pond or the oasis',2.4,'#ffb0a0');return false;}
+  if(fishLv()<spot.lv){toast('Fishing Lv '+spot.lv+' needed',2,'#ffb0a0');return false;}
+  if(!FSH.boat){return boatBuy()&&boatBoard(spot);}
+  if(SPEAR.on)SPEAR.on=false;
+  if(FISH.on)endFishing();
+  BOAT.on=true;BOAT.spot=spot;BOAT.x=-1;BOAT.deep=false;
+  toast('Row out. The deep water holds bigger fish.',2.4,'#9ad0ff');return true;
+}
+function boatLeave(){if(FISH.on)endFishing();BOAT.on=false;BOAT.deep=false;BOAT.spot=null;}
+function boatTick(dt){
+  if(!BOAT.on||!BOAT.spot)return;
+  if(held('ArrowLeft','KeyA'))BOAT.x=Math.max(-1,BOAT.x-dt*.75);
+  if(held('ArrowRight','KeyD'))BOAT.x=Math.min(1,BOAT.x+dt*.75);
+  const deep=BOAT.x>=.45;
+  if(deep!==BOAT.deep){BOAT.deep=deep;toast(deep?'Deep water':'Back toward the dock',1.3,'#9ad0ff');}
+  if(BOAT.deep){if(!FISH.on)startFishing(BOAT.spot);if(FISH.on)updateFishing(dt);}
+  else if(FISH.on)endFishing();
+  if(hit('Escape'))boatLeave();
+}
+/* ---- spearfishing: shadows cross a glowing band. Tap while one is inside. ---- */
+function spearActive(){return SPEAR.on;}
+function shallowSpot(s){return !!(s&&!s.pond);}
+function spearStart(spot){
+  spot=spot||(typeof fishSpotNear==='function'?fishSpotNear():null);
+  if(!shallowSpot(spot)){toast('Spear the shallows of a stream',2,'#ffb0a0');return false;}
+  if(fishLv()<spot.lv){toast('Fishing Lv '+spot.lv+' needed',2,'#ffb0a0');return false;}
+  if(BOAT.on)boatLeave();
+  if(FISH.on)endFishing();
+  SPEAR.on=true;SPEAR.spot=spot;SPEAR.t=0;SPEAR.left=24;
+  SPEAR.fish=[
+    {x:-20,spd:52,id:'darter'},
+    {x:70,spd:74,id:'shad'},
+    {x:150,spd:40,id:'lamprey'}
+  ];
+  toast('Tap when a shadow crosses the glow',2.2,'#9ad07a');return true;
+}
+function spearTick(dt){
+  if(!SPEAR.on)return;
+  SPEAR.t+=dt;SPEAR.left-=dt;
+  for(const f of SPEAR.fish){if(f.got)continue;f.x+=f.spd*dt;if(f.x>230)f.x=-24;}
+  if(SPEAR.tap||hit('Space','Enter','KeyJ')){SPEAR.tap=false;spearStrike();}
+  if(SPEAR.left<=0||hit('Escape')){SPEAR.on=false;toast('You lower the spear',1.6,'#cfe3ff');}
+}
+function spearInBand(f){return f&&!f.got&&f.x>=78&&f.x<=118;}
+function spearStrike(){
+  if(!SPEAR.on)return false;
+  const f=SPEAR.fish.find(spearInBand);
+  if(!f){sfx('clang');return false;}
+  f.got=true;
+  const fish=FISH_BY[f.id];
+  wayAward(SPEAR.spot,fish,fishIsRareBite(fish));
+  if(SPEAR.fish.every(q=>q.got)){SPEAR.on=false;toast('The shallows go quiet',1.8,'#9ad07a');}
+  return true;
+}
+/* ---- cast net: bait and small fish, then a short cooldown ---- */
+function castNet(spot){
+  spot=spot||(typeof fishSpotNear==='function'?fishSpotNear():null);
+  if(!spot){toast('Stand by the water to throw the net',1.8,'#ffb0a0');return false;}
+  if(fishLv()<spot.lv){toast('Fishing Lv '+spot.lv+' needed',2,'#ffb0a0');return false;}
+  const now=nowMs();
+  if(FSH.netAt&&now-FSH.netAt<NET_CD){toast('The net needs '+Math.ceil((NET_CD-(now-FSH.netAt))/1000)+'s',1.6,'#ffb0a0');return false;}
+  FSH.netAt=now;FSH.kit=FSH.kit||{};
+  const small=FISHES.filter(f=>!f.way&&!f.junk&&!f.todOnly&&f.lv<=Math.max(fishLv(),1)&&f.w>=6&&(f.rar|0)<=1);
+  let worms=0,fish=0;
+  for(let i=0;i<3;i++){
+    if(Math.random()<.55){FSH.kit.worm=(FSH.kit.worm|0)+1;if(!FSH.bait)FSH.bait='worm';worms++;}
+    else{const f=small.length?small[Math.floor(Math.random()*small.length)]:FISH_BY.minnow;if(f){wayAward(spot,f,false);fish++;}}
+  }
+  toast('Net: '+(worms?worms+' worm'+(worms>1?'s':''):'')+(worms&&fish?', ':'')+(fish?fish+' small fish':''),2.4,'#7dffb0');sfx('whoosh');
+  return {worms,fish};
+}
+function spearTap(p){return wayTap(p);}
+function wayTap(p){
+  if(state!=='play'||B||DLG)return false;
+  if(SPEAR.on){SPEAR.tap=true;spearStrike();return true;}
+  if(BOAT.on){
+    if(BOAT.rowR&&inRect(p,BOAT.rowR)){BOAT.x=Math.min(1,BOAT.x+.28);return true;}
+    if(BOAT.backR&&inRect(p,BOAT.backR)){BOAT.x=Math.max(-1,BOAT.x-.28);return true;}
+    if(BOAT.dockR&&inRect(p,BOAT.dockR)){boatLeave();return true;}
+    return false;
+  }
+  if(WAY.trapR&&inRect(p,WAY.trapR)){const s=fishSpotNear();const here=s&&(FSH.traps||[]).find(t=>t.id===s.id);if(here&&trapLeft(here)<=0)trapCheck(s.id);else if(here)toast('Trap: '+Math.ceil(trapLeft(here)/1000)+'s',1.4,'#e8d4a8');else if((FSH.trapBag|0)>0)placeTrap(s);else buyTrap();return true;}
+  if(WAY.netR&&inRect(p,WAY.netR)){castNet();return true;}
+  if(WAY.spearR&&inRect(p,WAY.spearR)){spearStart();return true;}
+  if(WAY.boatR&&inRect(p,WAY.boatR)){FSH.boat?boatBoard():boatBuy();return true;}
+  return false;
+}
+{const _ft=fishTap;fishTap=function(p){if(wayTap(p))return true;return _ft(p);};}
+function drawWayFish(){
+  if(typeof drawWorld!=='function'||drawWorld._ways)return;
+  const prev=drawWorld;drawWorld=function(){prev();try{drawFishWays();}catch(e){}};drawWorld._ways=1;
+}
+function drawFishWays(){
+  WAY.trapR=WAY.netR=WAY.spearR=WAY.boatR=null;
+  const traps=FSH.traps||[];
+  for(const t of traps){
+    const s=FISH_SPOTS.find(x=>x.id===t.id);if(!s)continue;
+    const x=s.bank[0]*TS+6-cam.x,y=s.bank[1]*TS-6-cam.y;
+    if(x<-30||x>VW+30||y<-30||y>VH+30)continue;
+    ctx.fillStyle='#6a4428';ctx.fillRect(x|0,y|0,14,8);
+    ctx.fillStyle='#c8a060';ctx.fillRect((x+3)|0,(y-5)|0,2,5);
+    ctx.fillStyle='#f0e6c8';ctx.fillRect((x+2)|0,(y-8)|0,4,3);
+    const ready=trapLeft(t)<=0;
+    txt(ready?'TRAP READY':'trap '+Math.ceil(trapLeft(t)/1000)+'s',x+7,y-12,{size:7,align:'center',col:ready?'#7dffa0':'#e8d4a8',lw:3});
+  }
+  if(BOAT.on&&BOAT.spot){
+    const c=spotCenter(BOAT.spot),x=c.x-cam.x+BOAT.x*78,y=c.y-cam.y+6;
+    ctx.fillStyle='#6a3e22';ctx.fillRect((x-11)|0,(y-2)|0,22,7);
+    ctx.fillStyle='#c08a52';ctx.fillRect((x-8)|0,(y-5)|0,16,3);
+    ctx.fillStyle='#e8d8b0';ctx.fillRect((x-1)|0,(y-10)|0,2,6);
+    if(BOAT.deep)txt('DEEP',x,y-16,{size:8,align:'center',col:'#7df9ff',lw:3});
+    const by=VH-36;
+    BOAT.backR={x:SL+8,y:by,w:64,h:26};BOAT.rowR={x:SL+78,y:by,w:64,h:26};BOAT.dockR={x:SL+148,y:by,w:64,h:26};
+    panel(BOAT.backR.x,by,64,26);txt('BACK',BOAT.backR.x+32,by+17,{size:9,align:'center',lw:2});
+    panel(BOAT.rowR.x,by,64,26,{border:'#ffd23f'});txt('ROW',BOAT.rowR.x+32,by+17,{size:9,align:'center',col:'#ffd23f',lw:2});
+    panel(BOAT.dockR.x,by,64,26);txt('DOCK',BOAT.dockR.x+32,by+17,{size:9,align:'center',lw:2});
+  }
+  if(SPEAR.on){
+    const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=VH-78;
+    panel(x,y,w,52,{border:'#9ad07a'});
+    txt(SPEAR.spot.name+'  —  spear the glow',x+w/2,y+12,{size:9,align:'center',col:'#d7f6c8',lw:2});
+    ctx.fillStyle='rgba(125,249,255,.28)';ctx.fillRect(x+w/2-20,y+18,40,22);
+    SPEAR.band={x:x+w/2-20,y:y+18,w:40,h:22};
+    for(const f of SPEAR.fish){if(f.got)continue;const sx=x+16+(f.x/200)*(w-32),col=(FISH_BY[f.id]&&FISH_BY[f.id].col)||'#9ad07a';
+      ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(sx,y+29,9,3.5,0,0,6.283);ctx.fill();}
+    txt('TAP',x+w/2,y+46,{size:8,align:'center',col:'#fff',lw:2});
+  }
+  const near=state==='play'&&!B&&!DLG&&!FISH.on&&!SPEAR.on&&!BOAT.on&&typeof fishSpotNear==='function'&&fishSpotNear();
+  if(near){
+    const y=VH-34,x=SL+8;
+    const btns=[];
+    if(trapSpotOk(near))btns.push(['trapR','TRAP']);
+    btns.push(['netR','NET']);
+    if(shallowSpot(near))btns.push(['spearR','SPEAR']);
+    if(near.id==='wood'||near.id==='oasis')btns.push(['boatR',FSH.boat?'BOAT':'BOAT 180G']);
+    btns.forEach((b,i)=>{const r={x:x+i*78,y,w:74,h:24};WAY[b[0]]=r;panel(r.x,r.y,r.w,r.h);txt(b[1],r.x+r.w/2,r.y+16,{size:8,align:'center',lw:2});});
+  }
+}
+setTimeout(drawWayFish,0);setTimeout(drawWayFish,400);
+/* save: extra fields only. A save from before traps simply has none. */
+{const _pf=packFish;packFish=function(){const o=_pf();o.traps=(FSH.traps||[]).map(t=>({id:t.id,at:+t.at||0,bait:t.bait||null}));o.trapBag=FSH.trapBag|0;o.boat=FSH.boat?1:0;o.netAt=+FSH.netAt||0;o.marks=FSH.marks||[];o.rodTint=FSH.rodTint||null;return o;};
+ const _uf=unpackFish;unpackFish=function(s){_uf(s);FSH.traps=[];FSH.trapBag=0;FSH.boat=0;FSH.netAt=0;FSH.marks=[];FSH.rodTint=null;if(!s||typeof s!=='object')return;
+  if(Array.isArray(s.traps))FSH.traps=s.traps.filter(t=>t&&FISH_SPOTS.some(sp=>sp.id===t.id)).slice(0,TRAP_CAP).map(t=>({id:t.id,at:+t.at||0,bait:t.bait||null}));
+  FSH.trapBag=clamp(s.trapBag|0,0,TRAP_CAP);FSH.boat=s.boat?1:0;FSH.netAt=+s.netAt||0;
+  FSH.marks=Array.isArray(s.marks)?s.marks.map(n=>n|0).filter(n=>n>=80&&n%10===0).slice(-40):[];FSH.rodTint=(typeof s.rodTint==='string')?s.rodTint:null;};
+ const _rf=resetFish;resetFish=function(){_rf();FSH.traps=[];FSH.trapBag=0;FSH.boat=0;FSH.netAt=0;FSH.marks=[];FSH.rodTint=null;BOAT.on=false;SPEAR.on=false;};}
+function patchWayJournal(){
+  if(typeof UI_MODES==='undefined'||!UI_MODES.fish||UI_MODES.fish.rows._ways)return;
+  const prev=UI_MODES.fish.rows;
+  UI_MODES.fish.rows=function(){
+    const r=prev.apply(this,arguments);
+    r.push({t:'head',s:'OTHER WAYS  —  traps, spear, net, deep water'});
+    (FSH.traps||[]).forEach(t=>{const s=FISH_SPOTS.find(x=>x.id===t.id);const left=trapLeft(t);
+      r.push({t:'head',s:'  Trap @ '+(s?s.name:t.id)+'  '+(left<=0?'READY':Math.ceil(left/1000)+'s')+(t.bait?'  bait '+t.bait:'')});});
+    r.push({t:'head',s:'  Traps in the bag '+(FSH.trapBag|0)+'/'+TRAP_CAP+'   Rowboat '+(FSH.boat?'owned':'180 G')});
+    ['trap','shallow','deep'].forEach(way=>{
+      const L=FISHES.filter(f=>f.way===way);if(!L.length)return;
+      r.push({t:'head',s:'  '+(way==='trap'?'TRAP CATCHES':way==='shallow'?'SHALLOWS':'DEEP WATER')});
+      L.forEach(f=>{const j=X7.jr&&X7.jr[f.id];r.push({t:'head',s:'    '+(j?f.n+'  '+j.n+' caught, '+j.big+' lb':'????  '+f.n)});});
+    });
+    const deep=Object.keys(FSH.board||{}).filter(k=>/:deep$/.test(k));
+    deep.forEach(k=>{const top=FSH.board[k][0];if(top)r.push({t:'head',s:'  Deep record @ '+k.replace(':deep','')+': '+top.w+' lb '+(FISH_BY[top.id]?FISH_BY[top.id].n:'')});});
+    return r;
+  };
+  UI_MODES.fish.rows._ways=1;
+}
+setTimeout(patchWayJournal,1800);setTimeout(patchWayJournal,2600);
 
 /* ---------- src/world/t162.js ---------- */
 /* =====================================================================
@@ -15059,7 +15580,7 @@ function hardReward(e){
 }
 
 /* ---------- Oakvale Tap: dice and arm wrestling, beside Sol. Hold'em is untouched. ---------- */
-const TAPGAME={dice:5,high:25,wrestle:8};
+const TAPGAME={dice:5,high:25,top:50,wrestle:8};
 function dicePlay(a,b,stake){
   const st=stake||TAPGAME.dice;
   if(P.gold<st)return {err:'gold',stake:st};
@@ -15076,9 +15597,9 @@ function armWrestle(you,him){
 }
 function openTapGames(){openUIMode('tapgame','play');}
 function tapAct(kind){
-  const r=kind==='high'?dicePlay(null,null,TAPGAME.high):kind==='dice'?dicePlay():armWrestle();
+  const r=kind==='top'?dicePlay(null,null,TAPGAME.top):kind==='high'?dicePlay(null,null,TAPGAME.high):kind==='dice'?dicePlay():armWrestle();
   if(r.err){uiMsg('Need '+r.stake+' G');return;}
-  const dice=kind==='dice'||kind==='high';
+  const dice=kind!=='wrestle';
   uiMsg(dice?(r.net>0?'Dice win +'+r.net:(r.net<0?'Dice loss '+r.net:'Dice push')):(r.win?'You pin his arm +'+r.net:'He pins you '+r.net),r.net<0);sfx(r.net>0?'coin':'clang');
 }
 UI_MODES.tapgame={title:()=>'OAKVALE TAP',sub:()=>['Small stakes. Hold\'em is still at Sol\'s table.','#f0e2c0'],rows(){
@@ -15091,6 +15612,9 @@ UI_MODES.tapgame={title:()=>'OAKVALE TAP',sub:()=>['Small stakes. Hold\'em is st
     {sel:true,h:48,act:high,tap:high,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
       txt('High stakes  -  '+TAPGAME.high+' G',x0+12,y+20,{size:12,col:'#ffd23f',lw:2});txt('Same dice. The winner takes '+TAPGAME.high+' G.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
       uiButton(x0+W-78,y+10,66,28,'ROLL',P.gold>=TAPGAME.high,()=>{UI.sel=si;high();},{tag:'dice25',clip:true,size:11,sel:si});}},
+    ...(typeof storyCleared==='function'&&storyCleared()?[{sel:true,h:48,act:()=>tapAct('top'),tap(){tapAct('top');},draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
+      txt('Story stakes  -  '+TAPGAME.top+' G',x0+12,y+20,{size:12,col:'#ff9a6a',lw:2});txt('Same dice, after the story. Winner takes '+TAPGAME.top+' G.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
+      uiButton(x0+W-78,y+10,66,28,'ROLL',P.gold>=TAPGAME.top,()=>{UI.sel=si;tapAct('top');},{tag:'dice50',clip:true,size:11,sel:si});}}]:[]),
     {sel:true,h:48,act:wrest,tap:wrest,draw(x0,y,W,h,isSel,si){ctx.fillStyle=isSel?'#3a2618':'#22140b';ctx.fillRect(x0,y,W,h);
       txt('Arm wrestling  -  stake '+TAPGAME.wrestle+' G',x0+12,y+20,{size:12,col:'#ffb07a',lw:2});txt('A short grapple. Win the stake back twice.',x0+12,y+36,{size:8,col:'#d8c8a8',lw:2});
       uiButton(x0+W-86,y+10,74,28,'WRESTLE',P.gold>=TAPGAME.wrestle,()=>{UI.sel=si;wrest();},{tag:'wrestle',clip:true,size:9,sel:si});}}
