@@ -2677,7 +2677,9 @@ let state='title';      // title | play | paused
 let gtime=0;
 const cam={x:0,y:0};
 const toasts=[];
-function toast(s,dur=2.6,col='#fff'){if(toasts.some(t=>t.s===s))return;toasts.push({s,t:0,dur,col});while(toasts.length>6)toasts.splice(1,1);}   // ONE queue: only the first shows; the rest wait their turn
+function storyTalking(){try{return typeof STORY!=='undefined'&&typeof CHAPTERS!=='undefined'&&!STORY.ending&&STORY.ch<CHAPTERS.length;}catch(e){return false;}}
+function toastIsMeta(s){return /new daily challenges|daily chest|chest ready/i.test(s||'');}
+function toast(s,dur=2.6,col='#fff'){if(storyTalking()&&toastIsMeta(s))return;if(toasts.some(t=>t.s===s))return;toasts.push({s,t:0,dur,col});while(toasts.length>6)toasts.splice(1,1);}   // one line at a time; the rest wait. chest / challenge notes stay quiet while a story step is up
 let areaT=0,areaCur='',bossDown=false,lichDown=false,kills=0;
 let B=null;             // active real-time combat (null = exploring)
 const joy={on:false,x:0,y:0,id:null,bx:0,by:0,kx:0,ky:0};
@@ -3864,7 +3866,7 @@ function fishSpotNear(){let b=null,bd=FISH_REACH;for(const s of FISH_SPOTS){if(z
 /* ---- the cast ---- */
 const FISH_CFG={catch:[8,15],rare:[35,60],afterRare:[4,8],cast:.7};
 const FISH={fid:null,yank:0,on:false,spot:null,ph:'',t:0,next:0,rare:0,win:4,pick:null,stopR:null,tap:false,fx:[],flash:null,log:[],session:0};
-function endFishing(msg,col){FISH.on=false;FISH.ph='';FISH.spot=null;FISH.tap=false;FISH.stopR=null;FISH.pick=null;FISH.fx.length=0;FISH.flash=null;FISH.fid=null;FISH.sh=null;FISH.yank=0;if(msg)toast(msg,2.2,col||'#cfe3ff');}
+function endFishing(msg,col){FISH.on=false;FISH.ph='';FISH.spot=null;FISH.tap=false;FISH.stopR=null;FISH.jourR=null;FISH.pick=null;FISH.fx.length=0;FISH.flash=null;FISH.fid=null;FISH.sh=null;FISH.yank=0;if(msg)toast(msg,2.2,col||'#cfe3ff');}
 function startFishing(spot){
   if(!spot||B||DLG)return false;
   if(FSH.rod<0){toast("You need a fishing rod - Brum sells one at the forge!",3.2,'#ffd98a');sfx('clang');return false;}
@@ -3994,8 +3996,16 @@ function updateFishing(dt){
   }
 }
 /* tap while fishing (touch/mouse): REEL IN ends it, anything else answers a Rare bite */
+function fishOneLine(spot){
+  try{
+    if(typeof fishOrderView==='function'){const o=fishOrderView(spot);if(o&&!o.done)return o.k==='rare'?'Order: a rare bite':('Order: '+o.cur+'/'+o.n+' '+o.name);}
+    if(typeof fishJournalGap==='function'){const g=fishJournalGap(spot);if(g&&g!=='journal complete')return String(g).split('·')[0].trim();}
+  }catch(e){}
+  return 'A fish bites every few seconds';
+}
 function fishTap(p){
   if(!FISH.on||state!=='play'||B||DLG)return false;
+  if(FISH.jourR&&inRect(p,FISH.jourR)){openFishing(state);return true;}
   if(FISH.stopR&&inRect(p,FISH.stopR)){endFishing('You reel in.');return true;}
   FISH.tap=true;return true;
 }
@@ -4055,27 +4065,20 @@ function drawFishingHud(){
   const F=FISH;if(!F.on||state!=='play'||B||DLG)return;
   const w=Math.min(300,VW-SL-SR-24),x=Math.round(SL+(VW-SL-SR-w)/2),y=VW>=700?ST+6:Math.round(Math.max(ST+120,VH*.17)),spot=F.spot;   // wide (landscape) screens: up in the top middle so the water + angler stay visible
   const rod=RODS[FSH.rod]||RODS[0],act=TOUCH?'TAP':'SPACE';
-  const h=F.ph==='rare'?78:84;
+  const h=F.ph==='rare'?64:52;
   panel(x,y,w,h,{border:F.hot>0||F.ph==='rare'?'#ffd23f':'#7dd0ff'});
-  txt(spot.name+'   Fishing Lv '+fishNum(fishLv()),x+w/2,y+16,{size:10,align:'center',col:'#9ad0ff',lw:2});
-  if(F.ph==='cast')txt('Casting...',x+w/2,y+44,{size:14,align:'center',col:'#fff'});
+  txt(spot.name,x+w/2,y+14,{size:11,align:'center',col:'#9ad0ff',lw:2});
+  if(F.ph==='cast')txt('Casting...',x+w/2,y+30,{size:12,align:'center',col:'#fff'});
   else if(F.ph==='rare'){
     const fl=Math.floor(gtime*6)%2,fr=1-F.t/F.win;
-    txt('RARE BITE!  '+act+' NOW!',x+w/2,y+42,{size:15,align:'center',col:fl?'#ffd23f':'#fff',lw:4});
-    bar(x+14,y+54,w-28,6,fr,'#ffb43a');txt(Math.ceil(F.win-F.t)+'s',x+w/2,y+72,{size:9,align:'center',col:'#ffe9a0',lw:2});
-  } else {
-    txt(F.hot>0?('HOT BITE  '+Math.ceil(F.hot)+'s'):('Relaxing by the water'+'.'.repeat(1+Math.floor(gtime*1.5)%3)),x+w/2,y+34,{size:11,align:'center',col:F.hot>0?'#ffd23f':'#cfe3ff',lw:3});
-    if(F.log.length){F.log.forEach((e,i)=>txt((e.rare?'* ':'')+e.n,x+10,y+49+i*11,{size:8,col:e.col,lw:2,alpha:1-i*.25}));}
-    else txt('A fish bites every few seconds',x+10,y+49,{size:8,col:'#8a96b8',bold:false,lw:2});
-    txt('caught '+F.session,x+w-8,y+49,{size:8,align:'right',col:'#9dffb0',lw:2});
-  }
-  // REEL IN button
-  F.stopR={x:x+w-96,y:y+h+6,w:96,h:26};panel(F.stopR.x,F.stopR.y,96,26,{fill:'#3a1c1c'});txt(TOUCH?'REEL IN':'ESC: reel in',F.stopR.x+48,F.stopR.y+18,{size:10,align:'center',lw:2});
-  if(typeof fishGoalLines==='function'){
-    const lines=fishGoalLines(spot).slice(0,5),gh=8+lines.length*11,gy=F.stopR.y+30;
-    panel(x,gy,w,gh,{border:F.hot>0?'#ffd23f':'#3a6a44'});
-    lines.forEach((s,i)=>txt(s,x+8,gy+12+i*11,{size:7,col:i===3&&F.hot>0?'#ffd23f':'#e7f6ea',lw:2}));
-  }
+    txt('RARE BITE!  '+act+' NOW!',x+w/2,y+30,{size:12,align:'center',col:fl?'#ffd23f':'#fff',lw:3});
+    bar(x+14,y+38,w-28,5,fr,'#ffb43a');
+  } else txt(F.hot>0?('HOT BITE  '+Math.ceil(F.hot)+'s'):'Waiting for a bite',x+w/2,y+30,{size:11,align:'center',col:F.hot>0?'#ffd23f':'#cfe3ff',lw:3});
+  let goal=fishOneLine(spot);ctx.font='bold '+scaleText(8)+'px "Courier New",monospace';while(goal.length>6&&ctx.measureText(goal).width>w-16)goal=goal.slice(0,-2);
+  txt(goal,x+w/2,y+h-8,{size:8,align:'center',col:'#e7f6ea',lw:2});
+  const by=y+h+6;
+  F.jourR={x:x,y:by,w:96,h:32};panel(F.jourR.x,F.jourR.y,96,32,{fill:'#1c2a18'});txt('JOURNAL',F.jourR.x+48,F.jourR.y+21,{size:10,align:'center',lw:2});
+  F.stopR={x:x+w-96,y:by,w:96,h:32};panel(F.stopR.x,F.stopR.y,96,32,{fill:'#3a1c1c'});txt(TOUCH?'REEL IN':'ESC: reel in',F.stopR.x+48,F.stopR.y+21,{size:10,align:'center',lw:2});
 }
 
 /* ---------- src/player/church.js ---------- */
@@ -4772,7 +4775,9 @@ function updateDaily(dt){
   if(metaOff())return;
   dailyChk-=dt;if(dailyChk>0)return;dailyChk=4;
   if(introQuiet())return;   // daily challenges are introduced after the first quest
-  if(dailyEnsure()&&state==='play')toast('New daily challenges are up!'+(chestReady()?'  Chest ready - open DAILY.':''),3.4,'#ffe14d');
+  const fresh=dailyEnsure();
+  if(storyTalking())return;   // the story tracker is the one voice until the ending; the daily chip stays tappable
+  if(fresh&&state==='play')toast('New daily challenges are up!'+(chestReady()?'  Chest ready - open DAILY.':''),3.4,'#ffe14d');
   else if(chestReady()&&!DAILY.noted&&state==='play'){DAILY.noted=true;toast('Your daily chest is ready!  (Pause > DAILY)',3.4,'#ffd23f');}
   if(!chestReady())DAILY.noted=false;
 }
@@ -5031,8 +5036,8 @@ function updateExplore(dt){
   }catch(err){try{watchdog('enemyAI',err);}catch(e){}}
   camFollow(dt);
   const an=areaName(Math.floor(P.x/TS),Math.floor(P.y/TS));
-  if(an!==areaCur){const first=areaCur==='';areaCur=an;areaT=3;if(!first)saveGame('area');questEvent('area',an);}
-  areaT=Math.max(0,areaT-dt);
+  if(an!==areaCur){const first=areaCur==='';areaCur=an;areaT=1.5;if(!first)saveGame('area');questEvent('area',an);}
+  if(!toasts[0])areaT=Math.max(0,areaT-dt);   // the place name waits its turn, then stays brief
 }
 
 /* ---------- src/player/walkto.js ---------- */
@@ -8690,7 +8695,7 @@ function drawOverHud(){
   if(!cr){drawDayIcon(mx+10,my+10);for(const m of TMAPS)if(SEC.maps[m.id]&&!SEC.dug[m.id]){ctx.fillStyle='#ffd23f';ctx.fillRect(mx+m.x*k2-1,my+(m.y-OWY0)*k2-3,2,6);ctx.fillRect(mx+m.x*k2-3,my+(m.y-OWY0)*k2-1,6,2);}}
   for(const w of WAYSTONES)if(SEC.ways[w.id]){const q=w.zone?zoneArrive(w.zone):{x:(w.tx+.5)*TS,y:(w.ty+.5)*TS};if(zoneOfPx(q.y)===zn){ctx.fillStyle='#7df9ff';ctx.fillRect(mx+q.x/TS*k2-2,my+(q.y-oy)/TS*k2-2,4,4);}}
   drawMapQuest(mx,my,oy,k2,[mx,my,128,96]);
-  if(areaT>0&&INTRO.ph!=='story'){const a=Math.min(1,areaT*1.5,(3-areaT)*3),y=Math.round(VH*.3);ctx.font='bold '+scaleText(22)+'px "Courier New",monospace';const bw=Math.min(VW,ctx.measureText(areaCur).width+60);ctx.fillStyle=`rgba(0,0,0,${.5*a})`;ctx.fillRect(Math.round((VW-bw)/2),y,Math.round(bw),34);txt(areaCur,VW/2,y+25,{size:22,align:'center',col:'#ffe9a0',alpha:a});}
+  if(areaT>0&&INTRO.ph!=='story'&&!toasts[0]){const a=Math.min(1,areaT*4,(1.5-areaT)*5),y=Math.round(VH*.22);ctx.font='bold '+scaleText(13)+'px "Courier New",monospace';const bw=Math.min(VW-80,ctx.measureText(areaCur).width+28);ctx.fillStyle=`rgba(20,12,6,${.45*a})`;ctx.fillRect(Math.round((VW-bw)/2),y,Math.round(bw),20);txt(areaCur,VW/2,y+14,{size:13,align:'center',col:'#ffe9a0',alpha:a,lw:3});}
   if(!TOUCH)txt('WASD/Arrows move   J shoot   E / click talk   Stay out of monsters\' sight cones   P pause   M mute',VW/2,VH-6,{size:10,align:'center',col:'#fff',alpha:.55,bold:false,lw:2});
   drawTalkHint();
 }
@@ -8709,8 +8714,14 @@ function drawRushBar(){
 }
 function drawToasts(){
   const t=toasts[0];if(!t||introHold())return;   // one transient message at a time, inside the free band (never over the tracker / minimap)
-  const bd=hudBand(),w=bd.x1-bd.x0,cx=Math.round((bd.x0+bd.x1)/2),fs=scaleText(12),font='bold '+fs+'px "Courier New",monospace';
+  let bd=hudBand();
+  const sb=typeof SB==='number'?SB:0;
+  const fight=!!B;
+  if(fight){const half=Math.min(160,Math.floor((VW-400)/2)),cx=Math.round(VW/2)-30;bd={x0:cx-half,x1:cx+half,y:VH-sb-40};}   // a fight or a banner owns the top: keep the line off the ambush / boss title and the card fan
+  else if(typeof FISH!=='undefined'&&FISH.on)bd={x0:Math.max(bd.x0,150),x1:Math.min(bd.x1,VW-150),y:VH-sb-36};   // the fishing card owns the top band
+  const w=bd.x1-bd.x0,cx=Math.round((bd.x0+bd.x1)/2),fs=scaleText(12),font='bold '+fs+'px "Courier New",monospace';
   const lines=wrapText(t.s,w-16,font).slice(0,3),lh=Math.round(fs*1.3),h=lines.length*lh+10;let tw=0;ctx.font=font;for(const l of lines)tw=Math.max(tw,ctx.measureText(l).width);
+  if(fight)bd.y=Math.max(Math.round(VH*.33)+40,VH-sb-h-8);
   const a=clamp(Math.min(t.t*4,(t.dur-t.t)*3),0,1),bw=Math.min(w,Math.ceil(tw)+18);
   ctx.globalAlpha=.94*a;ctx.fillStyle='#f6f0e2';ctx.fillRect(cx-bw/2,bd.y,bw,h);ctx.strokeStyle='#343b32';ctx.strokeRect(cx-bw/2+.5,bd.y+.5,bw-1,h-1);ctx.globalAlpha=1;
   lines.forEach((l,i)=>txt(l,cx,bd.y+6+fs+i*lh-2,{size:12,align:'center',col:t.col,alpha:a,lw:2}));
@@ -8743,8 +8754,8 @@ function drawCardFace(id,cw,ch,sel,idx){
   ctx.fillStyle=c.col;ctx.fillRect(x+4,y+4,cw-8,ih);ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x+4,y+4,cw-8,7);
   draw(SP.ic[id],x+cw/2-(TOUCH?12:16),y+(TOUCH?5:6),TOUCH?1.5:2);
   txt(cardLabel(c),x+cw/2,y+ch-(TOUCH?19:24),{size:TOUCH?7:9,align:'center',col:'#3a2a18',lw:2,out:'#f6f0e2'});
-  if(typeof masteryLabel==='function'){const ml=masteryLabel(c.id);if(ml)txt(ml,x+cw-4,y+12,{size:7,align:'right',col:ml==='Mastered'?'#ffd23f':'#cfe6ff',lw:2});}
   txt(c.pow?String(Math.round(c.pow*cardMult()*schoolMult(c.id)*upgMult(c.id))):'--',x+cw/2,y+ch-(TOUCH?6:9),{size:TOUCH?10:12,align:'center',col:'#ffe14d',lw:2});
+  if(typeof X7!=='undefined'&&typeof MASTER_USES!=='undefined'){const n=Math.min(MASTER_USES,X7.cu[id]|0),done=typeof isMastered==='function'&&isMastered(id);txt(done?'*':n+'/'+MASTER_USES,x+5,y+(TOUCH?ih:ih)+8,{size:6,align:'left',col:done?'#8a5a10':'#6a5438',lw:2});}
   if(!TOUCH&&idx!=null)txt(String(idx+1),x+7,y+14,{size:9,col:'#000',out:false});
   {const rc=RAR[c.rar];ctx.fillStyle=rc.col;ctx.fillRect(x+cw-9,y+3,6,6);if(c.rar!=='common'){ctx.strokeStyle=rc.col;ctx.globalAlpha=.55+.3*Math.sin(gtime*5);ctx.lineWidth=c.rar==='legendary'?2:1;ctx.strokeRect(x+1.5,y+1.5,cw-3,ch-3);ctx.globalAlpha=1;}}
   if(sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x-1,y-1,cw+2,ch+2);}
@@ -8960,6 +8971,12 @@ function updateTracker(dt){
   if(TRK.sig!==null&&sig!==TRK.sig){TRK.flash=1.8;TRK.fk=cur.ready?'ready':'prog';TRK.open=true;}   // progress pops the tracker open
   TRK.sig=sig;TRK.prev=cur;
 }
+function trkLiveEvent(){
+  if(typeof festKind==='function'){const k=festKind();if(k&&!(typeof X7!=='undefined'&&X7.fest&&X7.fest.prize)){const got=(X7&&X7.fest)?(X7.fest.got|0):0;return (k==='harvest'?'Harvest Festival':'Lantern Night')+'  '+got+'/6';}}
+  if(typeof meteorNight==='function'&&meteorNight()){const left=(typeof X7!=='undefined'&&X7.meteors)?X7.meteors.filter(m=>!m.got).length:0;return left?'Meteor Night  '+left+' left':'Meteor Night';}
+  if(typeof questStatus==='function'){const g=questStatus('ghost');if(g==='avail')return 'Lantern Ghost — Old Tom';if(g==='active')return 'Lantern Ghost  '+(QS.n.ghost|0)+'/4';}
+  return null;
+}
 function trkVisible(){return state==='play'&&!WARP&&!(DLG&&DLG.cut)&&!RUSH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}   // stays up through fights, talks and fishing (a compact line while fighting)
 function drawTracker(){
   TRK.rect=null;
@@ -8968,8 +8985,9 @@ function drawTracker(){
   const inB=!!B,open=TRK.open&&!inB;
   const px=SL+8,py=inB?COMBAT_HUD_BOT+4:ST+8+66,mapX=VW-SR-8-128-6;
   const w=Math.max(120,Math.min(214,mapX-px-4)),pad=7;
+  const evRaw=trkLiveEvent(),ev=evRaw&&!(cur&&cur.name&&evRaw.indexOf(cur.name)===0)?evRaw:null;
   if(TRK.done){const h=22;panel(px,py,w,h,{border:'#7dffa0',fill:'#10301c'});txt('QUEST COMPLETE!',px+pad,py+15,{size:10,col:'#7dffa0',lw:2});TRK.rect={x:px,y:py,w,h};return;}
-  if(!cur)return;
+  if(!cur){if(ev){const h=20;panel(px,py,w,h,{border:'#c89a4a',fill:'#3a2410'});let s=ev;ctx.font='bold '+scaleText(9)+'px "Courier New",monospace';while(s.length>4&&ctx.measureText(s).width>w-12)s=s.slice(0,-2);txt(s,px+6,py+14,{size:9,col:'#ffe14d',lw:2});TRK.rect={x:px,y:py,w,h};}return;}
   const flashing=TRK.flash>0;if(flashing)TRK.flash=Math.max(0,TRK.flash-1/60);
   const blink=flashing&&Math.floor(gtime*9)%2===0,col=flashing?(TRK.fk==='ready'?QMARK_COL.ready:'#ffe14d'):cur.ready?QMARK_COL.ready:cur.kind==='story'?QMARK_COL.story:cur.kind==='quest'?(isMainQuest(cur.q)?QMARK_COL.story:QMARK_COL.avail):'#e8e0c8';   // t139u: story yellow, side quests blue, ready gold
   const fs=scaleText(9),font='bold '+fs+'px "Courier New",monospace',tg=trkRoute(cur),aw=tg&&open?34:0;
@@ -8989,13 +9007,15 @@ function drawTracker(){
       else{ctx.rotate(Math.atan2(dy,dx));ctx.fillStyle=flashing?'#fff':tg.via?'#7df9ff':'#ffe14d';ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-5,-6);ctx.lineTo(-2,0);ctx.lineTo(-5,6);ctx.closePath();ctx.stroke();ctx.fill();}
       ctx.restore();}
     TRK.rect={x:px,y:py,w,h};return;}
-  const lines=wrapText(cur.obj,w-pad*2-aw,font).slice(0,3),lh=Math.round(fs*1.35);
-  const hh=Math.round(scaleText(10)+12+lines.length*lh+fs+22);
+  const showEv=!!(ev&&!inB);
+  const lines=wrapText(cur.obj,w-pad*2-aw,font).slice(0,showEv?2:3),lh=Math.round(fs*1.35);
+  const hh=Math.round(scaleText(10)+12+(lines.length+(showEv?1:0))*lh+fs+22);
   panel(px,py,w,hh,{border:blink?'#fff':col,fill:'#f6f0e2'});
   txt((cur.ready?'? ':cur.kind==='story'||cur.kind==='quest'?'! ':'- ')+title,px+pad,py+Math.round(scaleText(10))+3,{size:10,col,lw:2});
   let yy=py+Math.round(scaleText(10))+6+lh;
   lines.forEach((l,i)=>txt(l,px+pad,yy+i*lh,{size:9,col:'#3a2a18',bold:false,out:false}));
   yy+=lines.length*lh;
+  if(showEv){let s=ev;ctx.font='bold '+scaleText(9)+'px "Courier New",monospace';while(s.length>4&&ctx.measureText(s).width>w-pad*2)s=s.slice(0,-2);txt(s,px+pad,yy,{size:9,col:'#8a5a10',lw:2});}
   const label=cur.kind==='story'?`Step ${cur.step}/${cur.steps}`:cur.ready&&cur.kind==='quest'?'READY - hand in':`${cur.short} ${cur.prog}/${cur.need}`;
   txt(label,px+pad,py+hh-14,{size:9,col:cur.ready?'#7dffa0':'#ffe14d',lw:2});
   const bw=w-pad*2-aw,bx=px+pad,by=py+hh-9;ctx.fillStyle='#140c06';ctx.fillRect(bx,by,bw,5);ctx.fillStyle=cur.ready?'#7dffa0':'#ffe14d';ctx.fillRect(bx,by,Math.round(bw*clamp(cur.prog/cur.need,0,1)),5);
@@ -9065,7 +9085,16 @@ const REV={q:[],cur:null,t:0,parts:[],lastLv:0,seen:0};
 const REV_TITLES={card:'NEW CARD!',item:'NEW ITEM!',level:'LEVEL UP!',chest:'TREASURE!'};
 function revealPush(o){if(window.__NOREVEAL)return;REV.q.push(o);REV.seen++;}
 function revealCard(id){const c=CARD[id];if(c)revealPush({k:'card',id,name:c.name,col:RAR[c.rar].col,sub:RAR[c.rar].n+' card',info:typeof cardInfo==='function'?cardInfo(id):c.desc});}
-function revealItem(it){if(!it||!GEAR_RAR[it.rar])return;revealPush({k:'item',it,name:it.name,col:GEAR_RAR[it.rar].col,sub:GEAR_RAR[it.rar].n+' '+(GEAR_SLOT_NAME[it.slot]||'').toLowerCase()+'  Lv'+it.lv});}
+function gearCompareLine(it){
+  if(!it)return '';
+  const old=GEAR.eq[it.slot];
+  if(!old||old===it)return 'Nothing in the '+it.slot+' slot yet.';
+  const bits=[];
+  for(const k of ['shot','hp','def','gauge','crit']){const d=(it.st[k]||0)-(old.st[k]||0);if(!d)continue;const show=(k==='gauge'||k==='crit')?((d>0?'+':'')+Math.round(d*100)+'%'):((d>0?'+':'')+Math.round(d));bits.push(show+' '+(GEAR_STAT_LABEL[k]||k));}
+  const score=gearScore(it)-gearScore(old);
+  return 'vs '+old.name+'  '+(score>0?'stronger':score<0?'lighter':'even')+(bits.length?'  '+bits.slice(0,3).join('  '):'');
+}
+function revealItem(it){if(!it||!GEAR_RAR[it.rar])return;const legend=it.rar==='legendary'||!!it.fxText;const info=legend?[typeof gearStatLine==='function'?gearStatLine(it):'',it.fxText||'',gearCompareLine(it)].filter(Boolean).join('   '):'';revealPush({k:'item',it,name:it.name,col:GEAR_RAR[it.rar].col,sub:GEAR_RAR[it.rar].n+' '+(GEAR_SLOT_NAME[it.slot]||'').toLowerCase()+'  Lv'+it.lv,info:info||undefined});}
 function revealLevel(lv,from){   // t139u: ONE screen per level-up event; several levels at once = one combined screen; never repeats a level
   from=from||lv-1;if(lv<=from)return;REV.shownLv=Math.max(REV.shownLv||0,lv);
   const n=lv-from,old=REV.q.find(q=>q.k==='level');
@@ -9095,7 +9124,7 @@ function drawReveal(){   // t139u: cozy parchment + dark-wood card (matches the 
   ctx.translate(cx,cy);ctx.rotate(t*.15);for(let i=0;i<8;i++){ctx.rotate(Math.PI/4);const gr=ctx.createLinearGradient(0,0,0,-VH*.55);gr.addColorStop(0,'rgba(255,224,140,.16)');gr.addColorStop(1,'rgba(255,224,140,0)');ctx.fillStyle=gr;ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(-30,-VH*.55);ctx.lineTo(30,-VH*.55);ctx.lineTo(6,0);ctx.fill();}ctx.restore();
   // bounce-in scale (overshoot then settle)
   const k=Math.min(1,t/.45),sc=(k<1?1-Math.pow(1-k,3)*Math.cos(k*7):1)*(t>3?1-.05*(t-3):1);
-  const W=Math.min(VW*.46,230),H=Math.min(VH*.62,176);
+  const W=Math.min(VW*.5,280),H=Math.min(VH*.7,(r.k==='item'&&r.it&&r.it.fxText)?214:176);
   ctx.save();ctx.translate(cx,cy);ctx.scale(sc,sc);ctx.globalAlpha=a;
   const x0=-W/2,y0=-H/2;
   ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x0+4,y0+6,W,H);
@@ -9122,7 +9151,7 @@ function drawReveal(){   // t139u: cozy parchment + dark-wood card (matches the 
   const ny=ty+ts+16;txt(r.name,0,ny,{size:15,align:'center',col:r.k==='level'?'#3f7a3a':r.col,lw:3,out:'#2a160a'});
   if(r.sub)txt(r.sub,0,ny+17,{size:9,align:'center',col:'#5a3a1e',lw:0,out:false});
   const info=r.info||(r.k==='item'&&r.it&&typeof gearStatLine==='function'?gearStatLine(r.it):'');
-  if(info){const font='bold '+scaleText(9)+'px "Courier New",monospace',ls=wrapText(info,W-40,font);ls.slice(0,3).forEach((l,i)=>txt(l,0,ny+33+i*12,{size:9,align:'center',col:'#2a1a0e',lw:0,out:false}));}
+  if(info){const font='bold '+scaleText(8)+'px "Courier New",monospace',ls=wrapText(info,W-36,font);ls.slice(0,4).forEach((l,i)=>txt(l,0,ny+30+i*11,{size:8,align:'center',col:'#2a1a0e',lw:0,out:false}));}
   ctx.restore();ctx.globalAlpha=1;
   if(t>.6)txt(TOUCH?'tap to continue':'press Enter',cx,VH-SB-16,{size:9,align:'center',col:'rgba(255,240,210,.8)',lw:2});
 }
@@ -9329,7 +9358,8 @@ function updateFF(dt){
 const ffProtect=()=>!!(FF.on&&B&&B.ffTut);
 function drawFF(){
   if(!FF.on||!B)return;const s=FF_STEPS[FF.step];if(!s)return;
-  const w=Math.min(VW-SL-SR-24,420),x=Math.round(VW/2-w/2),y=ST+64,h=56;
+  const w=Math.min(VW-SL-SR-24,420),x=Math.round(VW/2-w/2),h=56;
+  let y=ST+64;if(B.banner)y=Math.round(VH*.33)+38;   // the ambush / boss title keeps the upper band
   ctx.fillStyle='#f6f0e2';ctx.fillRect(x,y,w,h);ctx.strokeStyle=FF.flash>0?'#fff':'#343b32';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);
   txt('LESSON '+(FF.step+1)+'/'+FF_STEPS.length,x+10,y+14,{size:9,col:'#80563a',lw:2,out:'#f6f0e2'});
   const font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(TOUCH?s.t:s.k,w-20,font);ls.slice(0,2).forEach((l,i)=>txt(l,x+10,y+30+i*14,{size:11,col:'#3a2a18',lw:2,out:'#f6f0e2'}));
@@ -10600,7 +10630,7 @@ const PM_DRAW={
     pmTile(gx,y+th+10,tw,th,'DAILY','cal',()=>openDaily(),'daily',pauseDaily()?'!':'');pmTile(gx+tw+10,y+th+10,tw,th,labOn()?'LEAVE LAB':'COMBAT LAB','swords',()=>pauseItem('KeyU').act(),'lab');
     const dName=(typeof DELVE_TIERS!=='undefined'?DELVE_TIERS[DELVE.tier|0]:'Normal');
     const dw=Math.min(w-8,320),dh=32,dx=x,dy=y+h-dh-2;
-    const dr=pmReg(dx,dy,dw,dh,{id:'difficulty',lab:'Difficulty '+dName,act(){if(typeof delveOpenDiff==='function')delveOpenDiff();}});
+    const dr=pmReg(dx,dy,dw,dh,{id:'difficulty',lab:'Difficulty '+dName,act(){if(typeof delveUnlocked==='function'&&!delveUnlocked()){toast('Veteran and Nightmare open after the ending.',2.2,'#ffe9a0');return;}if(typeof delveOpenDiff==='function')delveOpenDiff();}});
     rr(dx,dy,dw,dh,5);ctx.fillStyle='#80563a';ctx.fill();rr(dx+2,dy+2,dw-4,dh-4,4);ctx.fillStyle='#f6f0e2';ctx.fill();
     pmText('DIFFICULTY',dx+10,dy+21,{size:11});pmText(dName.toUpperCase(),dx+dw-10,dy+21,{size:11,align:'right',col:'#3f8f3a'});
     if(pmSel(dr)){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;rr(dx,dy,dw,dh,5);ctx.stroke();}
@@ -13859,7 +13889,12 @@ const FISH_PAGES=[0,1,2,3,4].map(t=>({t,n:['Brook & Pond','River Runs','Deep Poo
 function fishOfPage(t){return FISHES.filter(f=>f.tier===t&&!f.way);}
 function rodSkinCol(){if(X7.rodSkin!=null&&X7.skins[X7.rodSkin])return FISH_PAGES[X7.rodSkin].skin;return (typeof FSH!=='undefined'&&FSH.rodTint)||null;}
 function fotw(){const L=FISHES.filter(f=>!f.junk&&f.lv<=30);return L[x7Week()%L.length];}
-function derbySpot(){return FISH_SPOTS[x7Day()%FISH_SPOTS.length];}
+function derbyWaters(){
+  const day=x7Day(),easy=FISH_SPOTS.filter(s=>(s.lv|0)<=1),pool=easy.length?easy:FISH_SPOTS;
+  const home=pool[Math.abs(day)%pool.length],rolled=FISH_SPOTS[Math.abs(day)%FISH_SPOTS.length];
+  const out=[home];if(rolled&&rolled!==home)out.push(rolled);return out;
+}
+function derbySpot(){const lv=typeof fishLv==='function'?fishLv():1,waters=derbyWaters();return waters.find(s=>(s.lv|0)<=lv)||waters[0];}
 const DERBY_SECS=180;
 /* Heaviest fish that bites at this spot all day, once you meet the spot's level.
    The old flat 12–24 lb bar sat above the village river (a full 3 minutes there topped out under 6 lb). */
@@ -16083,7 +16118,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v75 Delve';
+const GAME_VER='v75.2 Delve';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -16723,7 +16758,7 @@ function delveDrawWorld(){
     txt('PORTAL',sx,sy-44,{size:9,align:'center',col:'#e7f7ff',lw:3});}
   if(DELVE.frostT>0){ctx.fillStyle='#d7f6ff';for(let i=0;i<DELVE.frost.length;i+=2){ctx.globalAlpha=.35;ctx.fillRect(DELVE.frost[i]-cam.x-3,DELVE.frost[i+1]-cam.y-3,6,4);}ctx.globalAlpha=1;}
 }
-function delveOpenDiff(){DELVE.ui=DELVE.ui==='diff'?null:'diff';sfx('select');}
+function delveOpenDiff(){if(!delveUnlocked()){toast('Veteran and Nightmare open after the ending.',2.2,'#ffe9a0');return;}DELVE.ui=DELVE.ui==='diff'?null:'diff';sfx('select');}
 function delvePortalHere(){const a=delveArea();return a==='crypt'||!!(typeof ZONES!=='undefined'&&ZONES[a]);}
 function delvePortalWhy(){
   if(!delvePortalHere())return '';
@@ -16732,40 +16767,79 @@ function delvePortalWhy(){
   if(!delveHasFx('lantern')&&DELVE.scrolls<=0)return 'You need a town-portal scroll.';
   return '';
 }
+function delveTierHidden(){
+  if(!delveUnlocked())return true;
+  if(B)return true;
+  if(typeof WMAP!=='undefined'&&WMAP.on)return true;
+  if(typeof POKER!=='undefined'&&POKER.on)return true;
+  if(typeof FISH!=='undefined'&&FISH.on)return true;
+  return false;
+}
+function delveChipY(){
+  if(typeof layoutTouch==='function')layoutTouch();
+  const st=typeof ST==='number'?ST:0;
+  const pause=typeof btn!=='undefined'?btn.pause:null;
+  return Math.round((pause?pause.y+pause.r:st+110)+14);   // room beside the pause for the portal button
+}
 function delveTierRect(){
-  const w=delveTouch()?148:120,h=delveTouch()?44:28,x=Math.round(VW/2-w/2),y=(typeof ST==='number'?ST:0)+6;
+  if(typeof layoutTouch==='function')layoutTouch();
+  const sr=typeof SR==='number'?SR:0,st=typeof ST==='number'?ST:0,sl=typeof SL==='number'?SL:0;
+  const mx=VW-sr-8-128;
+  const w=132,h=delveTouch()?40:26;
+  const pause=typeof btn!=='undefined'?btn.pause:null;
+  let y=delveChipY();
+  let x=Math.round(mx-2);
+  if(typeof btn!=='undefined'&&btn.atk){
+    const top=btn.atk.y-btn.atk.r-8;
+    if(y+h>top)y=Math.max(st+116,Math.round(top-h));
+  }
+  if(x<sl+4)x=sl+4;
+  if(x+w>VW-sr-4)x=Math.round(VW-sr-4-w);
+  if(pause&&y<pause.y+pause.r+2&&y+h>pause.y-pause.r){
+    const left=pause.x-pause.r-8;
+    if(x+w>left)x=Math.round(left-w);
+  }
   return {x,y,w,h};
 }
 function delvePortalBtn(){
   if(typeof layoutTouch==='function')layoutTouch();
-  const tier=delveTierRect(),r=btn.atk?btn.atk.r:26;
-  const miniL=VW-(typeof SR==='number'?SR:0)-148;
-  let x=Math.round(VW/2),y=tier.y+tier.h+10+r;
-  if(btn.atk&&Math.hypot(x-btn.atk.x,y-btn.atk.y)<r+btn.atk.r+16)y=Math.max(tier.y+tier.h+r+8,btn.atk.y-btn.atk.r-r-18);
-  if(x+r>miniL)x=Math.round(miniL-r-8);
-  const heroR=(typeof SL==='number'?SL:0)+196;
-  if(x-r<heroR)x=Math.round((heroR+miniL)/2);
-  return {x,y,r};
+  const sr=typeof SR==='number'?SR:0,st=typeof ST==='number'?ST:0;
+  const w=72,h=40;
+  const px=VW-sr-24,py=st+132,pr=16;   // the top-right pause slot
+  let x=Math.round(px-pr-8-w);
+  let y=Math.round(py-h/2);
+  const mapBottom=st+110;
+  if(y<mapBottom+4)y=mapBottom+4;
+  const chipTop=delveChipY();
+  if(y+h>chipTop-6)y=Math.round(chipTop-6-h);
+  if(typeof btn!=='undefined'&&btn.atk){
+    const lim=btn.atk.y-btn.atk.r-16;
+    if(y+h>lim)y=Math.round(Math.max(mapBottom+4,lim-h));
+  }
+  if(x<(typeof SL==='number'?SL:0)+4)x=(typeof SL==='number'?SL:0)+4;
+  if(x+w>VW-sr-4)x=Math.round(VW-sr-4-w);
+  return {x,y,w,h};
 }
 function delveDrawUi(){
   DELVE.hit.tier=null;DELVE.hit.portal=null;DELVE.hit.close=null;
   if(state==='play'){
+    if(!delveTierHidden()){
     const tier=delveTierRect(),name=DELVE_TIERS[DELVE.tier]||'Normal';
     DELVE.hit.tier=tier;
     ctx.fillStyle='#80563a';ctx.fillRect(tier.x,tier.y,tier.w,tier.h);
     ctx.fillStyle='#efe6d2';ctx.fillRect(tier.x+2,tier.y+2,tier.w-4,tier.h-4);
     txt(name.toUpperCase(),tier.x+tier.w/2,tier.y+tier.h/2+4,{size:11,align:'center',col:DELVE.tier?DELVE.tier===2?'#8a3e12':'#3f8f3a':'#5a4638',lw:2});
+    }
     if(delvePortalHere()){
       const b=delvePortalBtn(),why=delvePortalWhy(),on=!why;
-      DELVE.hit.portal={x:b.x-b.r,y:b.y-b.r,w:b.r*2,h:b.r*2,cx:b.x,cy:b.y,r:b.r};
+      DELVE.hit.portal={x:b.x,y:b.y,w:b.w,h:b.h};
       ctx.globalAlpha=on?1:.45;
-      ctx.fillStyle='#80563a';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.283);ctx.fill();
-      ctx.fillStyle=on?'#efe6d2':'#c9ad7e';ctx.beginPath();ctx.arc(b.x,b.y,b.r-3,0,6.283);ctx.fill();
-      ctx.strokeStyle=on?'#3f8f3a':'#6a5a48';ctx.lineWidth=3;ctx.stroke();
-      txt('PORTAL',b.x,b.y+4,{size:b.r>32?11:9,align:'center',col:on?'#3a2210':'#5a4638',lw:2});
+      ctx.fillStyle='#80563a';ctx.fillRect(b.x,b.y,b.w,b.h);
+      ctx.fillStyle=on?'#efe6d2':'#c9ad7e';ctx.fillRect(b.x+2,b.y+2,b.w-4,b.h-4);
+      txt('PORTAL',b.x+b.w/2,b.y+16,{size:9,align:'center',col:on?'#3a2210':'#5a4638',lw:2});
+      const sub=why?(delveInBoss()?'BOSS':B?'FIGHT':'NO SCROLL'):(delveHasFx('lantern')?'LANTERN':String(DELVE.scrolls));
+      txt(sub,b.x+b.w/2,b.y+32,{size:8,align:'center',col:on?'#3f8f3a':'#8a3e12',lw:2});
       ctx.globalAlpha=1;
-      if(why)txt(delveInBoss()?'BOSS':B?'FIGHT':'NO SCROLL',b.x,b.y+b.r+12,{size:8,align:'center',col:'#ffb0a0',lw:3});
-      else if(DELVE.scrolls>0||delveHasFx('lantern'))txt(delveHasFx('lantern')?'LANTERN':String(DELVE.scrolls),b.x,b.y+b.r+12,{size:8,align:'center',col:'#efe6d2',lw:3});
     }
   }
   if(DELVE.ui!=='diff'||(state!=='play'&&state!=='paused'))return;
