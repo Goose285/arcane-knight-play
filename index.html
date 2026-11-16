@@ -5943,8 +5943,18 @@ const DODGE_BASE={slime:.10,knight:.20,goblin:.28,bat:.34,wraith:.26,wolf:.30,ye
 function dodgeChance(e){
   if(window.__DODGEP!=null)return window.__DODGEP;
   if(e.def.boss||e.def.big)return 0;
-  const b=DODGE_BASE[e.type]||.15;return clamp(b*(1+.3*(e.tier||0))+(e.elite?.12:0)+clamp((e.lv-P.lv)*.01,-.05,.08),0,.6);
+  if(typeof B!=='undefined'&&B&&B.ffTut)return 0;
+  const b=DODGE_BASE[e.type]||.15,base=clamp(b*(1+.3*(e.tier||0))+(e.elite?.12:0)+clamp((e.lv-P.lv)*.01,-.05,.08),0,.6);
+  const tier=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;
+  return tier?clamp(base*(tier===2?1.45:1.2),0,tier===2?.75:.62):base;
 }
+function retreatFrac(e){
+  if(typeof B!=='undefined'&&B&&B.ffTut)return 0;
+  const tier=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;
+  return tier===2?.42:tier===1?.32:.2;
+}
+function retreatRoll(){if(window.__RETREATP!=null)return window.__RETREATP;const tier=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;return tier===2?.85:tier===1?.7:.65;}
+function canRetreat(e){if(RETREATERS.has(e.type))return true;const tier=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;return tier>=1&&(e.type==='slime'||e.type==='yeti'||e.type==='mummy');}
 const RETREATERS=new Set(['knight','goblin','wraith','witch','wolf','bat','scorpion']);
 const FLANKERS=new Set(['slime','knight','bat','wolf','yeti','scorpion','mummy','toad']);
 function tryDodge(e,dt,c){
@@ -5958,8 +5968,9 @@ function tryDodge(e,dt,c){
     s.rolled=s.rolled||[];if(s.rolled.includes(e))continue;s.rolled.push(e);   // one roll per shot per enemy
     if(Math.random()>dodgeChance(e)*(s.kind==='charged'?.55:1))continue;
     const sg=lat>=0?1:-1,nx=-uy*sg,ny=ux*sg;
-    e.dash={vx:nx*330,vy:ny*330,t:.2};e.dodgeCd=2.6-.3*(e.tier||0);e.dodged=(e.dodged||0)+1;
-    burst(c.x,c.y+8,'#e8e0c8',5,70,.3);floatText(c.x,c.y-30,'DODGE','#cfe6ff',9);return;
+    const hop=(typeof DELVE!=='undefined'&&DELVE.tier===2)?520:(typeof DELVE!=='undefined'&&DELVE.tier===1)?440:360;
+    e.dash={vx:nx*hop,vy:ny*hop,t:.26};e.dodgeCd=2.6-.3*(e.tier||0);e.dodged=(e.dodged||0)+1;
+    burst(c.x,c.y+8,'#e8e0c8',5,70,.3);floatText(c.x,c.y-30,'DODGE','#cfe6ff',11);return;
   }
 }
 // melee enemies fan out around the player instead of queueing up: each takes its own slot on a circle
@@ -6001,7 +6012,8 @@ function updateFormation(dt){
   // ---- melee: slots at spread angles; front slots go to the nearest bodies ----
   let rM=52;
   if(mel.length){
-    const n=Math.min(6,mel.length),offs=(FORM_OFF[n]||FORM_OFF[6]).map((o,i)=>(n===3&&i===2?o*F.side:o));
+    const tier=(typeof DELVE!=='undefined'?DELVE.tier:0)|0,spreadK=tier===0?.85:tier===1?1.05:1.3;
+    const n=Math.min(6,mel.length),offs=(FORM_OFF[n]||FORM_OFF[6]).map((o,i)=>((n===3&&i===2?o*F.side:o)*spreadK));
     const so=offs.slice().sort((a,b)=>a-b);let gap=2*Math.PI-(so[so.length-1]-so[0]);for(let i=1;i<so.length;i++)gap=Math.min(gap,so[i]-so[i-1]);
     if(so.length>1)rM=clamp(FORM_GAP/(2*Math.sin(Math.min(gap,3)/2)),52,92);
     const order=offs.map((o,i)=>i).sort((a,b)=>Math.abs(offs[a])-Math.abs(offs[b])),taken=new Set();
@@ -6057,16 +6069,22 @@ function updateEnemyCombat0(e,dt){
   const hw=e.def.big?12:7;
   if(e.dash){const s=Math.min(dt,e.dash.t);moveBox(e,e.dash.vx*s,0,hw,8);moveBox(e,0,e.dash.vy*s,hw,8);e.dash.t-=dt;if(e.dash.t<=0)e.dash=null;}
   if(e.frozen>0||e.stun>0)return;                 // frozen solid: no movement, no attacks, timers paused
-  if(e.retreat>0)e.retreat-=dt;
-  else if(!e.retreated&&RETREATERS.has(e.type)&&!e.def.boss&&e.st!=='windup'&&e.hp<e.maxhp*.28&&e.hp>0&&B.ens.filter(o=>!o.dying).length>=1&&Math.random()<(window.__RETREATP!=null?window.__RETREATP:.65)){
-    e.retreated=true;e.retreat=2.6;e.st='idle';e.cur=null;B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);floatText(c.x,c.y-30,'RETREAT!','#ffd09a',10);}
+  if(e.retreat>0){e.retreat-=dt;if(e.retreat<=0){e.retreat=0;e.returning=1.3;floatText(c.x,c.y-30,'RETURN','#ffe9a0',10);}}
+  else if(e.returning>0)e.returning-=dt;
+  else if(!e.retreated&&canRetreat(e)&&!e.def.boss&&e.st!=='windup'&&e.hp<e.maxhp*retreatFrac(e)&&e.hp>0&&B.ens.filter(o=>!o.dying).length>=1&&Math.random()<retreatRoll()){
+    e.retreated=true;e.retreat=(typeof DELVE!=='undefined'&&DELVE.tier===2)?2.1:1.7;e.st='idle';e.cur=null;B.zones=B.zones.filter(z=>z.o!==e);B.timers=B.timers.filter(t=>t.o!==e);floatText(c.x,c.y-30,'RETREAT!','#ffd09a',10);}
   tryDodge(e,dt,c);
   const still=e.st==='windup'&&e.type!=='goblin';
   if(!e.dash&&!still){
     e.strafeT-=dt;e.reposT=Math.max(0,(e.reposT||0)-dt);if(e.strafeT<=0){e.strafeT=R(1.1,2.4);e.strafe=-e.strafe;}
     const band=BAND[e.type];let vx=0,vy=0,spd=cs*e.def.chase*(e.def.big?(e.p2?1.15:.75):e.type==='slime'?1.1:e.type==='bat'?1.15:1);
     const ux=(p.x-c.x)/(d||1),uy=(p.y-c.y)/(d||1);
-    if(e.retreat>0){vx=-ux*.9-uy*e.strafe*.4;vy=-uy*.9+ux*e.strafe*.4;spd*=1.3;}   // wounded: back off and let the others cover
+    if(e.retreat>0){   // fall back toward a friend, or straight away, then the return timer brings them in again
+      let ax=-ux,ay=-uy,ally=null,bd=220;
+      for(const o of B.ens){if(o===e||o.dying||o.dummy)continue;const dd=Math.hypot(o.x-c.x,o.y-c.y);if(dd<bd&&dd>20){bd=dd;ally=o;}}
+      if(ally){const bx=(ally.x-ux*36)-c.x,by=(ally.y-uy*36)-c.y,bl=Math.hypot(bx,by)||1;ax=bx/bl;ay=by/bl;}
+      vx=ax;vy=ay;spd*=1.55;
+    }
     else if(!los&&e.st!=='windup'){                           // wall in the way: walk a real route to the nearest tile with a clear line of sight
       e.pathT-=dt;
       if(e.pathT<=0||!e.path){e.pathT=.6;e.path=findLosPath(e);}
@@ -6077,7 +6095,7 @@ function updateEnemyCombat0(e,dt){
     }
     else if(e.slot&&B.form&&B.form.n>=FORM_MIN&&!e.def.boss){   // group tactics: head for the assigned slot (orbiting round the hero, never through them)
       const S0=e.slot,sdx=S0.x-c.x,sdy=S0.y-c.y,sd=Math.hypot(sdx,sdy);
-      if(S0.ranged&&d<band[0]){vx=-ux*.9-uy*e.strafe*.5;vy=-uy*.9+ux*e.strafe*.5;spd*=1.05;}   // hero closing in: kite back, a little sideways
+      if(S0.ranged&&d<band[0]+(typeof DELVE!=='undefined'&&DELVE.tier?18:0)){const kit=(typeof DELVE!=='undefined'&&DELVE.tier===2)?1.35:1.1;vx=-ux*kit-uy*e.strafe*.7;vy=-uy*kit+ux*e.strafe*.7;spd*=1.15;}   // hero closing in: keep the gap and slide sideways
       else if(sd>10){
         const ae=Math.atan2(c.y-p.y,c.x-p.x),as=Math.atan2(S0.y-p.y,S0.x-p.x),da=angDiff(as,ae);
         if(Math.abs(da)>.4&&d<S0.rad+90){   // wrong side of the hero: circle round at the slot radius
@@ -6090,8 +6108,8 @@ function updateEnemyCombat0(e,dt){
     else if(d>band[1]){
       const ft=d>band[1]+26?flankTarget(e,p,band[1]+6):null;
       if(ft){const fx=ft.x-c.x,fy=ft.y-c.y,fl=Math.hypot(fx,fy)||1;vx=fx/fl*.8+ux*.35;vy=fy/fl*.8+uy*.35;}else{vx=ux;vy=uy;}}
-    else if(d<band[0]){vx=-ux*.8-uy*e.strafe*.5;vy=-uy*.8+ux*e.strafe*.5;spd*=.9;}
-    else{vx=-uy*e.strafe;vy=ux*e.strafe;spd*=(e.reposT>0?.95:.45);}   // (ranged foes sidestep briskly to a new firing spot after a shot)
+    else if(d<band[0]){const kit=(typeof DELVE!=='undefined'&&DELVE.tier===2)?1.25:1;vx=-ux*kit-uy*e.strafe*.65;vy=-uy*kit+ux*e.strafe*.65;spd*=1.05;}
+    else{vx=-uy*e.strafe;vy=ux*e.strafe;spd*=(e.reposT>0?1.05:.55);}   // hold the band and sidestep to a new firing spot between shots
     // personal space: a soft push away from close neighbours; in a group fight a hard push-out too, so bodies never stack
     {const grp=B.form&&B.form.n>=FORM_MIN&&!e.def.boss;let px=0,py=0;
       for(const o of B.ens){if(o===e||o.dying||o.dummy)continue;const ox=e.x-o.x,oy=e.y-o.y,od=Math.hypot(ox,oy)||.1,minD=eRad(e)+eRad(o)+(grp?12:6),rg=minD+(grp?16:4);
@@ -16118,7 +16136,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v75.2 Delve';
+const GAME_VER='v76 Kindred';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -16893,5 +16911,190 @@ SFXT.barrel=()=>{noise(.16,.07);tone(180,70,.16,'triangle',.05);};
 {const _dw=drawWorld;drawWorld=function(){_dw();try{delveDrawWorld();}catch(e){}}; }
 {const _rn=render;render=function(){_rn();try{delveDrawUi();}catch(e){}}; }
 delveApply(DELVE.seed);
+
+/* ---------- src/world/v76.js ---------- */
+/* v76 Kindred. Choice conversations for the townsfolk, remembered in the save,
+   and combat that flanks, kites, dodges, and covers — gentle on Normal. */
+const KIND={picks:{},mem:{},rumors:{}};
+['Dealer Sol','Nell the Fiddler','Old Hob','Gate Guard','Baker Wren'].forEach(n=>{if(typeof FRIENDS!=='undefined'&&FRIENDS.indexOf(n)<0)FRIENDS.push(n);});
+function kindredHeart(name,n){if(typeof frAdd==='function')frAdd(name,n,'talk');}
+function kindredLegend(){
+  if(typeof GEAR==='undefined')return null;
+  for(const s of (typeof GEAR_SLOTS!=='undefined'?GEAR_SLOTS:[])){const it=GEAR.eq[s];if(it&&(it.rar==='legendary'||it.fx))return it;}
+  return (GEAR.inv||[]).find(it=>it&&(it.rar==='legendary'||it.fx))||null;
+}
+function kindredFish(){
+  if(typeof FSH==='undefined'||!FSH.board)return '';
+  let best=null,w=0;
+  for(const id in FSH.board){const row=FSH.board[id];if(row&&row[0]&&row[0].w>w){w=row[0].w;best=row[0];}}
+  return best?(best.w+' lb '+(best.n||best.id)):'';
+}
+function kindredDeed(){
+  if(typeof lichDown!=='undefined'&&lichDown)return 'The Hollow King is dust. Oakvale sleeps easier because of you.';
+  if(typeof bossDown!=='undefined'&&bossDown)return 'Emberfang fell. The crypt stairs are quieter.';
+  if(typeof X7!=='undefined'&&X7.ngp>0)return 'You have walked this valley before. It remembers your stride.';
+  if(typeof DELVE!=='undefined'&&DELVE.tier===2)return 'Nightmare sits on your shoulders. I can see the weight.';
+  if(typeof DELVE!=='undefined'&&DELVE.tier===1)return 'You fight like a veteran now. The town has noticed.';
+  const leg=kindredLegend();if(leg)return leg.name+' changes the air around you.';
+  const fish=kindredFish();if(fish)return 'Word of your '+fish+' has reached the square.';
+  return '';
+}
+function kindredRemember(name){return KIND.mem[name]||'';}
+const KIND_LEAD={
+  'Elder Orin':'The fountain is quiet, hero. What is on your mind?',
+  'Blacksmith Brum':'The forge is hot. Speak, or look at the steel.',
+  'Mara the Tapster':'Pull up a stool. Stew on the fire, rumors on the house.',
+  'Dealer Sol':'The cards are shuffled. Twenty gold buys a seat. Blinds are one and two.',
+  'Pip':'You came back! Did you see any shields go CLANG?',
+  'Fisher Tobin':'The river is patient. Are you?',
+  'Old Tom':'Ahh. Sit a moment. The fountain does the talking if you let it.',
+  'Gardener Lyn':'Mind the tulips. The slimes do not.',
+  'Innkeeper Rosa':'The inn is warm. The road is not.',
+  'Farmer Hale':'Goldenfield is muddy and honest. What do you need?',
+  'Father Anselm':'Peace, traveler. The chapel door is open.',
+  'Marlo the Keeper':'The pets know a kind hand. Do you have one?',
+  'Gate Guard':'The road is watched. You may pass, or you may talk.',
+  'Nell the Fiddler':'A tune for a tale. Which will you spend?',
+  'Old Hob':'I remember when the Tap was a tent. You were not born yet.',
+  'Baker Wren':'The bread is warm. The news is warmer.'
+};
+function kindredQuestReply(npc){
+  if(typeof QUESTS==='undefined')return null;
+  const q=QUESTS.find(x=>x.giver===npc.name&&questStatus(x.id)==='avail');
+  if(!q)return null;
+  return {id:'q:'+q.id,t:'I will take '+q.name,heart:2,mem:'You took '+q.name+' without being asked twice.',go(){questStart(q.id);return q.name+' is yours. Come back when it is done.';}};
+}
+function rumorReply(who){
+  return {id:'rumor',t:'Any rumors?',heart:2,mem:'You asked '+who+' for the rumor of the day.',go(){
+    const s=typeof rumorToday==='function'?rumorToday():'The roads are longer than they look.';
+    KIND.rumors[typeof x7Day==='function'?x7Day():0]=s;
+    return 'Rumor: '+s;
+  }};
+}
+function memReply(id,t,mem,heart){return {id,t,heart:heart||2,mem,go(){return mem;}};}
+function kindredReplies(npc){
+  const n=npc.name,out=[];
+  const q=kindredQuestReply(npc);if(q)out.push(q);
+  if(n==='Blacksmith Brum')out.push({id:'shop',t:'Show me the forge',heart:1,go(){if(typeof openShop==='function')openShop();return false;}});
+  if(n==='Mara the Tapster')out.push({id:'stew',t:'A bowl of stew',heart:2,mem:'You bought Mara\'s stew and stayed to listen.',go(){
+    const stew=(typeof TAVERN!=='undefined'&&TAVERN.stew)||{gold:18,buff:'luck',dur:120,name:'River Stew'};
+    if(P.gold<stew.gold){toast('Need '+stew.gold+' gold for a bowl.',2,'#ffb0a0');return 'The bowl can wait until your purse is heavier.';}
+    P.gold-=stew.gold;sfx('coin');if(typeof applyMealBuff==='function')applyMealBuff(stew.buff,stew.dur,stew.name);
+    return 'The stew warms you. Fishing luck follows for a while.';
+  }});
+  if(n==='Dealer Sol')out.push({id:'sit',t:'Deal me in',heart:1,go(){if(typeof openPoker==='function')openPoker();return false;}});
+  if(n==='Fisher Tobin')out.push({id:'sell',t:'Buy my catch',heart:1,go(){if(typeof openFisher==='function')openFisher(npc);return false;}});
+  if(n==='Innkeeper Rosa')out.push({id:'bed',t:'A bed until morning',heart:1,go(){if(typeof openInn==='function')openInn(npc);return false;}});
+  if(n==='Father Anselm')out.push({id:'bless',t:'A blessing, please',heart:2,go(){if(typeof openPriest==='function')openPriest(npc);return false;}});
+  if(n==='Marlo the Keeper')out.push({id:'pets',t:'Show me the pets',heart:1,go(){if(typeof openPets==='function')openPets();return false;}});
+  if(out.length<3)out.push(rumorReply(n));
+  if(out.length<3)out.push(memReply('stand','I will stand with Oakvale','You said you would stand with Oakvale. '+n+' has not forgotten.',3));
+  if(out.length<3)out.push(memReply('listen','Tell me a small thing','You listened, and did not hurry '+n+'.',1));
+  return out.slice(0,3);
+}
+function kindredBlocked(npc){
+  if(!npc||!npc.name||npc.way||npc.board||npc.house||npc.pets||npc.priest||npc.guide||npc.rush||npc.sign)return true;
+  if(typeof storyReady==='function'&&storyReady(npc))return true;
+  if(typeof QUESTS!=='undefined'){
+    for(const q of QUESTS){if(q.giver!==npc.name)continue;const st=questStatus(q.id);if(st==='ready'||st==='avail')return true;}
+  }
+  return !KIND_LEAD[npc.name];
+}
+function kindredTalk(npc){
+  const name=npc.name,deed=kindredDeed(),mem=kindredRemember(name);
+  const lines=[];
+  if(deed)lines.push(deed);
+  lines.push(KIND_LEAD[name]);
+  if(mem)lines.push(mem);
+  if(npc.lines&&npc.lines[0]&&lines.length<3)lines.push(npc.lines[0]);
+  while(name==='Mara the Tapster'&&lines.length<3)lines.push('The hearth keeps its own counsel.');
+  const stew=(typeof TAVERN!=='undefined'&&TAVERN.stew)||{gold:18};
+  DLG={name:name==='Mara the Tapster'?'MARA THE TAPSTER':name,who:name,npc,lines,i:0,c:lines[0].length,replies:kindredReplies(npc),kindred:1,yes:name==='Mara the Tapster'?'BUY STEW  '+stew.gold+'G':null};
+  try{if(typeof releaseAllTouch==='function')releaseAllTouch();}catch(e){}
+  sfx('talk');
+}
+function kindredPick(rep){
+  if(!DLG||!rep)return;
+  const who=DLG.who||DLG.name;
+  KIND.picks[who+':'+rep.id]=(KIND.picks[who+':'+rep.id]|0)+1;
+  if(rep.mem)KIND.mem[who]=rep.mem;
+  if(rep.heart)kindredHeart(who,rep.heart);
+  sfx('select');
+  let follow=null;try{follow=rep.go?rep.go():null;}catch(e){follow=null;}
+  if(follow===false)return;
+  if(typeof follow==='string'){DLG={name:who,who,lines:[follow],i:0,c:0};return;}
+  DLG=null;
+  try{saveGame('kindred');}catch(e){}
+}
+{const _od=openDlg;openDlg=function(npc){if(npc&&!kindredBlocked(npc)){kindredTalk(npc);return;}return _od.apply(this,arguments);};}
+{const _dd=drawDlg;drawDlg=function(){
+  if(!(DLG&&DLG.kindred&&DLG.replies))return _dd();
+  const d=DLG,x=SL+10,w=Math.min(VW-SL-SR-20,520),bh=44,gap=8;
+  const font='bold '+scaleText(13)+'px "Courier New",monospace';
+  const all=wrapText(d.lines[d.i]||'',w-28,font).slice(0,3);
+  const h=28+all.length*18+8+d.replies.length*(bh+gap)+8,y=Math.max((typeof ST==='number'?ST:0)+8,VH-(typeof SB==='number'?SB:0)-h-8);
+  dlgRects={box:{x,y,w,h},reps:[]};
+  panel(x,y,w,h,{fill:'#f6f0e2',border:'#80563a'});
+  txt(d.name,x+14,y+18,{size:13,col:'#80563a',lw:2,out:'#f6f0e2'});
+  all.forEach((l,i)=>txt(l,x+14,y+40+i*18,{size:13,col:'#3a2a18',out:false}));
+  let by=y+28+all.length*18+8;
+  d.replies.forEach((r,i)=>{
+    const rect={x:x+12,y:by,w:w-24,h:bh};
+    dlgRects.reps.push(rect);
+    panel(rect.x,rect.y,rect.w,rect.h,{fill:i===0?'#e7f3df':'#efe6d2',border:'#80563a'});
+    txt((i+1)+'  '+r.t,rect.x+rect.w/2,rect.y+28,{size:14,align:'center',col:'#3a2210',lw:2});
+    by+=bh+gap;
+  });
+};}
+{const _ud=updateDlg;updateDlg=function(dt){
+  if(DLG&&DLG.kindred&&DLG.replies){
+    const keys=['Digit1','Digit2','Digit3'];
+    for(let i=0;i<DLG.replies.length;i++)if(hit(keys[i])){kindredPick(DLG.replies[i]);return;}
+    return;
+  }
+  return _ud(dt);
+};}
+{const _tap=tapUI;tapUI=function(p){
+  if(DLG&&DLG.kindred&&dlgRects.reps){
+    const i=dlgRects.reps.findIndex(r=>inRect(p,r));
+    if(i>=0){kindredPick(DLG.replies[i]);return true;}
+    return true;
+  }
+  return _tap(p);
+};}
+function kindredPack(){return {picks:KIND.picks,mem:KIND.mem,rumors:KIND.rumors};}
+function kindredUnpack(s){if(!s||typeof s!=='object')return;if(s.picks)KIND.picks=Object.assign({},s.picks);if(s.mem)KIND.mem=Object.assign({},s.mem);if(s.rumors)KIND.rumors=Object.assign({},s.rumors);}
+{const _sg=saveGame;saveGame=function(why){const ok=_sg(why);if(!ok)return ok;try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return ok;const o=JSON.parse(raw);o.kindred=kindredPack();localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}return ok;};}
+{const _ld=loadSave;loadSave=function(s){const r=_ld(s);try{kindredUnpack(s&&s.kindred);}catch(e){}return r;};}
+
+/* Combat: Normal stays the old dodge numbers. Veteran and Nightmare dodge more,
+   wounded foes fall back sooner, elites cover a friend or call one weak slime.
+   Every windup is long enough to read. The combat lesson skips all of this. */
+{const _sa=startAttack;startAttack=function(e,a){
+  if(a&&e&&!e.def.boss&&!(B&&B.ffTut)){
+    const t=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;
+    const min=t===2?.48:t===1?.58:.7;
+    if((a.windup||0)<min)a.windup=min;
+  }
+  return _sa(e,a);
+};}
+function kindredAid(e){
+  if(!B||!e||e.dying||e.kAid||e.def.boss||e.dummy||e.tut||B.ffTut)return;
+  const t=(typeof DELVE!=='undefined'?DELVE.tier:0)|0;
+  if(!e.elite)return;
+  if(t<1)return;   // Normal stays a light fight; elites start covering on Veteran
+  if(e.hp>e.maxhp*(t===2?.78:.64))return;
+  e.kAid=1;
+  let ally=null;
+  for(const o of B.ens){if(o!==e&&!o.dying&&!o.tmp&&!o.def.boss){ally=o;break;}}
+  if(ally){ally.guard=Math.max(ally.guard||0,t===2?2.4:1.6);ally.kShield=ally.guard;try{floatText(ally.x,ally.y-34,'SHIELD','#cfefff',11);}catch(err){}}
+  try{const made=summonMinions(e,'slime',1,1);if(made&&made[0])made[0].hp=made[0].maxhp=Math.min(10,made[0].maxhp);}catch(err){}
+  try{floatText(e.x,e.y-34,'CALL','#d7b0ff',11);}catch(err){}
+}
+{const _ue=updateEnemyCombat;updateEnemyCombat=function(e,dt){const r=_ue(e,dt);try{kindredAid(e);}catch(err){}return r;};}
+{const _dew=typeof drawEnemyWorld==='function'?drawEnemyWorld:null;if(_dew)drawEnemyWorld=function(e){_dew(e);if(!e||!e.alive)return;const sx=e.x-cam.x,sy=e.y-cam.y;
+  if(e.guard>0||e.kShield>0){ctx.save();ctx.globalAlpha=.55;ctx.strokeStyle='#bfefff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy-10,16,-2.4,-.7);ctx.stroke();ctx.restore();}
+  if(e.st==='windup')txt(e.cur&&e.cur.zones&&e.cur.zones.length?'!!':'READY',sx,sy-48,{size:11,align:'center',col:'#ffe14d',lw:3});
+};}
 
 </script></body></html>
