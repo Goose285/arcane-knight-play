@@ -5737,7 +5737,7 @@ function damageEnemy(e,d,kind){
   if(kind!=='arcane'&&!quiet){B.shake=Math.max(B.shake,.15);B.loud=1;}
   floatText(c.x+R(-8,8),top,String(d),kind==='charged'?'#7df9ff':cursed?'#e0a0ff':kind==='dot'?'#b6f06a':'#fff',kind==='charged'?18:quiet?11:cursed?16:14);
   burst(c.x,c.y,kind==='fire'?'#ff9a3d':'#fff3a0',kind==='arcane'?4:9,100,.4);
-  if(crit){floatText(c.x,top-14,'CRIT!','#ffe14d',12);}
+  if(crit){floatText(c.x,top-14,'CRIT!','#ffe14d',12);if(typeof delveOnCrit==='function')delveOnCrit(e,c,d);}
   eliteAfterHit(e,d0,kind);
   if(e.hp<=0){e.hp=0;killEnemy(e);}
   else if(e.def.p2at&&!e.p2&&e.hp<e.maxhp*e.def.p2at){e.p2=true;setBanner(e.type==='lich'?'THE KING RISES!':'ENRAGED!',1.3,e.type==='lich'?'#9dffb0':'#ff6b6b');B.shake=.5;sfx('boom');bossPhase(e);}
@@ -7663,28 +7663,30 @@ function tabRow(){return {h:36,draw(x0,y,W,h){const bw=(W-12)/2;
   uiButton(x0+8+bw,y+4,bw,28,'EQUIPPED SLOTS',GEARV.tab==='worn',()=>{GEARV.tab='worn';UI.scroll=0;sfx('select');},{tag:'gtab:worn',clip:true,size:11,bg:'#6b4423',bd:'#f0cf7a'});}};}
 const doEquip=it=>{if(equipGear(it)){sfx('select');uiMsg('Equipped '+it.name,false);saveGame('gear');}};
 function bagRow(it){
-  const eq=GEAR.eq[it.slot],col=GEAR_RAR[it.rar].col,dl=gearDeltas(it,eq),diff=gearScore(it)-gearScore(eq);
-  return {sel:true,h:60,act:()=>doEquip(it),tap:()=>doEquip(it),
+  const eq=GEAR.eq[it.slot],col=GEAR_RAR[it.rar].col,dl=gearDeltas(it,eq),diff=gearScore(it)-gearScore(eq),fx=it.fxText||'';
+  return {sel:true,h:fx?78:60,act:()=>doEquip(it),tap:()=>doEquip(it),
     draw(x0,y,W,h,isSel,si){
       ctx.fillStyle=isSel?'#efe0c4':'#f6f0e2';ctx.fillRect(x0,y,W,h);ctx.fillStyle=col;ctx.fillRect(x0,y,3,h);
+      if(it.unique){ctx.strokeStyle=col;ctx.globalAlpha=.45+.25*Math.sin(gtime*4);ctx.strokeRect(x0+1,y+1,W-2,h-2);ctx.globalAlpha=1;}
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
-      gearIconBox(x0+8,y+13,it);
+      gearIconBox(x0+8,y+fx?18:13,it);
       txt(it.name,x0+48,y+14,{size:10,col,lw:2});
       txt(`${GEAR_RAR[it.rar].n} ${GEAR_SLOT_NAME[it.slot]}  Lv${it.lv}`+(eq?'   vs '+eq.name:'   (slot empty)'),x0+48,y+26,{size:8,col:'#5a4638',lw:2});
-      drawDeltas(dl,x0+48,y+40,W-140);
-      txt(!eq?'NEW SLOT':diff>0.01?'UPGRADE':diff<-0.01?'WEAKER':'SAME',x0+48,y+53,{size:8,col:!eq||diff>0.01?'#7dff8a':diff<-0.01?'#ff7a7a':'#d8c8a8',lw:2});
+      txt(gearStatLine(it),x0+48,y+38,{size:8,col:'#5a4638',bold:false});
+      if(fx)txt(fx,x0+48,y+52,{size:9,col:'#8a3e12',lw:2});
+      txt(!eq?'NEW SLOT':diff>0.01?'UPGRADE':diff<-0.01?'WEAKER':'SAME',x0+48,y+(fx?68:53),{size:8,col:!eq||diff>0.01?'#7dff8a':diff<-0.01?'#ff7a7a':'#d8c8a8',lw:2});
       uiButton(x0+W-82,y+5,74,26,'EQUIP',true,()=>{UI.sel=si;doEquip(it);},{tag:'equip:'+it.id,clip:true,size:11,sel:si});
-      uiButton(x0+W-82,y+34,74,21,'SELL '+gearSell(it),true,()=>{UI.sel=si;const g=sellGear(it);sfx('coin');uiMsg(`Sold for ${g} G`,false);saveGame('gear');},{tag:'sell:'+it.id,clip:true,size:9,bg:'#6a5a1a',bd:'#ffd23f',sel:si});
+      uiButton(x0+W-82,y+fx?46:34,74,21,'SELL '+gearSell(it),true,()=>{UI.sel=si;const g=sellGear(it);sfx('coin');uiMsg(`Sold for ${g} G`,false);saveGame('gear');},{tag:'sell:'+it.id,clip:true,size:9,bg:'#6a5a1a',bd:'#ffd23f',sel:si});
     }};
 }
 function wornRow(slot){
-  const it=GEAR.eq[slot],n=GEAR.inv.filter(q=>q.slot===slot).length,open=GEARV.cmp===slot;
-  return {sel:true,h:50,act(){GEARV.cmp=open?null:slot;},
+  const it=GEAR.eq[slot],n=GEAR.inv.filter(q=>q.slot===slot).length,open=GEARV.cmp===slot,fx=it&&it.fxText;
+  return {sel:true,h:fx?76:50,act(){GEARV.cmp=open?null:slot;},
     draw(x0,y,W,h,isSel,si){
       ctx.fillStyle=isSel||open?'#efe0c4':'#f6f0e2';ctx.fillRect(x0,y,W,h);ctx.fillStyle=it?GEAR_RAR[it.rar].col:'#6b5a48';ctx.fillRect(x0,y,3,h);
       if(isSel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}
-      gearIconBox(x0+8,y+9,it);txt(GEAR_SLOT_NAME[slot],x0+48,y+13,{size:8,col:'#f0cf7a',lw:2});
-      if(it){txt(`${it.name}  Lv${it.lv}`,x0+48,y+27,{size:10,col:GEAR_RAR[it.rar].col,lw:2});txt(gearStatLine(it),x0+48,y+41,{size:8,col:'#5a4638',bold:false});}
+      gearIconBox(x0+8,y+9,it);txt(GEAR_SLOT_NAME[slot],x0+48,y+12,{size:8,col:'#f0cf7a',lw:2});
+      if(it){txt(`${it.name}  Lv${it.lv}`,x0+48,y+26,{size:10,col:GEAR_RAR[it.rar].col,lw:2});txt(gearStatLine(it),x0+48,y+40,{size:8,col:'#5a4638',bold:false});if(fx)txt(fx,x0+48,y+56,{size:9,col:'#8a3e12',lw:2});}
       else txt('- empty -',x0+48,y+31,{size:10,col:'#8a7a68'});
       const bw=70;
       uiButton(x0+W-bw*2-14,y+11,bw,28,open?'CLOSE':'COMPARE'+(n?' '+n:''),n>0||open,()=>{UI.sel=si;GEARV.cmp=open?null:slot;sfx('select');},{tag:'cmp:'+slot,clip:true,size:10,bg:'#2a4a6a',bd:'#9ad0ff',sel:si});
@@ -10596,6 +10598,12 @@ const PM_DRAW={
     const gx=mx+mw+20,gw=x+w-gx,tw=Math.floor((gw-10)/2),th=Math.min(70,Math.floor((Math.min(h,150)-10)/2));
     pmTile(gx,y,tw,th,'PETS','paw',()=>openPets(),'pets');pmTile(gx+tw+10,y,tw,th,'ACHIEVEMENTS','trophy',()=>openAch(),'ach');
     pmTile(gx,y+th+10,tw,th,'DAILY','cal',()=>openDaily(),'daily',pauseDaily()?'!':'');pmTile(gx+tw+10,y+th+10,tw,th,labOn()?'LEAVE LAB':'COMBAT LAB','swords',()=>pauseItem('KeyU').act(),'lab');
+    const dName=(typeof DELVE_TIERS!=='undefined'?DELVE_TIERS[DELVE.tier|0]:'Normal');
+    const dw=Math.min(w-8,320),dh=32,dx=x,dy=y+h-dh-2;
+    const dr=pmReg(dx,dy,dw,dh,{id:'difficulty',lab:'Difficulty '+dName,act(){if(typeof delveOpenDiff==='function')delveOpenDiff();}});
+    rr(dx,dy,dw,dh,5);ctx.fillStyle='#80563a';ctx.fill();rr(dx+2,dy+2,dw-4,dh-4,4);ctx.fillStyle='#f6f0e2';ctx.fill();
+    pmText('DIFFICULTY',dx+10,dy+21,{size:11});pmText(dName.toUpperCase(),dx+dw-10,dy+21,{size:11,align:'right',col:'#3f8f3a'});
+    if(pmSel(dr)){ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;rr(dx,dy,dw,dh,5);ctx.stroke();}
   },
   cards(x,y,w,h){
     const own=Object.keys(COL).filter(id=>COL[id]>0&&CARD[id]);
@@ -16075,7 +16083,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v74.4 Cozy Village';
+const GAME_VER='v75 Delve';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -16439,5 +16447,377 @@ function fluteNote(tr,t,midi,dur,v){
 };}
 if(typeof heroAct==='function'){const _ha=heroAct;heroAct=function(){const r=_ha.apply(this,arguments);try{if(typeof POKER!=='undefined'&&POKER.on)sfx('chip');}catch(e){}return r;};}
 if(typeof startHand==='function'){const _sh=startHand;startHand=function(){const r=_sh.apply(this,arguments);try{sfx('deal');}catch(e){}return r;};}
+
+/* ---------- src/world/v75.js ---------- */
+/* v75 Delve. Loot beams, named legendaries, extra elite traits, seeded dungeon
+   pockets, difficulty tiers, a town portal, and breakable containers.
+   The crypt spine, boss rooms, and story exits stay where they are. */
+const LEGENDS=[
+  {fx:'splitfire',slot:'weapon',name:'Split Ember',text:'Fireball splits into three.'},
+  {fx:'miser',slot:'weapon',name:"Miser's Edge",text:'Defeated foes drop a little extra gold.'},
+  {fx:'quickfang',slot:'weapon',name:'Quickfang',text:'A kill shortens your dash cooldown.'},
+  {fx:'aegis',slot:'armor',name:'Aegis Mantle',text:'A dash grants a brief barrier.'},
+  {fx:'cinder',slot:'armor',name:'Cinder Heart',text:'Fire damage heals you a little.'},
+  {fx:'rime',slot:'armor',name:'Rimeguard',text:'A hit you take chills nearby foes.'},
+  {fx:'frosttrail',slot:'ring',name:'Frostwake Band',text:'Your dash leaves a frost trail.'},
+  {fx:'shadowback',slot:'ring',name:'Nightglass',text:'Shadow Step refunds a card when a cursed foe falls.'},
+  {fx:'critchain',slot:'ring',name:'Storm Signet',text:'Critical hits arc lightning to a nearby foe.'},
+  {fx:'lantern',slot:'ring',name:'Oakvale Lantern',text:'Town portal costs no scroll.'},
+];
+const DELVE_TIERS=['Normal','Veteran','Nightmare'];
+const DELVE={seed:175001,tier:0,scrolls:0,seen:{},piles:[],props:[],back:null,gate:null,ui:null,frost:[],frostT:0,shadowT:0,nova:0,base:null,applied:-1,hit:{tier:null,portal:null,close:null,tiers:[null,null,null]}};
+const DELVE_CHUNKS=[
+  [{dx:1,dy:0,t:'a'},{dx:3,dy:0,t:'a'},{dx:5,dy:0,t:'a'},{dx:2,dy:1,t:'b'},{dx:4,dy:1,t:'b'}],
+  [{dx:0,dy:0,t:'b'},{dx:6,dy:0,t:'b'},{dx:0,dy:2,t:'b'},{dx:6,dy:2,t:'b'},{dx:3,dy:1,t:'a'}],
+  [{dx:1,dy:1,t:'a'},{dx:2,dy:1,t:'a'},{dx:3,dy:1,t:'a'},{dx:4,dy:1,t:'a'},{dx:5,dy:1,t:'a'}],
+];
+function delveLesson(id,s){if(DELVE.seen[id])return;DELVE.seen[id]=1;try{toast(s,4.2,'#ffe9a0');}catch(e){}}
+function delveTouch(){return typeof TOUCH!=='undefined'&&!!TOUCH;}
+function delveHasFx(id){for(const s of GEAR_SLOTS){const it=GEAR.eq[s];if(it&&it.fx===id)return it;}return null;}
+function delveBonusKeys(it){const prim=GEAR_PRIMARY[it.slot];return Object.keys(it.st).filter(k=>k!==prim&&!(it.slot==='armor'&&k==='def'));}
+function delveTuneGear(it){
+  if(!it||!it.st)return it;
+  const pool=GEAR_POOL[it.slot].filter(k=>!(k in it.st));
+  let n=delveBonusKeys(it).length,want=1+(it.lv%3);
+  while(n<want&&pool.length){const k=pool.splice(RI(0,pool.length-1),1)[0];it.st[k]=GEAR_ROLL[k](it.lv,GEAR_RAR[it.rar].mult*.7);n++;}
+  const extra=delveBonusKeys(it);
+  while(extra.length>3){const k=extra.pop();delete it.st[k];}
+  if(DELVE.tier>0&&!it.boss){const order=GEAR_RAR_ORDER,i=order.indexOf(it.rar);if(i>=0&&i<order.length-1&&Math.random()<(DELVE.tier===2?.28:.16))it.rar=order[i+1];}
+  if(it.rar==='legendary'){
+    const list=LEGENDS.filter(u=>u.slot===it.slot);
+    const u=list.length?list[(it.lv+(it.id|0))%list.length]:null;
+    if(u){it.name=u.name;it.fx=u.fx;it.fxText=u.text;it.unique=1;
+      delveLesson('legend','A legendary changes how you fight. Its effect is written on the bag row.');}
+  }
+  return it;
+}
+{const _gg=genGear;genGear=function(slot,L,rar,boss){return delveTuneGear(_gg(slot,L,rar,boss));};}
+function delveShow(it,x,y){
+  if(!it)return;
+  DELVE.piles.push({x,y,rar:it.rar,name:it.name,t:0,life:it.rar==='legendary'?9:6.5,pop:0});
+  sfx(it.rar==='legendary'?'dropL':it.rar==='epic'?'dropE':it.rar==='rare'?'dropR':it.rar==='uncommon'?'dropU':'dropC');
+  try{wfxText(x,y-20,it.rar==='legendary'?'LEGENDARY':GEAR_RAR[it.rar].n,GEAR_RAR[it.rar].col,it.rar==='legendary'?16:12,1.1);wfxBurst(x,y-8,GEAR_RAR[it.rar].col,it.rar==='legendary'?16:8,90,.45);}catch(e){}
+  delveLesson('loot','Drops glow by rarity. The beam is the find, and the pop means it landed in your bag.');
+}
+{const _ke=killEnemy;killEnemy=function(e){
+  const before=Math.max(0,...GEAR.inv.map(i=>i.id|0),...GEAR_SLOTS.map(s=>GEAR.eq[s]?GEAR.eq[s].id|0:0));
+  const r=_ke(e);
+  try{
+    let it=null;GEAR.inv.forEach(i=>{if((i.id|0)>before)it=i;});GEAR_SLOTS.forEach(s=>{const i=GEAR.eq[s];if(i&&(i.id|0)>before)it=i;});
+    if(it)delveShow(it,e.x,e.y-6);
+    if(it&&delveHasFx('miser')){P.gold+=8;try{wfxText(e.x+16,e.y-8,'+8','#ffd23f',11,.8);}catch(err){}}
+    if(delveHasFx('quickfang'))DASH.cd=Math.max(0,DASH.cd-.7);
+    if(B&&DELVE.shadowT>0&&e.curse>0&&delveHasFx('shadowback')){
+      const i=B.hand.indexOf(null);if(i>=0){B.hand[i]='shadow';floatText(e.x,e.y-78,'CARD BACK','#c9b6ff',12);DELVE.shadowT=0;}
+    }
+  }catch(err){}
+  return r;
+};}
+{const _uc=useCard;useCard=function(i){
+  const id=B&&B.hand?B.hand[i]:null;const n=B&&B.shots?B.shots.length:0;
+  const r=_uc(i);
+  try{
+    if(id==='shadow')DELVE.shadowT=6;
+    if(id==='fire'&&delveHasFx('splitfire')&&B&&B.shots&&B.shots.length>n){
+      const s=B.shots[B.shots.length-1],a=Math.atan2(s.vy,s.vx);
+      [-.32,.32].forEach(da=>{B.shots.push({x:s.x,y:s.y,vx:Math.cos(a+da)*240,vy:Math.sin(a+da)*240,r:7,dmg:s.dmg*.55,own:'p',kind:'fire',life:1.35,a:a+da});});
+      floatText(s.x,s.y-16,'SPLIT','#ffb07a',11);
+    }
+  }catch(e){}
+  return r;
+};}
+{const _td=tryDash;tryDash=function(ax,ay){
+  const ok=_td(ax,ay);
+  if(ok&&delveHasFx('frosttrail')){DELVE.frostT=.55;DELVE.frost.length=0;}
+  if(ok&&delveHasFx('aegis')&&B){B.inv=Math.max(B.inv||0,.4);if(B.barrier!=null)B.barrier=Math.max(B.barrier|0,1);floatText(P.x,P.y-36,'AEGIS','#bfe6ff',11);}
+  return ok;
+};}
+function delveOnCrit(e,c){
+  if(!B||!delveHasFx('critchain')||!e)return;
+  let best=null,bd=120;
+  for(const o of B.ens){if(!o||o===e||o.dying)continue;const d=Math.hypot(o.x-e.x,o.y-e.y);if(d<bd){bd=d;best=o;}}
+  if(!best)return;
+  const dmg=Math.max(4,Math.round(8+gearStats().shot*.35));
+  hurt(best,dmg,'zap');
+  try{floatText(best.x,best.y-30,'ARC','#ffe14d',11);}catch(err){}
+}
+{const _de=damageEnemy;damageEnemy=function(e,d,kind){
+  const r=_de(e,d,kind);
+  if(kind==='fire'&&delveHasFx('cinder')&&P.hp>0){const h=Math.max(1,Math.round(Math.min(6,(d||4)*.08)));P.hp=Math.min(maxHp(),P.hp+h);}
+  return r;
+};}
+{const _dp=damagePlayer;damagePlayer=function(d,src){
+  const m=DELVE.tier===2?1.5:DELVE.tier===1?1.25:1;
+  const r=_dp.call(this,d*m,src);
+  if(!DELVE.nova&&delveHasFx('rime')&&B){
+    DELVE.nova=1;
+    for(const e of B.ens)if(e&&!e.dying&&Math.hypot(e.x-P.x,e.y-P.y)<84)e.chill=Math.max(e.chill||0,1.1);
+    try{wfxBurst(P.x,P.y-10,'#bfefff',8,70,.35);}catch(e){}
+    DELVE.nova=0;
+  }
+  return r;
+};}
+AFFIX.volatile.n='Explosive';
+AFFIX.volatile.desc='Bursts in a telegraphed blast when it dies';
+AFFIX.frost={n:'Frost Aura',col:'#9fdfff',desc:'Chills you while you stand close'};
+AFFIX.summoner={n:'Summoner',col:'#d7b0ff',desc:'Calls one weak slime once it is wounded'};
+AFFIX_IDS.push('frost','summoner');
+{const _er=eliteRoll;eliteRoll=function(e,force){
+  if(force||!e||e.def&&e.def.boss||e.rush)return _er(e,force);
+  const c=ELITE.chance,add=DELVE.tier===2?.16:DELVE.tier===1?.08:0;
+  ELITE.chance=Math.min(.42,c+add);
+  try{return _er(e,force);}finally{ELITE.chance=c;}
+};}
+{const _dea=drawEliteAura;drawEliteAura=function(e,sx,sy){
+  _dea(e,sx,sy);if(!e.elite)return;
+  if(e.elite.indexOf('frost')>=0){ctx.save();ctx.globalAlpha=.28+.12*Math.sin(gtime*3);ctx.strokeStyle='#bfefff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(sx,sy+2,26,10,0,0,6.283);ctx.stroke();ctx.restore();}
+  };}
+{const _dew=drawEnemyWorld;drawEnemyWorld=function(e){_dew(e);if(!e||!e.elite||!e.alive)return;const sx=e.x-cam.x,sy=e.y-cam.y,label=e.elite.map(i=>AFFIX[i]?AFFIX[i].n:i).join(' · ');
+  ctx.fillStyle='#80563a';ctx.fillRect(sx-72,sy-54,144,16);ctx.fillStyle='#efe6d2';ctx.fillRect(sx-70,sy-52,140,12);
+  txt('ELITE  '+label,sx,sy-42,{size:8,align:'center',col:'#3a2210',lw:2});
+};}
+function delveFloorTile(floor,kind){
+  if(kind==='a')return floor===T.IC?T.PM:T.IC;
+  if(kind==='b')return floor===T.SN?T.SD:T.SN;
+  return floor===T.CF?T.PM:T.CF;
+}
+function delveRemember(x,y){const k=y*MW+x;if(!DELVE.base.has(k))DELVE.base.set(k,map[y][x]);}
+function delvePaint(x,y,t){if(x<0||y<0||x>=MW||y>=MH)return;delveRemember(x,y);if(SOLID.has(map[y][x])&&!SOLID.has(t))return;if(!SOLID.has(t))map[y][x]=t;}
+function delveChunk(x,y,idx,floor){
+  const ch=DELVE_CHUNKS[idx%DELVE_CHUNKS.length];
+  for(const c of ch){const tx=x+c.dx,ty=y+c.dy;if(ty<0||tx<0||ty>=MH||tx>=MW)continue;if(SOLID.has(map[ty][tx]))continue;const t=delveFloorTile(floor,c.t);delvePaint(tx,ty,t);}
+}
+function delveProp(x,y,kind){
+  if(x<1||y<1||x>=MW-1||y>=MH-1)return;
+  if(SOLID.has(map[y][x]))return;
+  DELVE.props.push({x:x*TS+16,y:y*TS+22,kind,hp:1});
+}
+function delveApply(seed){
+  seed=seed|0;if(!DELVE.base)DELVE.base=new Map();
+  if(DELVE.applied===seed&&DELVE.props.length)return;
+  for(const [k,t] of DELVE.base){const x=k%MW,y=(k/MW)|0;if(map[y])map[y][x]=t;}
+  DELVE.props.length=0;DELVE.applied=seed;
+  const rnd=mulberry32(seed||1);
+  const idx=n=>Math.abs(seed>>n)%DELVE_CHUNKS.length;
+  delveChunk(6,66,idx(0),T.CF);delveChunk(50,66,idx(2),T.CF);delveChunk(8,72,idx(4),T.PM);
+  const wash=[T.IC,T.SN,T.PM][idx(0)];
+  for(let y=66;y<=72;y++)for(let x=7;x<=13;x++)if(map[y]&&!SOLID.has(map[y][x]))delvePaint(x,y,wash);
+  delveProp(9,70,'barrel');delveProp(12,74,'crate');delveProp(53,70,'pot');delveProp(56,75,'barrel');
+  let bit=6;
+  for(const id in ZONES){
+    const y0=ZONES[id].y0,fl=id==='snow'?T.IC:id==='swamp'?T.SD:T.SN;
+    delveChunk(16,y0+24,idx(bit),fl);delveChunk(34,y0+16,idx(bit+2),fl);delveChunk(48,y0+25,idx(bit+4),fl);bit+=6;
+    delveProp(18,y0+25,rnd()<.5?'barrel':'crate');delveProp(37,y0+17,rnd()<.5?'pot':'barrel');delveProp(50,y0+26,'crate');
+  }
+  const stairs=map[84]&&map[84][31],throne=map[55]&&map[55][32];
+  if(stairs!==T.CF&&stairs!==T.CX){/* spine tiles are remembered only if we painted them */}
+  void throne;
+}
+function delveArea(){
+  const tx=Math.floor(P.x/TS),ty=Math.floor((P.y-4)/TS);
+  if(typeof regions!=='undefined'&&regions.crypt(tx,ty))return 'crypt';
+  const z=typeof zoneOfTy==='function'?zoneOfTy(ty):'';
+  if(ZONES[z])return z;
+  return 'ow';
+}
+function delveInBoss(){return !!(B&&(B.boss||B.ens&&B.ens.some(e=>e&&e.def&&e.def.boss&&!e.dying)));}
+function delvePortal(){
+  if(state!=='play'||WARP||DLG)return;
+  if(delveInBoss()){toast('The portal will not open during a boss fight.',2.4,'#ffb0a0');sfx('clang');return;}
+  const area=delveArea();
+  if(area!=='ow'&&DELVE.back){/* still in a delve: open a way home */}
+  if(area==='ow'&&DELVE.back){
+    const to={x:DELVE.back.x,y:DELVE.back.y,dir:'d'};DELVE.gate=null;DELVE.hop=1.4;startWarp(to);toast('The return portal takes you back.',2.2,'#bfefff');return;
+  }
+  if(area==='ow'){toast('The portal needs a dungeon to return to.',2.2,'#ffb0a0');return;}
+  if(!delveHasFx('lantern')){if(DELVE.scrolls<=0){toast('You need a town-portal scroll.',2.2,'#ffb0a0');sfx('clang');return;}DELVE.scrolls--;}
+  DELVE.back={x:P.x,y:P.y};
+  DELVE.gate={x:SPAWN.x+70,y:SPAWN.y+10};
+  DELVE.hop=1.4;
+  startWarp({x:SPAWN.x,y:SPAWN.y,dir:'d'});
+  toast('A portal home, and a way back to this spot.',2.6,'#bfefff');
+  delveLesson('portal',(delveTouch()?'Tap PORTAL on the HUD':'Press T')+' to return to Oakvale. Step through the arch in town to go back. It stays shut during a boss.');
+}
+function delveBreak(p){
+  if(!p||p.hp<=0)return;
+  p.hp=0;
+  sfx('barrel');
+  try{wfxBurst(p.x,p.y-8,p.kind==='pot'?'#d8c4a4':p.kind==='crate'?'#c4a06a':'#8a5a32',14,110,.5);wfxText(p.x,p.y-18,'SMASH','#ffe9a0',12,.6);}catch(e){}
+  if(Math.random()<.55){const g=RI(2,11);P.gold+=g;try{wfxText(p.x+8,p.y-6,'+'+g+' G','#ffd23f',11,.8);}catch(e){}}
+  else if(Math.random()<.18){const it=genGear(null,Math.max(1,P.lv),'common',false);addGear(it);delveShow(it,p.x,p.y-10);}
+  delveLesson('barrel','Barrels, crates, and pots break when you strike or dash through them.');
+}
+function delveHitProps(x,y,r){for(const p of DELVE.props)if(p.hp>0&&Math.hypot(p.x-x,p.y-y)<r)delveBreak(p);}
+function delveUnlocked(){return !!((typeof STORY!=='undefined'&&STORY.ending)||(typeof X7!=='undefined'&&X7.ngp>0));}
+function delveSetTier(n){
+  if(n>0&&!delveUnlocked()){toast('Veteran and Nightmare open after the ending, or in New Game+.',2.8,'#ffb0a0');return;}
+  DELVE.tier=n;
+  toast(DELVE_TIERS[n]+' difficulty.',2,'#ffe9a0');sfx('select');
+  if(n>0)delveLesson('diff','The tier sits on the HUD. Veteran and Nightmare hit harder, field more elites, and drop better gear.');
+}
+function delveReset(){
+  DELVE.seed=(Math.random()*1e9)|0;DELVE.tier=0;DELVE.scrolls=0;DELVE.seen={};DELVE.back=null;DELVE.gate=null;DELVE.piles.length=0;
+  delveApply(DELVE.seed);
+}
+function delvePack(){return {seed:DELVE.seed|0,tier:DELVE.tier|0,scrolls:DELVE.scrolls|0,seen:DELVE.seen,back:DELVE.back,gate:DELVE.gate};}
+function delveUnpack(s){
+  if(!s)return;
+  if(s.seen&&typeof s.seen==='object')DELVE.seen=s.seen;
+  DELVE.tier=s.tier===1||s.tier===2?s.tier:0;
+  DELVE.scrolls=Math.max(0,s.scrolls|0);
+  DELVE.back=s.back&&isFinite(s.back.x)?{x:s.back.x,y:s.back.y}:null;
+  DELVE.gate=s.gate&&isFinite(s.gate.x)?{x:s.gate.x,y:s.gate.y}:null;
+  if(isFinite(s.seed)){DELVE.seed=s.seed|0;DELVE.applied=-1;delveApply(DELVE.seed);}
+}
+{const _sg=saveGame;saveGame=function(why){const ok=_sg(why);if(!ok)return ok;try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return ok;const o=JSON.parse(raw);o.delve=delvePack();localStorage.setItem(SAVE_KEY,JSON.stringify(o));}catch(e){}return ok;};}
+{const _ld=loadSave;loadSave=function(s){const r=_ld(s);try{delveUnpack(s&&s.delve);}catch(e){}return r;};}
+{const _ng=typeof startNGPlus==='function'?startNGPlus:null;if(_ng)startNGPlus=function(){const r=_ng();if(r){DELVE.seed=(Math.random()*1e9)|0;DELVE.applied=-1;delveApply(DELVE.seed);delveLesson('diff',delveTouch()?'New Game+ opens Veteran and Nightmare. Tap the tier on the HUD, or Difficulty in the pause menu.':'New Game+ opens Veteran and Nightmare. The tier is on the HUD. Press Y.');}return r;};}
+{const _sf=startFromTitle;startFromTitle=function(){
+  const it=titleMenu.items[titleMenu.sel];
+  const confirming=titleMenu.save&&!titleMenu.confirm&&it!=='Continue'&&it!=='Restore Backup'&&it!=='Fishing Lab';
+  const r=_sf();
+  if(!confirming&&state==='play'&&it!=='Continue'&&it!=='Restore Backup'&&it!=='Fishing Lab')delveReset();
+  return r;
+};}
+function delveTick(dt){
+  if(state!=='play'||!P)return;
+  for(let i=DELVE.piles.length-1;i>=0;i--){const p=DELVE.piles[i];p.t+=dt;if(p.t>p.life)DELVE.piles.splice(i,1);
+    else if(!B&&Math.hypot(p.x-P.x,p.y-P.y)<26&&!p.pop){p.pop=1;p.life=Math.min(p.life,p.t+.35);try{wfxText(p.x,p.y-24,'PICKED UP',GEAR_RAR[p.rar].col,12,.7);wfxBurst(p.x,p.y-6,GEAR_RAR[p.rar].col,8,60,.3);}catch(e){}sfx('pop');}}
+  if(DELVE.shadowT>0)DELVE.shadowT=Math.max(0,DELVE.shadowT-dt);
+  if(delveHasFx('frosttrail')&&DASH.t>0){if(DELVE.frost.length<8)DELVE.frost.push(P.x,P.y);DELVE.frostT=.4;}
+  else if(DELVE.frostT>0)DELVE.frostT-=dt;
+  if(B&&DELVE.frostT>0){for(const e of B.ens)if(e&&!e.dying){for(let i=0;i<DELVE.frost.length;i+=2)if(Math.hypot(e.x-DELVE.frost[i],e.y-DELVE.frost[i+1])<28){e.chill=Math.max(e.chill||0,.8);}}}
+  if(B){for(const e of B.ens){
+    if(e&&hasAff(e,'frost')&&!e.dying){e.dvFr=(e.dvFr||0)-dt;if(e.dvFr<=0&&Math.hypot(e.x-P.x,e.y-P.y)<78){e.dvFr=.8;P.slowT=Math.max(P.slowT||0,.35);delveLesson('elite','Elites wear their trait on a name plate. Frost Aura chills you if you stand close.');}}
+    if(e&&hasAff(e,'summoner')&&!e.dvSum&&!e.dying&&e.hp<e.maxhp*.75){e.dvSum=1;try{const made=summonMinions(e,'slime',1,1);if(made&&made[0]){made[0].hp=made[0].maxhp=Math.min(12,made[0].maxhp);}}catch(err){}delveLesson('elite','Elites wear their trait on a name plate. A Summoner calls one weak slime.');}
+  }}
+  const area=delveArea();
+  if(area!=='ow'&&!DELVE.seen.floor){DELVE.scrolls=Math.max(DELVE.scrolls,1);delveLesson('floor','This floor is laid out from this run\'s seed. The way to the boss stays put. A town-portal scroll is yours.');delveLesson('portal',(delveTouch()?'Tap PORTAL on the HUD':'Press T')+' for a way back to Oakvale, then step through the arch in town to return. It stays shut during a boss.');}
+  if(!B&&hit('KeyT'))delvePortal();
+  if(!B&&hit('KeyY'))DELVE.ui=DELVE.ui==='diff'?null:'diff';
+  if(DELVE.ui==='diff'){if(hit('Digit1')){delveSetTier(0);DELVE.ui=null;}if(hit('Digit2')){delveSetTier(1);DELVE.ui=null;}if(hit('Digit3')){delveSetTier(2);DELVE.ui=null;}if(hit('Escape'))DELVE.ui=null;}
+  if(!B&&(hit('KeyJ')||DASH.t>0))delveHitProps(P.x,P.y,DASH.t>0?34:30);
+  if(B&&B.shots)for(const s of B.shots)if(s&&s.own==='p')delveHitProps(s.x,s.y,18);
+  if(DELVE.hop>0)DELVE.hop-=dt;
+  else if(!B&&!WARP&&DELVE.gate&&Math.hypot(P.x-DELVE.gate.x,P.y-DELVE.gate.y)<24){const to=DELVE.back;DELVE.gate=null;DELVE.hop=1.4;if(to)startWarp({x:to.x,y:to.y,dir:'d'});}
+  else if(!B&&!WARP&&DELVE.back&&delveArea()!=='ow'&&Math.hypot(P.x-DELVE.back.x,P.y-DELVE.back.y)<22){DELVE.gate={x:SPAWN.x+70,y:SPAWN.y+10};DELVE.hop=1.4;startWarp({x:SPAWN.x,y:SPAWN.y,dir:'d'});}
+}
+function delveDrawWorld(){
+  for(let i=0;i<DELVE.piles.length;i++){
+    const p=DELVE.piles[i];if(p.x<cam.x-40||p.x>cam.x+VW+40||p.y<cam.y-80||p.y>cam.y+VH+40)continue;
+    const col=GEAR_RAR[p.rar]?GEAR_RAR[p.rar].col:'#fff',sx=p.x-cam.x,sy=p.y-cam.y,a=.45+.25*Math.sin(gtime*3+i),h=p.rar==='legendary'?78:p.rar==='epic'?64:50;
+    ctx.globalAlpha=a*(1-Math.min(1,p.pop));ctx.fillStyle=col;ctx.fillRect(sx-4,sy-h,8,h);
+    if(p.rar==='legendary'){ctx.globalAlpha=.55+.3*Math.sin(gtime*6);ctx.fillStyle='#fff6d0';ctx.fillRect(sx-2,sy-h-8,4,14);}
+    ctx.globalAlpha=.95;ctx.fillStyle=col;ctx.fillRect(sx-7,sy-10,14,10);ctx.globalAlpha=1;
+  }
+  for(const p of DELVE.props){if(p.hp<=0)continue;if(p.x<cam.x-30||p.x>cam.x+VW+30)continue;
+    const sx=p.x-cam.x,sy=p.y-cam.y;
+    ctx.fillStyle=p.kind==='pot'?'#d8c4a4':p.kind==='crate'?'#a67c52':'#6b4428';
+    if(p.kind==='barrel'){ctx.beginPath();ctx.ellipse(sx,sy-8,7,10,0,0,6.283);ctx.fill();ctx.fillStyle='#c4a06a';ctx.fillRect(sx-7,sy-10,14,3);}
+    else if(p.kind==='crate')ctx.fillRect(sx-8,sy-14,16,12);
+    else {ctx.beginPath();ctx.ellipse(sx,sy-8,6,7,0,0,6.283);ctx.fill();}
+  }
+  const arches=[];if(DELVE.back)arches.push(DELVE.back);if(DELVE.gate)arches.push(DELVE.gate);
+  for(const a of arches){if(a.x<cam.x-40||a.x>cam.x+VW+40)continue;const sx=a.x-cam.x,sy=a.y-cam.y;
+    ctx.strokeStyle='#9fd7ff';ctx.lineWidth=3;ctx.globalAlpha=.75+.2*Math.sin(gtime*4);ctx.beginPath();ctx.ellipse(sx,sy-16,16,22,0,Math.PI,0);ctx.stroke();ctx.globalAlpha=.25;ctx.fillStyle='#d7f3ff';ctx.fill();ctx.globalAlpha=1;
+    txt('PORTAL',sx,sy-44,{size:9,align:'center',col:'#e7f7ff',lw:3});}
+  if(DELVE.frostT>0){ctx.fillStyle='#d7f6ff';for(let i=0;i<DELVE.frost.length;i+=2){ctx.globalAlpha=.35;ctx.fillRect(DELVE.frost[i]-cam.x-3,DELVE.frost[i+1]-cam.y-3,6,4);}ctx.globalAlpha=1;}
+}
+function delveOpenDiff(){DELVE.ui=DELVE.ui==='diff'?null:'diff';sfx('select');}
+function delvePortalHere(){const a=delveArea();return a==='crypt'||!!(typeof ZONES!=='undefined'&&ZONES[a]);}
+function delvePortalWhy(){
+  if(!delvePortalHere())return '';
+  if(delveInBoss())return 'The portal stays shut during a boss fight.';
+  if(B)return 'The portal opens once this fight is over.';
+  if(!delveHasFx('lantern')&&DELVE.scrolls<=0)return 'You need a town-portal scroll.';
+  return '';
+}
+function delveTierRect(){
+  const w=delveTouch()?148:120,h=delveTouch()?44:28,x=Math.round(VW/2-w/2),y=(typeof ST==='number'?ST:0)+6;
+  return {x,y,w,h};
+}
+function delvePortalBtn(){
+  if(typeof layoutTouch==='function')layoutTouch();
+  const tier=delveTierRect(),r=btn.atk?btn.atk.r:26;
+  const miniL=VW-(typeof SR==='number'?SR:0)-148;
+  let x=Math.round(VW/2),y=tier.y+tier.h+10+r;
+  if(btn.atk&&Math.hypot(x-btn.atk.x,y-btn.atk.y)<r+btn.atk.r+16)y=Math.max(tier.y+tier.h+r+8,btn.atk.y-btn.atk.r-r-18);
+  if(x+r>miniL)x=Math.round(miniL-r-8);
+  const heroR=(typeof SL==='number'?SL:0)+196;
+  if(x-r<heroR)x=Math.round((heroR+miniL)/2);
+  return {x,y,r};
+}
+function delveDrawUi(){
+  DELVE.hit.tier=null;DELVE.hit.portal=null;DELVE.hit.close=null;
+  if(state==='play'){
+    const tier=delveTierRect(),name=DELVE_TIERS[DELVE.tier]||'Normal';
+    DELVE.hit.tier=tier;
+    ctx.fillStyle='#80563a';ctx.fillRect(tier.x,tier.y,tier.w,tier.h);
+    ctx.fillStyle='#efe6d2';ctx.fillRect(tier.x+2,tier.y+2,tier.w-4,tier.h-4);
+    txt(name.toUpperCase(),tier.x+tier.w/2,tier.y+tier.h/2+4,{size:11,align:'center',col:DELVE.tier?DELVE.tier===2?'#8a3e12':'#3f8f3a':'#5a4638',lw:2});
+    if(delvePortalHere()){
+      const b=delvePortalBtn(),why=delvePortalWhy(),on=!why;
+      DELVE.hit.portal={x:b.x-b.r,y:b.y-b.r,w:b.r*2,h:b.r*2,cx:b.x,cy:b.y,r:b.r};
+      ctx.globalAlpha=on?1:.45;
+      ctx.fillStyle='#80563a';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.283);ctx.fill();
+      ctx.fillStyle=on?'#efe6d2':'#c9ad7e';ctx.beginPath();ctx.arc(b.x,b.y,b.r-3,0,6.283);ctx.fill();
+      ctx.strokeStyle=on?'#3f8f3a':'#6a5a48';ctx.lineWidth=3;ctx.stroke();
+      txt('PORTAL',b.x,b.y+4,{size:b.r>32?11:9,align:'center',col:on?'#3a2210':'#5a4638',lw:2});
+      ctx.globalAlpha=1;
+      if(why)txt(delveInBoss()?'BOSS':B?'FIGHT':'NO SCROLL',b.x,b.y+b.r+12,{size:8,align:'center',col:'#ffb0a0',lw:3});
+      else if(DELVE.scrolls>0||delveHasFx('lantern'))txt(delveHasFx('lantern')?'LANTERN':String(DELVE.scrolls),b.x,b.y+b.r+12,{size:8,align:'center',col:'#efe6d2',lw:3});
+    }
+  }
+  if(DELVE.ui!=='diff'||(state!=='play'&&state!=='paused'))return;
+  const w=Math.min(300,VW-24),h=168,px=Math.round((VW-w)/2),py=Math.round((VH-h)/2);
+  ctx.fillStyle='rgba(20,16,12,.45)';ctx.fillRect(0,0,VW,VH);
+  ctx.fillStyle='#80563a';ctx.fillRect(px-4,py-4,w+8,h+8);ctx.fillStyle='#efe6d2';ctx.fillRect(px,py,w,h);
+  txt('DIFFICULTY',px+w/2,py+22,{size:14,align:'center',col:'#3a2210',lw:2});
+  txt(delveUnlocked()?'Veteran and Nightmare are open.':'Finish the story, or begin New Game+.',px+w/2,py+40,{size:8,align:'center',col:'#5a4638',lw:2});
+  const gap=8,bw=Math.floor((w-32-gap*2)/3);
+  DELVE_TIERS.forEach((n,i)=>{const bx=px+16+i*(bw+gap),by=py+52,on=DELVE.tier===i,lock=i>0&&!delveUnlocked();
+    DELVE.hit.tiers[i]={x:bx,y:by,w:bw,h:52};
+    ctx.fillStyle=on?'#3f8f3a':lock?'#c9ad7e':'#f6f0e2';ctx.fillRect(bx,by,bw,52);ctx.strokeStyle='#80563a';ctx.strokeRect(bx,by,bw,52);
+    txt(n.toUpperCase(),bx+bw/2,by+22,{size:9,align:'center',col:on?'#fff8e0':'#3a2210',lw:on?3:2});
+    txt(lock?'LOCKED':on?'SELECTED':'',bx+bw/2,by+38,{size:8,align:'center',col:lock?'#8a3e12':'#fff8e0',lw:2});});
+  const cx=px+w-78,cy=py+h-36;DELVE.hit.close={x:cx,y:cy,w:64,h:28};
+  ctx.fillStyle='#80563a';ctx.fillRect(cx,cy,64,28);ctx.fillStyle='#f6f0e2';ctx.fillRect(cx+2,cy+2,60,24);
+  txt('CLOSE',cx+32,cy+19,{size:9,align:'center',col:'#3a2210',lw:2});
+  txt(delveTouch()?'Tap a tier, or Close.':'1  2  3    Esc closes    Y on the HUD',px+16,py+h-16,{size:8,col:'#5a4638',lw:2});
+}
+function delveIn(p,r){return !!(p&&r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h);}
+function delvePointer(p){
+  if(!p)return false;
+  if(DELVE.ui==='diff'){
+    if(delveIn(p,DELVE.hit.close)){DELVE.ui=null;sfx('select');return true;}
+    for(let i=0;i<3;i++)if(delveIn(p,DELVE.hit.tiers[i])){delveSetTier(i);if(DELVE.tier===i||i===0)DELVE.ui=null;return true;}
+    DELVE.ui=null;sfx('select');return true;
+  }
+  if(state!=='play')return false;
+  if(delveIn(p,DELVE.hit.portal)){
+    const why=delvePortalWhy();
+    if(why){toast(why,2.2,'#ffb0a0');sfx('clang');return true;}
+    delvePortal();return true;
+  }
+  if(delveIn(p,DELVE.hit.tier)){delveOpenDiff();return true;}
+  if(!B){
+    const wx=p.x+cam.x,wy=p.y+cam.y;
+    for(const pr of DELVE.props)if(pr.hp>0&&Math.hypot(pr.x-wx,pr.y-wy)<24){delveBreak(pr);return true;}
+  }
+  return false;
+}
+{const _tap=tapUI;tapUI=function(p){if(delvePointer(p))return true;return _tap(p);};}
+{const _td=touchDown;touchDown=function(id,p){if(delvePointer(p)){touches.set(id,{kind:'tap'});return;}return _td(id,p);};}
+SFXT.dropC=()=>tone(520,640,.08,'sine',.04);
+SFXT.dropU=()=>{tone(560,700,.09,'sine',.045);tone(740,860,.1,'sine',.03,.07);};
+SFXT.dropR=()=>{[520,680,860].forEach((f,i)=>tone(f,f*1.04,.12,'sine',.045,i*.06));};
+SFXT.dropE=()=>{[480,620,780,980].forEach((f,i)=>tone(f,f*1.02,.14,'triangle',.04,i*.07));};
+SFXT.dropL=()=>{[392,523,659,784,1046].forEach((f,i)=>tone(f,f,.18,'sine',.05,i*.08));tone(784,784,.4,'triangle',.03,.32);};
+SFXT.pop=()=>{tone(680,980,.07,'sine',.05);tone(980,1280,.08,'sine',.03,.05);};
+SFXT.barrel=()=>{noise(.16,.07);tone(180,70,.16,'triangle',.05);};
+{const _up=update;update=function(dt){const r=_up(dt);try{delveTick(dt);}catch(e){}return r;};}
+{const _dw=drawWorld;drawWorld=function(){_dw();try{delveDrawWorld();}catch(e){}}; }
+{const _rn=render;render=function(){_rn();try{delveDrawUi();}catch(e){}}; }
+delveApply(DELVE.seed);
 
 </script></body></html>
