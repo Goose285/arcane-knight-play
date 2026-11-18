@@ -5048,7 +5048,11 @@ function updateExplore(dt){
    ===================================================================== */
 const GOTO={k:null,ref:null,path:[],i:0,t:0,lx:0,ly:0,st:0};
 const NPC_TALK_R=58;   // same reach as E: a click on someone you are standing beside talks immediately
-function worldTapOk(){return state==='play'&&!B&&!DLG&&!WARP&&!RUSH.on&&!FISH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
+function fightNearHero(){
+  if(!B||B.phase==='win'||B.phase==='lose'||B.phase==='reward')return false;
+  return (B.ens||[]).some(e=>e&&!e.dying&&Math.hypot(e.x-P.x,e.y-P.y)<240);
+}
+function worldTapOk(){return state==='play'&&!fightNearHero()&&!DLG&&!WARP&&!RUSH.on&&!FISH.on&&!isUI()&&!STORY.cutting&&!(STORY.queue);}
 /* what is under a screen point (generous boxes): {k:'npc',ref}|{k:'spot',ref}|null */
 function worldTargetAt(p){
   if(!worldTapOk())return null;
@@ -5098,7 +5102,7 @@ function setGoto(t){
 const gotoManual=()=>held(...K_L)||held(...K_R)||held(...K_U)||held(...K_D)||(joy.on&&Math.hypot(joy.x,joy.y)>.2);
 function updateGoto(dt){
   if(!GOTO.k)return;
-  if(B||DLG||WARP||FISH.on||state!=='play'||gotoManual()){GOTO.k=null;return;}
+  if(fightNearHero()||DLG||WARP||FISH.on||state!=='play'||gotoManual()){GOTO.k=null;return;}
   const t={k:GOTO.k,ref:GOTO.ref};
   if(gotoInRange(t)){GOTO.k=null;gotoArrive(t);return;}
   GOTO.t+=dt;if(GOTO.t>16){GOTO.k=null;return;}
@@ -5191,7 +5195,9 @@ function fireWorldShot(charged){
 function updateWorldShots(dt){
   for(const s of WS){
     s.life-=dt;if(s.life<=0){s.dead=true;continue;}
-    if(sweepShot(s,dt)){s.dead=true;continue;}
+    if(s.own==='p'&&typeof delveHitProps==='function')delveHitProps(s.x,s.y,(s.r||6)+16);
+    if(sweepShot(s,dt)){s.dead=true;if(s.own==='p'&&typeof delveHitProps==='function')delveHitProps(s.x,s.y,(s.r||6)+16);continue;}
+    if(s.own==='p'&&typeof delveHitProps==='function')delveHitProps(s.x,s.y,(s.r||6)+16);
     if(hitSpawnerShot(s)){s.dead=true;continue;}
     for(const e of enemies){
       if(!e.alive||e.engaged||e.dying)continue;
@@ -5418,7 +5424,7 @@ function drawWorld(){
   for(const pp of penPetsVisible())if(pp.x>vx0&&pp.x<vx1&&pp.y>vy0&&pp.y<vy1)ents.push({y:pp.y,fn:()=>drawPenPet(pp)});
   for(const n of NPCS){if(n.x<vx0||n.x>vx1||n.y<vy0||n.y>vy1)continue;
     ents.push({y:n.y,fn:((n)=>{return ()=>{drawEntShadow(n.x,n.y,11);if(n.way)drawWayGlow(n);drawNpcAnimated(n);
-    if(!B&&!DLG&&!(typeof OPEN!=='undefined'&&OPEN.on)&&!n.retired&&Math.hypot(n.x-P.x,n.y-P.y)<34)txt(TOUCH?'TAP':'E',n.x-cam.x,n.y-cam.y-38,{size:12,align:'center',col:'#ffe14d'});
+    if(!(typeof fightNearHero==='function'&&fightNearHero())&&!DLG&&!(typeof OPEN!=='undefined'&&OPEN.on)&&!n.retired&&Math.hypot(n.x-P.x,n.y-P.y)<34)txt(TOUCH?'TAP':'E',n.x-cam.x,n.y-cam.y-38,{size:12,align:'center',col:'#ffe14d'});
     else if(!B&&!DLG)drawNpcMarker(n);};})(n)});}
   if(!B)for(const w of questWorldItems()){const wy=w.ty*TS+20;if(w.tx*TS>vx0&&w.tx*TS<vx1&&wy>vy0&&wy<vy1)ents.push({y:wy,fn:()=>drawQuestItem(w)});}
   for(const e of enemies){if(!e.alive||e.hidden)continue;if(e.x<vx0||e.x>vx1||e.y<vy0||e.y>vy1)continue;ents.push({y:e.y,fn:((e)=>()=>drawEnemyWorld(e))(e)});}
@@ -5623,6 +5629,7 @@ function initCombatEnemy(e,delay){
 }
 // enemies near an ongoing fight notice the noise and pile in, one after another
 function recruit(base,opt={}){
+  if(B&&(B.ffTut||B.lessonFight))return 0;   // the opening lesson stays the two slimes it started with, including after SKIP
   const src=liveEns();if(!src.length)return 0;
   const R0=ALERT_R+(B.loud>0?60:0),pe={x:P.x,y:P.y-12},cand=[];
   for(const o of enemies){
@@ -5819,8 +5826,8 @@ function updatePoison(dt){
 function drawPoison(){
   if(PSN.t<=0)return;const a=.18+.06*Math.sin(gtime*4);
   const g=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.75);g.addColorStop(0,'rgba(60,200,60,0)');g.addColorStop(1,`rgba(60,200,60,${a})`);ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
-  // HUD icon: a green droplet with a skull dot + seconds left (under the HP panel)
-  const x=SL+380,y=ST+22;
+  // HUD icon: beside the hero plate, clear of the next-card bar and the quest tracker
+  const plateR=SL+8+186,nextL=(VW-110)/2,x=plateR+8<nextL-76?plateR+8:SL+8,y=plateR+8<nextL-76?ST+18:ST+76;
   ctx.fillStyle='#14182c';ctx.fillRect(x-2,y-2,70,24);ctx.fillStyle='#2a6a2a';ctx.fillRect(x,y,66,20);
   ctx.fillStyle='#8cff6a';ctx.beginPath();ctx.moveTo(x+11,y+2);ctx.quadraticCurveTo(x+18,y+11,x+11,y+18);ctx.quadraticCurveTo(x+4,y+11,x+11,y+2);ctx.fill();
   ctx.fillStyle='#14182c';ctx.fillRect(x+9,y+10,2,2);ctx.fillRect(x+12,y+10,2,2);
@@ -6728,13 +6735,16 @@ function resetFighters(home){
 /* 'escaping' only counts while you are truly breaking away: every live foe is beyond the leash distance, none is closing in,
    winding up an attack, or still has a clear line of sight to you within shooting range (walls / castle halls / ranged foes). */
 const ESC_SEE=FLEE_DIST+120;
+const LESSON_FLEE=120;   // open meadow lesson only: a short walk across the grass shows ESCAPING. Real fights keep FLEE_DIST and line of sight.
 function breakingAway(dt){
   let d=1e9,threat=false;const pc=pcen();
+  const lesson=typeof lessonFlee==='function'&&lessonFlee();
+  const leash=lesson?LESSON_FLEE:FLEE_DIST;
   for(const e of B.ens){if(e.dying)continue;const c=ecen(e),dd=Math.hypot(pc.x-c.x,pc.y-c.y);d=Math.min(d,dd);
-    if(e.st==='windup'||e.joinT>0)threat=true;
-    if(dd<ESC_SEE&&losW(c,0,pc,0))threat=true;}
+    if(!lesson&&(e.st==='windup'||e.joinT>0))threat=true;
+    if(!lesson&&dd<ESC_SEE&&losW(c,0,pc,0))threat=true;}
   const prev=B.escD==null?d:B.escD;B.escD=d;
-  if(d>=1e9||d<=FLEE_DIST||threat)return false;
+  if(d>=1e9||d<=leash||threat)return false;
   return d>=prev-dt*20;                          // not catching up
 }
 function disengage(){
@@ -8379,12 +8389,15 @@ UI_STATES.push('settings');
 function openSettings(from){openUIMode('settings',from);}
 function setRowBox(x0,y,W,h,isSel){ctx.fillStyle=isSel?'#efe0c4':'#f6f0e2';ctx.fillRect(x0,y,W,h);ctx.fillStyle='#80563a';ctx.fillRect(x0,y,3,h);if(isSel){ctx.strokeStyle='#c9ad7e';ctx.lineWidth=2;ctx.strokeRect(x0+1,y+1,W-2,h-2);}}
 function volRow(key,label){
-  return {sel:true,h:44,act(which){setVol(key,which==='minus'?-.1:.1);},draw(x0,y,W,h,isSel,si){
-    setRowBox(x0,y,W,h,isSel);txt(label,x0+10,y+18,{size:10,col:'#3a2a18',lw:2,out:'#f6f0e2'});
-    const bx=x0+10,bw=W-130;for(let i=0;i<10;i++){ctx.fillStyle=i<Math.round(SET[key]*10)?'#7dd3ff':'#4a2e18';ctx.fillRect(bx+i*(bw/10),y+26,bw/10-3,10);}
-    txt(Math.round(SET[key]*100)+'%',x0+W-98,y+34,{size:9,col:'#5a4638',align:'right',bold:false});
-    uiButton(x0+W-86,y+8,36,28,'-',true,()=>{UI.sel=si;setVol(key,-.1);},{tag:'set:'+key+':minus',clip:true,size:16,bg:'#3a2a5a',bd:'#b090ff',sel:si});
-    uiButton(x0+W-44,y+8,36,28,'+',true,()=>{UI.sel=si;setVol(key,.1);},{tag:'set:'+key+':plus',clip:true,size:16,bg:'#3a2a5a',bd:'#b090ff',sel:si});}};
+  return {sel:true,h:58,act(which){setVol(key,which==='minus'?-.1:.1);},draw(x0,y,W,h,isSel,si){
+    setRowBox(x0,y,W,h,isSel);
+    const bw=44,gap=6,right=8,plusX=x0+W-right-bw,minusX=plusX-gap-bw,by=y+Math.round((h-bw)/2);
+    txt(label,x0+12,y+16,{size:10,col:'#3a2a18',lw:2,out:'#f6f0e2'});
+    txt(Math.round(SET[key]*100)+'%',minusX-8,y+16,{size:9,col:'#5a4638',align:'right',bold:false});
+    const bx=x0+12,barW=Math.max(72,minusX-bx-16);
+    for(let i=0;i<10;i++){ctx.fillStyle=i<Math.round(SET[key]*10)?'#7dd3ff':'#4a2e18';ctx.fillRect(bx+i*(barW/10),y+30,Math.max(2,barW/10-3),12);}
+    uiButton(minusX,by,bw,bw,'-',true,()=>{UI.sel=si;setVol(key,-.1);},{tag:'set:'+key+':minus',clip:true,size:20,bg:'#6b4423',bd:'#c9ad7e',sel:si});
+    uiButton(plusX,by,bw,bw,'+',true,()=>{UI.sel=si;setVol(key,.1);},{tag:'set:'+key+':plus',clip:true,size:20,bg:'#6b4423',bd:'#c9ad7e',sel:si});}};
 }
 function optRow(label,tag,val,fn,hint){   // single button showing the current value
   return {sel:true,h:44,act(which){fn(which==='minus'?-1:1);},draw(x0,y,W,h,isSel,si){
@@ -8495,7 +8508,7 @@ function tapUI(p){   // taps that act like a click; returns true if consumed
     return true;}
   if(TUT.on&&TUT.skipR&&state==='play'&&!DLG&&!B&&inRect(p,TUT.skipR)){tutFinish(true);return true;}
   // New Game draws Elder Orin under the quest tracker. A click on him must walk/talk, not fold the panel.
-  if(state==='play'&&!B&&typeof worldTargetAt==='function'){const wt=worldTargetAt(p);if(wt&&(wt.k==='npc'||wt.k==='door'))return false;}
+  if(state==='play'&&!(typeof fightNearHero==='function'&&fightNearHero())&&typeof worldTargetAt==='function'){const wt=worldTargetAt(p);if(wt&&(wt.k==='npc'||wt.k==='door'))return false;}
   // Aimed-card clicks must reach the enemy even when the tracker covers them (the first-fight lesson).
   if(state==='play'&&B&&B.phase==='fight'&&typeof expSelActive==='function'&&expSelActive())return false;
   if(trkTap(p))return true;
@@ -9139,22 +9152,107 @@ function openingEnd(){
   areaT=0;
   openingBeginLesson();
 }
+function openingStand(sx,sy){
+  const ok=(x,y)=>!(typeof solidTile==='function'&&solidTile(Math.floor(x/TS),Math.floor(y/TS)))&&!(typeof bodyBlocked==='function'&&bodyBlocked(x,y));
+  if(ok(sx,sy))return {x:sx,y:sy};
+  const tx=Math.floor(sx/TS),ty=Math.floor(sy/TS);
+  for(let r=1;r<=8;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+    const px=(tx+dx+.5)*TS,py=(ty+dy+.7)*TS;
+    if(ok(px,py))return {x:px,y:py};
+  }
+  return {x:sx,y:sy};
+}
+let LESSON_AT=null;
+function cryptArch(){
+  const d=typeof CRYPT_IN!=='undefined'?CRYPT_IN:{x:5,y:19};
+  return {x0:d.x-2,y0:d.y-3,x1:d.x+2,y1:d.y+2};
+}
+function cryptInView(px,py,yBias,margin){
+  const y0=typeof camMinY==='function'?camMinY():0;
+  const cx=clamp(px-VW/2,0,Math.max(0,MW*TS-VW));
+  const cy=clamp(py-(yBias==null?VH/2+10:yBias),y0,Math.max(y0,MH*TS-VH));
+  const b=cryptArch(),m=margin==null?20:margin;
+  for(let ty=b.y0;ty<=b.y1;ty++)for(let tx=b.x0;tx<=b.x1;tx++){
+    const sx=tx*TS,sy=ty*TS;
+    if(sx+TS>cx-m&&sx<cx+VW+m&&sy+TS>cy-m&&sy<cy+VH+m)return true;
+  }
+  return false;
+}
+function lessonOutsideTown(px,py){
+  if(typeof inTownPx==='function'&&(inTownPx(px,py)||inTownPx(px,py-12)))return false;
+  if(typeof TOWN==='undefined'||typeof townOn!=='function'||!townOn())return true;
+  const m=300;
+  return !(px>=TOWN.x0-m&&px<TOWN.x1+m&&py>=TOWN.y0-m&&py<TOWN.y1+m);
+}
+function lessonClearing(){
+  const d=typeof CRYPT_IN!=='undefined'?CRYPT_IN:{x:5,y:19};
+  const orin=typeof NPCS!=='undefined'?NPCS.find(n=>n.name==='Elder Orin'):null;
+  const ax=orin?orin.x:(typeof SPAWN!=='undefined'?SPAWN.x:d.x*TS),ay=orin?orin.y:(typeof SPAWN!=='undefined'?SPAWN.y:d.y*TS);
+  const openish=id=>id===T.G||id===T.P||id===T.L||id===T.K;
+  let best=null,score=1e9;
+  for(let ty=d.y-16;ty<=d.y+10;ty++)for(let tx=d.x-4;tx<=d.x+36;tx++){
+    if(ty<2||tx<2||ty>=MH-2||tx>=MW-2)continue;
+    const id=map[ty]&&map[ty][tx];
+    if(!openish(id)||solidTile(tx,ty))continue;
+    let name='';try{name=areaName(tx,ty);}catch(e){}
+    if(name!=='GREENMEADOW'&&name!=='CASTLE ROAD')continue;
+    if(typeof reach!=='undefined'&&reach[ty]&&reach[ty].length&&!reach[ty][tx])continue;
+    const px=(tx+.5)*TS,py=(ty+.72)*TS;
+    const stand=openingStand(px-36,py+2);
+    const stx=Math.floor(stand.x/TS),sty=Math.floor(stand.y/TS);
+    if(solidTile(stx,sty)||(typeof bodyBlocked==='function'&&bodyBlocked(stand.x,stand.y)))continue;
+    if(Math.hypot(stand.x-px,stand.y-py)>48)continue;
+    let sname='';try{sname=areaName(stx,sty);}catch(e){}
+    if(sname!=='GREENMEADOW'&&sname!=='CASTLE ROAD')continue;
+    if(!lessonOutsideTown(px,py)||!lessonOutsideTown(stand.x,stand.y))continue;
+    if(cryptInView(stand.x,stand.y,null,16))continue;
+    const mate=openingStand(px+34,py);
+    if(solidTile(Math.floor(mate.x/TS),Math.floor(mate.y/TS))||cryptInView(mate.x,mate.y,null,8))continue;
+    const crowd=enemies.some(e=>e&&e.alive&&!e.dying&&!(e.type==='slime'&&(e.lv|0)<=4)&&Math.hypot(e.x-px,e.y-py)<7*TS);
+    if(crowd)continue;
+    const meadow=name==='GREENMEADOW'?0:900;
+    const sc=meadow+Math.hypot(px-ax,py-ay)*.2+Math.max(0,d.y-ty)*40;
+    if(sc<score){score=sc;best={tx,ty,px,py,stand,mate};}
+  }
+  return best;
+}
+function lessonSlimePool(){
+  const ok=e=>e&&e.alive&&!e.dying&&e.type==='slime'&&!(e.def&&e.def.boss);
+  const low=enemies.filter(e=>ok(e)&&(e.lv|0)<=4);
+  const pool=low.length?low:enemies.filter(ok);
+  pool.sort((a,b)=>((b.tutSlime?1:0)-(a.tutSlime?1:0))||((a.lv|0)-(b.lv|0)));
+  return pool;
+}
+function lessonPlace(){
+  if(OPEN.replay||window.__NOFF||(typeof QS!=='undefined'&&QS.met&&QS.met.__ff))return null;
+  if(LESSON_AT&&LESSON_AT.a&&LESSON_AT.a.alive)return LESSON_AT;
+  const pool=lessonSlimePool();if(pool.length<1)return null;
+  const spot=lessonClearing();
+  const a=pool[0],b=pool.find(e=>e!==a)||null;
+  if(!spot)return null;
+  const sa=openingStand(spot.px,spot.py);
+  a.x=sa.x;a.y=sa.y;a.alive=true;a.dying=false;a.engaged=false;
+  if(b){const sb=spot.mate||openingStand(spot.px+34,spot.py);b.x=sb.x;b.y=sb.y;b.alive=true;b.dying=false;b.engaged=false;}
+  LESSON_AT={a,b,stand:spot.stand,px:a.x,py:a.y};
+  return LESSON_AT;
+}
 function openingBeginLesson(){
   if(window.__NOFF||(typeof QS!=='undefined'&&QS.met&&QS.met.__ff))return;
   if(typeof startEncounter!=='function'||typeof ffBegin!=='function')return;
-  const pool=enemies.filter(e=>e&&e.alive&&!e.dying&&e.type==='slime'&&!(e.def&&e.def.boss));
-  if(!pool.length)return;
-  const a=pool[0],b=pool.find(e=>e!==a);
-  P.x=a.x-36;P.y=a.y+6;P.grace=0;P.dir='r';
-  if(b){b.x=a.x+34;b.y=a.y;b.alive=true;b.dying=false;b.engaged=false;}
+  const placed=lessonPlace();if(!placed)return;
+  const a=placed.a,b=placed.b&&placed.b.alive?placed.b:null;
+  const stand=placed.stand||openingStand(a.x-36,a.y+6);
+  P.x=stand.x;P.y=stand.y;P.grace=0;P.dir='r';P.moving=false;
   try{snapCam();}catch(e){}
   startEncounter(a,true);
   if(!B)return;
-  for(const e of B.ens)if(e.type!=='slime'){e.engaged=false;e.st='idle';e.cur=null;}
-  const slimes=B.ens.filter(e=>e.type==='slime');
-  if(b&&!slimes.includes(b)){initCombatEnemy(b,0);slimes.push(b);}
-  B.ens=slimes.slice(0,2);B.total=B.ens.length;
+  if(b&&!B.ens.includes(b)){initCombatEnemy(b,0);B.ens.push(b);}
+  for(const e of B.ens)if(e!==a&&e!==b){e.engaged=false;e.st='idle';e.cur=null;}
+  B.ens=[a,b].filter(e=>e&&B.ens.includes(e)).slice(0,2);
+  B.total=B.ens.length;
   if(!FF.on)ffBegin();
+  for(const e of B.ens)if(typeof lessonSoften==='function')lessonSoften(e);
 }
 function updateOpening(dt){
   if(!OPEN.on)return;
@@ -9163,6 +9261,7 @@ function updateOpening(dt){
   if(OPEN.veil>0)OPEN.veil=Math.max(0,OPEN.veil-dt/.5);
   if(OPEN.c<b.cap.length)OPEN.c=Math.min(b.cap.length,OPEN.c+dt*36);
   else OPEN.hold+=dt;
+  if((b.art==='meadow'||b.art==='lesson')&&!OPEN.replay)lessonPlace();
   if(b.art==='meadow'||b.art==='lesson'){for(const e of enemies)if(e.alive&&e.type==='slime')e.bob=(e.bob||0)+dt*2.4;}
   if(hit('Escape')){openingEnd();return;}
   if(hit('Enter','Space','KeyE','KeyJ')){
@@ -9229,9 +9328,10 @@ function openingStage(b,u){
     P.x=ox+56;P.y=oy+18;P.dir='l';P.moving=false;
     openingCam((ox+s.fx)/2+Math.sin(gtime*.4)*5,(oy+s.fy)/2);
   }else if(b.art==='meadow'||b.art==='lesson'){
-    const m=s.slime||{x:s.fx+180,y:s.fy+220};
-    if(s.slime)s.slime.bob=gtime*2.4;
-    const mate=enemies.find(e=>e!==s.slime&&e.alive&&e.type==='slime'&&!(e.def&&e.def.boss));
+    const placed=!OPEN.replay&&LESSON_AT&&LESSON_AT.a&&LESSON_AT.a.alive?LESSON_AT.a:null;
+    const m=placed||s.slime||{x:s.fx+180,y:s.fy+220};
+    if(m.bob!=null)m.bob=gtime*2.4;
+    const mate=(LESSON_AT&&LESSON_AT.b&&LESSON_AT.b!==m&&LESSON_AT.b.alive)?LESSON_AT.b:enemies.find(e=>e!==m&&e.alive&&e.type==='slime'&&!(e.def&&e.def.boss));
     if(mate)mate.bob=gtime*2.4+1.1;
     P.x=m.x-36-(1-u)*24;P.y=m.y+16;P.dir='r';P.moving=u>.15;P.anim=gtime*8;
     openingCam(m.x+70+pan*.2,m.y-80);
@@ -9621,11 +9721,18 @@ const FF_STEPS=[
   {ev:'flee',   t:'Walk away until ESCAPING shows, then come back. That is how you flee.', k:'Walk away until ESCAPING shows, then come back. That is how you flee.'},
 ];
 function ffEligible(){return !ffOff()&&!(QS.met&&QS.met.__ff)&&QS.st&&QS.st.slimes!=='done';}
+function lessonSoften(e){
+  if(!e||e.lessonSoft||(e.def&&e.def.boss))return;
+  const full=e.maxhp||e.mhp||1;
+  const hp=Math.max(1,Math.round(full*0.7));
+  e.lessonFull=full;e.lessonSoft=true;e.mhp=e.maxhp=e.hp=hp;
+}
 function ffBegin(){
   if(!B||!ffEligible()||!B.ens.length||!B.ens.every(e=>e.type==='slime'))return;
   // a beginner's fight: at most 2 slimes, the rest go back to their meadow
   for(const e of B.ens.slice(2)){e.engaged=false;e.st='idle';e.cur=null;}B.ens=B.ens.slice(0,2);B.total=B.ens.length;
-  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';TEV0=Object.assign({},TEV);ffFillHand();for(const e of B.ens){e.tut=true;e.tutSlime=true;}
+  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';TEV0=Object.assign({},TEV);ffFillHand();
+  for(const e of B.ens){e.tut=true;e.tutSlime=true;lessonSoften(e);}
 }
 let TEV0=null;
 function ffDoneStep(){const s=FF_STEPS[FF.step];return s&&TEV[s.ev]>TEV0[s.ev];}
@@ -9635,7 +9742,7 @@ function ffFillHand(){if(!B||!B.hand)return;const ev=FF_STEPS[FF.step]&&FF_STEPS
   if((ev==='aim'||ev==='burn')&&!B.hand.some(id=>id==='fire'))B.hand[0]='fire';
   if(ev==='sword'&&!B.hand.some(id=>id==='sword'))B.hand[0]='sword';
   if(ev==='curse'&&!B.hand.some(id=>id==='shadow'))B.hand[0]='shadow';}
-function ffFinish(skipped){FF.on=false;if(B)B.ffTut=false;QS.met.__ff=true;if(!skipped){toast('Lesson complete! Now finish the slimes!',2.6,'#9be8a0');sfx('questdone');}saveGame('ff');}
+function ffFinish(skipped){FF.on=false;if(B){B.ffTut=false;B.lessonFight=true;}QS.met.__ff=true;if(!skipped){toast('Lesson complete! Now finish the slimes!',2.6,'#9be8a0');sfx('questdone');}saveGame('ff');}
 function updateFF(dt){
   FF.flash=Math.max(0,FF.flash-dt);FF.wait=(FF.on?(FF.wait||0):0)+dt;
   if(!FF.on)return;if(!B){FF.on=false;return;}
@@ -9652,6 +9759,7 @@ function updateFF(dt){
   if(ffDoneStep()){FF.step++;FF.wait=0;FF.flash=1;sfx('select');TEV0=Object.assign({},TEV);if(FF.step>=FF_STEPS.length){ffFinish(false);return;}}
   ffFillHand();
 }
+const lessonFlee=()=>!!(FF.on&&FF_STEPS[FF.step]&&FF_STEPS[FF.step].ev==='flee');
 const ffProtect=()=>!!(FF.on&&B&&B.ffTut);
 function drawFF(){
   if(!FF.on||!B)return;const s=FF_STEPS[FF.step];if(!s)return;
@@ -9661,13 +9769,16 @@ function drawFF(){
   txt('LESSON '+(FF.step+1)+'/'+FF_STEPS.length,x+10,y+14,{size:9,col:'#80563a',lw:2,out:'#f6f0e2'});
   const font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(TOUCH?s.t:s.k,w-20,font);ls.slice(0,2).forEach((l,i)=>txt(l,x+10,y+30+i*14,{size:11,col:'#3a2a18',lw:2,out:'#f6f0e2'}));
   for(let i=0;i<FF_STEPS.length;i++){ctx.fillStyle=i<FF.step?'#9be8a0':i===FF.step?'#ffe14d':'#4a3a2a';ctx.fillRect(x+w-14-(FF_STEPS.length-i)*12,y+7,8,8);}
-  FF.skipR={x:x+w-118,y:y+h+4,w:118,h:22};ctx.fillStyle='#efe6d2';ctx.fillRect(FF.skipR.x,FF.skipR.y,118,22);ctx.strokeStyle='#343b32';ctx.strokeRect(FF.skipR.x+.5,FF.skipR.y+.5,117,21);txt(FF.wait>6?'SKIP  -  back to the quest':'SKIP LESSON',FF.skipR.x+59,FF.skipR.y+15,{size:9,align:'center',col:'#3a2a18',lw:2,out:'#efe6d2'});
+  const sw=132,sh=48,sx=x+w-sw,sy=Math.min(y+h+6,VH-(typeof SB==='number'?SB:0)-sh-8);
+  FF.skipR={x:sx,y:sy,w:sw,h:sh};
+  panel(sx,sy,sw,sh,{fill:'#f6f0e2',border:'#80563a',inner:'#c9ad7e',shadow:'rgba(58,42,24,.25)'});
+  txt('SKIP',sx+sw/2,sy+31,{size:16,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
   // pointer toward the card hand / SHOT button on touch
   if(TOUCH&&FF.step!==2){const b=btn.atk;if(b){const bob=Math.sin(gtime*6)*5;ctx.fillStyle='#ffe14d';const tx=b.x+(FF.step>=3?-70:0),ty=b.y-b.r-22+bob-(FF.step>=3?30:0);ctx.beginPath();ctx.moveTo(tx,ty+14);ctx.lineTo(tx-8,ty);ctx.lineTo(tx+8,ty);ctx.closePath();ctx.fill();}}
 }
 function ffTap(p){
   const r=FF.skipR;if(!(FF.on&&r&&p))return false;
-  const s=8; // a little slop: the drawn button is only 52x18
+  const s=6;
   if(p.x>=r.x-s&&p.x<=r.x+r.w+s&&p.y>=r.y-s&&p.y<=r.y+r.h+s){ffFinish(true);return true;}
   return false;
 }
@@ -13108,7 +13219,7 @@ function startFromTitle(){
   else if(it==='Continue'){loadSave(titleMenu.save);}
   else if(titleMenu.save&&!titleMenu.confirm){titleMenu.confirm=true;sfx('select');return;}   // erasing a save needs a second press
   else{clearSave();Object.assign(P,{x:SPAWN.x,y:SPAWN.y,dir:'d',aim:Math.PI/2,moving:false,hp:80,lv:1,xp:0,gold:0,up:0,grace:3,regen:0});P.hp=maxHp();snapCam();resetCards();resetGear();resetQuests();resetSkills();resetCraft();resetPets();resetStory();resetDaily();resetAch();unpackSecrets(null);resetSpawners();resetFish();if(typeof openingWanted==='function'&&openingWanted()&&openOpening(false)){}else if(!introStart())tutMaybeStart();RUSH.on=false;RUSH.cur=null;lichDown=false;DAY.t=.3;dayCompute();syncNight(true);}
-  state='play';sfx('start');if(it==='Continue')toast('Welcome back, hero!',3.5,'#ffe9a0');else if(!introActive())toast('Talk to Elder Orin by the fountain. Follow the arrow.',3.5,'#ffe9a0');areaCur='';if(introActive())areaT=0;
+  state='play';sfx('start');if(it==='Continue')toast('Welcome back, hero!',3.5,'#ffe9a0');else if(!introActive()&&!(typeof OPEN!=='undefined'&&(OPEN.on||OPEN.seen)))toast('Talk to Elder Orin by the fountain. Follow the arrow.',3.5,'#ffe9a0');areaCur='';if(introActive())areaT=0;
 }
 /* ---- title ---- */
 const embers=Array.from({length:40},()=>({x:Math.random()*640,y:Math.random()*448,s:R(8,30),a:Math.random()*6}));
@@ -16418,7 +16529,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v76.1 Opening';
+const GAME_VER='v76.2';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -16492,12 +16603,15 @@ function drawHoldemMark(){
 }
 {const _dw=drawWorld;drawWorld=function(){_dw();try{drawHoldemMark();}catch(e){}};}
 {const _wt=worldTargetAt;worldTargetAt=function(p){
+  const base=_wt.apply(this,arguments);
+  // A sprite under the finger wins. The wide Hold'em target used to cover Huck, who stands one tile beside Sol, so a tap on the dice was a seat at the table.
+  if(base&&base.k==='npc')return base;
   const sol=typeof NPCS!=='undefined'&&NPCS.find(n=>n&&n.poker&&n.x>-100);
   if(sol&&typeof worldTapOk==='function'&&worldTapOk()){
     const wx=p.x+cam.x,wy=p.y+cam.y;
     if(Math.abs(wx-(sol.x-8))<56&&wy>sol.y-44&&wy<sol.y+30)return {k:'npc',ref:sol};
   }
-  return _wt.apply(this,arguments);
+  return base;
 };}
 
 const DICEFX={on:false,t:0,dur:1,you:[1,1],him:[1,1],msg:'',bad:false,hold:false};
@@ -16967,7 +17081,7 @@ function delvePortal(){
   if(area==='ow'){toast('The portal needs a dungeon to return to.',2.2,'#ffb0a0');return;}
   if(!delveHasFx('lantern')){if(DELVE.scrolls<=0){toast('You need a town-portal scroll.',2.2,'#ffb0a0');sfx('clang');return;}DELVE.scrolls--;}
   DELVE.back={x:P.x,y:P.y};
-  DELVE.gate={x:SPAWN.x+70,y:SPAWN.y+10};
+  DELVE.gate={x:SPAWN.x+160,y:SPAWN.y+8};
   DELVE.hop=1.4;
   startWarp({x:SPAWN.x,y:SPAWN.y,dir:'d'});
   toast('A portal home, and a way back to this spot.',2.6,'#bfefff');
@@ -17031,11 +17145,15 @@ function delveTick(dt){
   if(!B&&hit('KeyT'))delvePortal();
   if(!B&&hit('KeyY'))DELVE.ui=DELVE.ui==='diff'?null:'diff';
   if(DELVE.ui==='diff'){if(hit('Digit1')){delveSetTier(0);DELVE.ui=null;}if(hit('Digit2')){delveSetTier(1);DELVE.ui=null;}if(hit('Digit3')){delveSetTier(2);DELVE.ui=null;}if(hit('Escape'))DELVE.ui=null;}
-  if(!B&&(hit('KeyJ')||DASH.t>0))delveHitProps(P.x,P.y,DASH.t>0?34:30);
-  if(B&&B.shots)for(const s of B.shots)if(s&&s.own==='p')delveHitProps(s.x,s.y,18);
+  if(!B&&DASH.t>0)delveHitProps(P.x,P.y,34);
+  const shots=!B&&typeof WS!=='undefined'?WS:(B&&B.shots)||[];
+  for(const s of shots)if(s&&s.own==='p')delveHitProps(s.x,s.y,18);
   if(DELVE.hop>0)DELVE.hop-=dt;
-  else if(!B&&!WARP&&DELVE.gate&&Math.hypot(P.x-DELVE.gate.x,P.y-DELVE.gate.y)<24){const to=DELVE.back;DELVE.gate=null;DELVE.hop=1.4;if(to)startWarp({x:to.x,y:to.y,dir:'d'});}
-  else if(!B&&!WARP&&DELVE.back&&delveArea()!=='ow'&&Math.hypot(P.x-DELVE.back.x,P.y-DELVE.back.y)<22){DELVE.gate={x:SPAWN.x+70,y:SPAWN.y+10};DELVE.hop=1.4;startWarp({x:SPAWN.x,y:SPAWN.y,dir:'d'});}
+  else if(!delveFightBlocks()&&!WARP){
+    const g=delveArchNear(P.x,P.y);
+    if(g&&g.k==='gate'&&DELVE.back)delveTakeArch(g);
+    else if(g&&g.k==='back')delveTakeArch(g);
+  }
 }
 function delveDrawWorld(){
   for(let i=0;i<DELVE.piles.length;i++){
@@ -17159,6 +17277,25 @@ function delveDrawUi(){
   txt('CLOSE',cx+32,cy+19,{size:9,align:'center',col:'#3a2210',lw:2});
   txt(delveTouch()?'Tap a tier, or Close.':'1  2  3    Esc closes    Y on the HUD',px+16,py+h-16,{size:8,col:'#5a4638',lw:2});
 }
+const PORTAL_R=72;
+function delveFightBlocks(){return typeof fightNearHero==='function'?fightNearHero():!!B;}
+function delveArchNear(wx,wy){
+  let best=null,bd=PORTAL_R;
+  const gateD=DELVE.gate?Math.hypot(wx-DELVE.gate.x,wy-(DELVE.gate.y-16)):1e9;
+  const backD=DELVE.back?Math.hypot(wx-DELVE.back.x,wy-(DELVE.back.y-16)):1e9;
+  if(DELVE.arm==='gate'&&gateD>PORTAL_R+8)DELVE.arm=null;
+  if(DELVE.arm==='back'&&backD>PORTAL_R+8)DELVE.arm=null;
+  if(DELVE.gate&&DELVE.arm!=='gate'&&gateD<bd){bd=gateD;best={k:'gate',a:DELVE.gate,d:gateD};}
+  if(DELVE.back&&delveArea()!=='ow'&&DELVE.arm!=='back'&&backD<bd)best={k:'back',a:DELVE.back,d:backD};
+  return best;
+}
+function delveTakeArch(g){
+  if(!g||WARP)return false;
+  DELVE.hop=1.4;
+  if(g.k==='gate'&&DELVE.back){const to={x:DELVE.back.x,y:DELVE.back.y,dir:'d'};DELVE.gate=null;DELVE.arm='back';startWarp(to);toast('The return portal takes you back.',2.2,'#bfefff');return true;}
+  if(g.k==='back'){DELVE.gate={x:SPAWN.x+160,y:SPAWN.y+8};DELVE.arm='gate';startWarp({x:SPAWN.x,y:SPAWN.y,dir:'d'});toast('A portal home, and a way back to this spot.',2.2,'#bfefff');return true;}
+  return false;
+}
 function delveIn(p,r){return !!(p&&r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h);}
 function delvePointer(p){
   if(!p)return false;
@@ -17174,7 +17311,11 @@ function delvePointer(p){
     delvePortal();return true;
   }
   if(delveIn(p,DELVE.hit.tier)){delveOpenDiff();return true;}
-  if(!B){
+  if(!delveFightBlocks()){
+    const arch=delveArchNear(p.x+cam.x,p.y+cam.y);
+    if(arch&&delveTakeArch(arch))return true;
+  }
+  if(!delveFightBlocks()){
     const wx=p.x+cam.x,wy=p.y+cam.y;
     for(const pr of DELVE.props)if(pr.hp>0&&Math.hypot(pr.x-wx,pr.y-wy)<24){delveBreak(pr);return true;}
   }
