@@ -468,14 +468,15 @@ function sprinkle(g,seed,cols,n){const r=mulberry32(seed);for(let i=0;i<n;i++){g
 /* M18 grass: layered - base, soft blotches of lighter / darker turf, dithered texture, little blade tufts, and (light grass only)
    the odd tiny wildflower. dark=true is the Whisperwood floor (cooler, no flowers). */
 const GRASS_FLOWERS=['#ffffff','#ff8ab8','#ffd84a','#8ab4ff','#c890ff','#ff9a5a'];
-// Cozy grass: quiet base, sparse readable tufts; shared by embedded prop backgrounds.
 function grassBase(seed,dark,flowers){return g=>{
-  const r=mulberry32(seed*3+1),base=dark?'#53734b':'#809b53';
+  const r=mulberry32(seed*3+1);
+  const base=dark?'#2c7344':'#5aaa45',lo=dark?'#256339':'#4f9a3c',hi=dark?'#35844f':'#68b94e',tf=dark?'#40965c':'#7ccc62',td=dark?'#1d5430':'#3d8530';
   rect(g,0,0,16,16,base);
-  if(r()<.6){const x=2+Math.floor(r()*11),y=3+Math.floor(r()*10),c=dark?'#607d50':'#718d48';
-    rect(g,x,y,1,2,c);rect(g,x-1,y-1,1,1,c);rect(g,x+1,y-1,1,1,c);}
-  if(!dark&&flowers&&r()<.32){const x=3+Math.floor(r()*10),y=3+Math.floor(r()*10);
-    rect(g,x,y+1,1,2,'#587845');rect(g,x-1,y,3,1,'#f1e6bb');rect(g,x,y-1,1,3,'#f1e6bb');rect(g,x,y,1,1,'#dfb45c');}
+  for(let k=0;k<3;k++){const bx=Math.floor(r()*12),by=Math.floor(r()*12),w=3+Math.floor(r()*4),h=2+Math.floor(r()*3);rect(g,bx,by,w,h,r()<.5?lo:hi);rect(g,bx+1,by-1<0?0:by-1,Math.max(1,w-2),1,r()<.5?lo:hi);}
+  sprinkle(g,seed,dark?['#245f39','#368a52','#1f5430']:[lo,hi,'#4e9c3e','#7ccc62'],12);
+  for(let k=0;k<2+(r()<.5?1:0);k++){const x=1+Math.floor(r()*13),y=3+Math.floor(r()*11);rect(g,x,y,1,2,k%2?td:tf);rect(g,x-1,y-1,1,1,k%2?td:tf);rect(g,x+1,y-2,1,2,k%2?td:tf);}
+  if(!dark&&flowers){const n=1+(r()<.45?1:0)+(r()<.2?1:0);for(let k=0;k<n;k++){const x=1+Math.floor(r()*13),y=2+Math.floor(r()*11),c=GRASS_FLOWERS[Math.floor(r()*GRASS_FLOWERS.length)];
+    rect(g,x,y+1,1,2,'#3f8a36');rect(g,x,y,1,1,c);if(r()<.5){rect(g,x-1,y,1,1,c);rect(g,x+1,y,1,1,c);rect(g,x,y-1,1,1,c);rect(g,x,y,1,1,'#ffe98a');}}}
 };}
 function buildTiles(){
   TSPR[T.G]=[1,2,3,4,5,6,7,8].map(s=>makeSprite(16,16,grassBase(s*7,false,s>2&&s%2===1)));
@@ -1489,10 +1490,16 @@ function pathEdgeS(wx,wy,tx,ty,onPath){
   }
   return best>=1e8?null:(onPath?best:-best);
 }
-function dirtColour(wx,wy,e){
-  const h=ph(wx,wy,3);let c='#dfc18d';
-  if(h<.018)c='#d2b381';else if(h>.985)c='#ead09e';
-  if(e<1.2)c='#c9ad7e';
+function dirtColour(wx,wy,e){   // e = distance (px) inside the wobbly road edge; 1e9 = deep inside
+  const h=ph(wx,wy,3),n2=pnoise(wx,wy,9,5);
+  let c=n2>.64?'#d6ba85':n2<.28?'#e2c897':'#dcc18f';
+  if(h<.06)c='#cfb07a';else if(h<.10)c='#e8d1a2';else if(h<.125)c='#c7a770';else if(h<.15)c='#eed8aa';
+  if(e>2.2){   // pebbles (2x2), on a loose 6px grid
+    const cx=Math.floor(wx/6),cy=Math.floor(wy/6);
+    if(ph(cx,cy,9)<.38){const px0=cx*6+1+Math.floor(ph(cx,cy,10)*3),py0=cy*6+1+Math.floor(ph(cx,cy,11)*3),ix=wx-px0,iy=wy-py0;
+      if(ix>=0&&ix<2&&iy>=0&&iy<2)c=iy===1?'#a8906a':ix===0?'#d8cdb4':'#b9a98c';}
+  }
+  if(e<1.5){if(ph(wx,wy,4)<.6)c='#c9ad7c';if(e<.8&&ph(wx,wy,8)<.5)c='#bfa371';}   // darker gravel lip
   return c;
 }
 function pathTileSprite(tx,ty){
@@ -1512,11 +1519,11 @@ function pathTileSprite(tx,ty){
       else{e=s-pathWobble(wx,wy);}
       if(e>0){
         let c=dirtColour(wx,wy,e);
-        if(e<2.2&&ph(wx,wy,6)<.07)c=ph(wx,wy,12)<.5?'#718d48':'#91a65d';   // a blade of grass poking onto the road edge
+        if(e<2.2&&ph(wx,wy,6)<.07)c=ph(wx,wy,12)<.5?'#5aaa45':'#7ccc62';   // a blade of grass poking onto the road edge
         g.fillStyle=c;g.fillRect(px,py,1,1);
       }else if(e>-3.2&&ph(wx,wy,7)<.11){     // little tufts creeping along the grass side
-        g.fillStyle=ph(wx,wy,13)<.5?'#91a65d':'#718d48';g.fillRect(px,py,1,1);
-        if(py>0&&ph(wx,wy,14)<.5){g.fillStyle='#91a65d';g.fillRect(px,py-1,1,1);}
+        g.fillStyle=ph(wx,wy,13)<.5?'#7ccc62':'#3d8530';g.fillRect(px,py,1,1);
+        if(py>0&&ph(wx,wy,14)<.5){g.fillStyle='#7ccc62';g.fillRect(px,py-1,1,1);}
       }
     }
   });
@@ -9367,11 +9374,11 @@ function openingCrownTiles(){
   ctx.imageSmoothingEnabled=false;
   const gx=typeof OX==='number'?OX+8:8,gy=typeof OY==='number'?OY+40:40;
   for(let y=y0;y<VH;y+=TS)for(let x=0;x<VW;x+=TS){
-    try{ctx.drawImage(tileSprite(T.G,gx+(x/TS)|0,gy,gtime),x,y,TS,TS);}catch(e){ctx.fillStyle='#809b53';ctx.fillRect(x,y,TS,TS);}
+    try{ctx.drawImage(tileSprite(T.G,gx+(x/TS)|0,gy,gtime),x,y,TS,TS);}catch(e){ctx.fillStyle='#5aaa45';ctx.fillRect(x,y,TS,TS);}
   }
   const px=Math.round(VW/2-16);
-  ctx.fillStyle='#c9ad7e';ctx.fillRect(px-8,y0,48,VH-y0);
-  ctx.fillStyle='#dfc18d';ctx.fillRect(px-4,y0,40,VH-y0);
+  ctx.fillStyle='#c9ad7c';ctx.fillRect(px-8,y0,48,VH-y0);
+  ctx.fillStyle='#dcc18f';ctx.fillRect(px-4,y0,40,VH-y0);
   const f=Math.floor(gtime*6)%2,spr=SP.hero.u&&SP.hero.u[f];
   if(spr)draw(spr,px,y0+6,2);
 }
@@ -12543,8 +12550,8 @@ function fixChapelSign(){if(gtime-CHSIGN_T<3)return;CHSIGN_T=gtime;try{const n=N
 const WTEX=(()=>{
   const r=(g,x,y,w,h,c)=>rect(g,x,y,w,h,c);
   const PAL={
-    ow:  {base:'#4f8fa5',deep:'#47849a',lo:'#3e7a91',hi:'#74afbb',hi2:'#a6cdd0',spark:'#d9e7d9'},
-    deep:{base:'#427e98',deep:'#39718b',lo:'#34677f',hi:'#669eb2',hi2:'#91bec8',spark:'#c6deda'},
+    ow:  {base:'#3876cc',deep:'#2c62b4',lo:'#2a5aa8',hi:'#7ab8f2',hi2:'#a8d6ff',spark:'#ffffff'},
+    deep:{base:'#2c62b4',deep:'#24549e',lo:'#204a90',hi:'#5a98dc',hi2:'#86bcf0',spark:'#e8f4ff'},
     bog: {base:'#22382e',deep:'#1a2e26',lo:'#14241e',hi:'#4a6a44',hi2:'#7a9a5a',spark:'#c8e0a0'},
   };
   const C=new Map();
@@ -16465,43 +16472,11 @@ function mountPort(key,spec){
 })();
 
 /* ---------- src/render/cozy-village.js ---------- */
-/* v72 cozy reference pass. Rendering only: no map, collision, save or combat edits.
-   Procedural source assets stay editable; no flattened reference-image background. */
-const COZY_STYLE=Object.freeze({version:1,grass:'#809b53',outline:'#343b32',stone:'#b9b3a0',wood:'#80563a'});
-// Retain exact pixel silhouettes. Old HD noise/bevel would undo the art direction.
+/* v76.3 Classic Ground. Houses, the well, and the HUD stay on the cozy pass.
+   Trees use treeLayers again (the v71 species art). Grass and gravel are the v71 pixels.
+   The HD micro-pass stays off: it would re-bevel cozy sprites, and the v76.2 frame cost stays. */
+const COZY_STYLE=Object.freeze({version:1,grass:'#5aaa45',outline:'#343b32',stone:'#b9b3a0',wood:'#80563a'});
 hdGet=function(){return null;};
-{
-  const oldLayers=treeLayers,cache=new Map();
-  treeLayers=function(id,x,y){
-    if(zoneOfTy(y)!=='ow'||!BIGTREE_IDS.has(id))return oldLayers(id,x,y);
-    const m=treeHash(x,y),kind=treeKindAt(id,x,y);
-    if(!['oak','blossom','maple','apple','birch','willow'].includes(kind))return oldLayers(id,x,y);
-    const dark=regions.forest(x,y),variant=(m>>>10)%3,key=kind+'|'+variant+'|'+dark;
-    let fg=cache.get(key);
-    if(!fg){
-      const pal=kind==='blossom'?['#65506e','#956e9e','#bd92bb','#dcc0d3']:
-        kind==='maple'?['#67553a','#997146','#b58d55','#ceb271']:
-        dark?['#344e3c','#496b46','#6c884f','#92a461']:
-        ['#3c5439','#577947','#7f994f','#a8b867'];
-      fg=makeSprite(64,64,g=>{
-        // Full-height crown and short trunk; each rounded cluster has a stepped edge.
-        rect(g,28,37,9,23,'#493c30');rect(g,29,38,5,22,'#876043');rect(g,29,40,2,18,'#b18a59');
-        rect(g,25,60,16,2,'#493c30');rect(g,26,58,4,3,'#876043');rect(g,35,58,4,3,'#6f4c36');
-        const lobes=[[17,30,12,12],[43,31,13,13],[30,19,18,15],[29,37,20,13],[14,22,9,9],[46,21,9,10]];
-        for(const [cx,cy,rx,ry] of lobes)ell(g,cx,cy,rx+1,ry+1,pal[0]);
-        for(const [cx,cy,rx,ry] of lobes)ell(g,cx,cy,rx,ry,pal[1]);
-        ell(g,22,20,13,11,pal[2]);ell(g,36,16,12,10,pal[2]);ell(g,15,28,9,8,pal[2]);ell(g,38,30,12,9,pal[2]);
-        ell(g,24,13,8,5,pal[3]);ell(g,38,11,5,3,pal[3]);ell(g,12,23,4,3,pal[3]);
-        // Few clusters, never per-pixel noise.
-        rect(g,23,30,4,2,pal[3]);rect(g,41,25,3,2,pal[3]);rect(g,20,42,4,2,pal[2]);
-        if(kind==='apple')for(const [a,b] of [[17,32],[37,24],[44,37]]){ell(g,a,b,2,2,'#aa5b49');rect(g,a-1,b-1,1,1,'#dfab78');}
-        if(kind==='blossom')for(const [a,b] of [[15,25],[29,18],[39,32],[24,38]]){rect(g,a,b,3,2,'#e5ceda');rect(g,a+1,b-1,1,4,'#e5ceda');}
-      });
-      HD_NO.add(fg);cache.set(key,fg);
-    }
-    const floor=TSPR[dark?T.K:T.G];return {fg,bg:floor[hash2(x,y)%floor.length]};
-  };
-}
 // Lower basin with broad visible water, warm stone, and an explicit paved footprint.
 // The existing 4x4 solid area remains apparent as a raised garden plinth.
 pondBlock=function(f){return makeSprite(64,64,g=>{
@@ -16515,9 +16490,9 @@ pondBlock=function(f){return makeSprite(64,64,g=>{
   ell(g,32,33,23,16,'#918e7c');rect(g,9,26,47,8,'#aaa590');
   for(let y=34;y<47;y+=5){for(let x=11+((y%2)*4);x<54;x+=9){if(((x-32)/23)**2+((y-32)/17)**2<.9){rect(g,x,y,1,4,'#777d69');rect(g,x+1,y+3,7,1,'#777d69');}}}
   ell(g,32,26,24,17,'#51594c');ell(g,32,25,23,16,'#cbc4ac');ell(g,30,22,20,12,'#ddd4b9');
-  ell(g,32,26,17,11,'#667566');ell(g,32,27,16,10,'#528e9d');ell(g,31,25,14,7,'#6aa7b0');
+  ell(g,32,26,17,11,'#24549e');ell(g,32,27,16,10,'#3876cc');ell(g,31,25,14,7,'#7ab8f2');
   for(const [x,y] of [[15,15],[26,10],[40,12],[49,20],[48,34],[36,40],[20,38],[10,28]])rect(g,x,y,2,3,'#aaa58e');
-  rect(g,22+(f%4),27,6,1,'#aed3c9');rect(g,34-((f>>1)%3),31,7,1,'#91bfc0');
+  rect(g,22+(f%4),27,6,1,'#a8d6ff');rect(g,34-((f>>1)%3),31,7,1,'#7ab8f2');
   ell(g,23,25,4,2,'#4f7547');ell(g,39,29,4,2,'#63894c');rect(g,38,26,3,2,'#dbafc0');rect(g,39,25,1,1,'#f3e3c1');
   for(const [x,y] of [[5,6],[55,49]]){rect(g,x,y,3,2,'#819557');rect(g,x+1,y-1,1,2,'#91a565');}
 });};
@@ -16529,7 +16504,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v76.2';
+const GAME_VER='v76.3';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
