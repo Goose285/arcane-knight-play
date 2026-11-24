@@ -5400,6 +5400,7 @@ function drawWorld(){
     if(SHADOW_TILE[id]===1&&CY.sn<1796){CY.sh[CY.sn++]=x;CY.sh[CY.sn++]=y;if(id===T.T&&BLOSSOM[y*MW+x]===1&&CY.bn<196){CY.bl[CY.bn++]=x;CY.bl[CY.bn++]=y;}}
     if(id===T.Z)drawFlame(x*TS-cx+16,y*TS-cy+4);
   }
+  if(typeof drawAct2Decals==='function')drawAct2Decals(cx,cy);
   drawTreeShadows();
   drawChurchFx();drawChurch2();drawChestGlints();drawGuide();drawRoutineSigns();
   ctx.save();ctx.translate(-cx,-cy);if(!B&&state!=='editor'&&!(typeof OPEN!=='undefined'&&OPEN.on))drawVision();if(B)drawCombatGround();drawGuardBolts();ctx.restore();
@@ -16586,7 +16587,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v78';
+const GAME_VER='v79';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -19441,5 +19442,329 @@ const _rn78=render;
 render=function(){const r=_rn78.apply(this,arguments);try{drawBuildRespec();}catch(e){}return r;};
 const _tap78=tapUI;
 tapUI=function(p){if(BUILD.btn&&inRect(p,BUILD.btn)){buildRespec();return true;}return _tap78.apply(this,arguments);};
+
+/* ---------- src/world/v79.js ---------- */
+/* v79 Act II, first half: Whiteharbor, a safe snow harbor on the near side of Frosthowl Pass.
+   Opens after the Hollow Crown. The high pass past the Pale Warden is the rest of the act.
+   The Pale Warden is its own foe (pwarden), not the Ruin Warden. The fight is phases and patterns. */
+const ACT2={stamped:false,spawned:false,told:false,snow:false,dec:[]};
+function act2Open(){return !!(typeof STORY!=='undefined'&&STORY.ending)||(typeof X7!=='undefined'&&X7.ngp>0);}
+function act2Y(){return (typeof ZONE_Y0!=='undefined'?ZONE_Y0.snow:90);}
+function act2Village(tx,ty){const y0=act2Y();return tx>=14&&tx<=48&&ty>=y0+16&&ty<=y0+28;}
+function act2InTownPx(x,y){
+  if(!ACT2.stamped)return false;
+  const y0=act2Y();
+  return x>=14*TS&&x<49*TS&&y>=(y0+16)*TS&&y<(y0+29)*TS;
+}
+const _area79=areaName;
+areaName=function(tx,ty){if(act2Village(tx,ty)&&ACT2.stamped)return 'WHITEHARBOR';return _area79(tx,ty);};
+function act2SnowArt(){
+  if(ACT2.snow)return;
+  ACT2.snow=true;
+  TSPR[T.SN]=[1,2,3,4,5,6].map(s=>makeSprite(16,16,g=>{
+    const r=mulberry32(s*17+3);
+    rect(g,0,0,16,16,'#c3d5ea');
+    for(let k=0;k<3;k++){const bx=Math.floor(r()*11),by=Math.floor(r()*12),w=3+Math.floor(r()*5),h=2+Math.floor(r()*3);rect(g,bx,by,w,h,r()<.55?'#a9c0db':'#d7e6f4');}
+    const y1=2+Math.floor(r()*4),y2=8+Math.floor(r()*5);
+    rect(g,0,y1,16,1,'#eef5fb');rect(g,0,y1+1,16,1,'#a9c0db');
+    rect(g,0,y2,16,1,'#d7e6f4');rect(g,1,y2+1,14,1,'#8eabc8');
+    sprinkle(g,s*9,['#a9c0db','#d7e6f4','#eef5fb','#b7cce4','#9bb6d2'],14);
+    for(let k=0;k<3;k++)rect(g,1+Math.floor(r()*14),1+Math.floor(r()*14),1,1,r()<.5?'#7f9cbc':'#e7f1fa');
+  }));
+  TSPR.mini[T.SN]='#b7cbe2';
+  TSPR[T.PN]=[0,1].map(v=>makeSprite(16,16,g=>{
+    rect(g,0,0,16,16,'#c3d5ea');sprinkle(g,v+70,['#d7e6f4','#a9c0db'],8);
+    rect(g,7,12,2,4,'#4a2c14');rect(g,6,13,1,3,'#6b4423');
+    tri(g,8,1,2,13,14,13,'#1a4a30');tri(g,8,4,3,11,13,11,'#246844');
+    tri(g,8,2,4,7,12,7,'#d7e6f4');
+    rect(g,3,8,4,1,'#eef5fb');rect(g,9,10,4,1,'#eef5fb');rect(g,5,5,2,1,'#f7fbff');rect(g,8,3,3,1,'#eef5fb');
+  }));
+  TSPR.mini[T.PN]='#246844';
+  act2Mini();
+}
+function act2Mini(){
+  if(typeof MINI==='undefined'||!MINI.snow||typeof makeSprite!=='function'||typeof ZONES==='undefined')return;
+  const y0=ZONES.snow.y0;
+  MINI.snow.spr=makeSprite(MW*2,ZONE_H*2,g=>{for(let y=0;y<ZONE_H;y++)for(let x=0;x<MW;x++){g.fillStyle=TSPR.mini[map[y0+y][x]]||'#000';g.fillRect(x*2,y*2,2,2);}});
+}
+function act2Cards(){
+  const add=(def,base)=>{
+    if(CARD[def.id])return;
+    CARDS.push(def);CARD[def.id]=def;
+    if(typeof CAST!=='undefined'&&CAST[base])CAST[def.id]=CAST[base];
+    try{if(SP.ic&&SP.ic[base])SP.ic[def.id]=SP.ic[base];}catch(e){}
+    if(typeof CARD_SCHOOL!=='undefined')CARD_SCHOOL[def.id]=CARD_SCHOOL[base]||'frost';
+  };
+  add({id:'glacier',name:'GLACIER',lab:'GLACIER',col:'#bfe9ff',pow:80,rar:'uncommon',tgt:1,desc:'A pale bolt from Whiteharbor.'},'frostbolt');
+  add({id:'hearthmend',name:'HEARTH MEND',lab:'HEARTH',col:'#ffd0a0',pow:0,rar:'uncommon',desc:'The village hearth mends you.'},'heal');
+  add({id:'northwind',name:'NORTH WIND',lab:'N WIND',col:'#d7f4ff',pow:0,rar:'uncommon',desc:'A cold wind at your back.'},'haste');
+}
+function act2Fish(){
+  if(FISH_BY.icechar)return;
+  const f={id:'icechar',n:'Icechar',tier:1,lv:4,w:4,price:40,heal:.18,xp:18,dif:1.2,rar:1,col:'#c5ecff'};
+  FISHES.push(f);FISH_BY.icechar=f;
+  FISH_SPOTS.push({id:'harbor',name:'Whiteharbor Pool',tx:36,ty:act2Y()+26,lv:4,tier:1,bank:[36,act2Y()+25]});
+}
+function act2Foes(){
+  if(ENEMY.pale)return;
+  const y0=act2Y();
+  Object.assign(ENEMY,{
+    pale:{name:'Pale Wolf',hp:240,xp:70,gold:[12,22],speed:40,chase:80,aggro:6*TS,spr:'wolf',vr:190,vh:.8,ar:76,hs:.12,ds:.08,as:.02,ss:.02,rs:.16},
+    drift:{name:'Drift Captain',hp:640,xp:180,gold:[40,70],speed:28,chase:56,aggro:5*TS,spr:'yeti',vr:180,vh:.75,ar:80,hs:.08,ds:.06,as:.02,ss:.02,rs:.1},
+    pwarden:{name:'The Pale Warden',hp:1600,xp:420,gold:[120,180],speed:24,chase:48,aggro:6*TS,spr:'rimegar',boss:true,big:true,vr:240,vh:.85,ar:120,hs:.035,ds:.04,as:.01,ss:.01,rs:.04,freezeImmune:true,p2at:.62,p3at:.32,
+      territory:{tx0:3,ty0:y0+2,tx1:10,ty1:y0+6}}
+  });
+  Object.assign(TIERS,{pale:['WOLF','WOLF','WOLF'],drift:['CAPTAIN','CAPTAIN','CAPTAIN'],pwarden:['WARDEN','WARDEN','WARDEN']});
+  Object.assign(TITLES,{pale:['Pale Wolf','Pale Wolf','Pale Wolf'],drift:['Drift Captain','Drift Captain','Drift Captain'],pwarden:['The Pale Warden','The Pale Warden','The Pale Warden']});
+  if(typeof SHORT!=='undefined')Object.assign(SHORT,{pale:'PALE WOLF',drift:'DRIFT CAPTAIN',pwarden:'PALE WARDEN'});
+  if(typeof BAND!=='undefined'&&BAND.rimegar)BAND.pwarden=BAND.rimegar;
+  if(typeof ATK!=='undefined'&&ATK.rimegar)ATK.pwarden=ATK.rimegar;
+}
+function act2Quests(){
+  if(QUEST_BY_ID.white1)return;
+  const add=q=>{QUESTS.push(q);QUEST_BY_ID[q.id]=q;};
+  add({id:'white1',giver:'Elder Bryn',name:'Wolves at the Hearth',obj:{k:'kill',type:'pale',n:3},
+    offer:['The pale wolves have come down to the doors.','Three of them, and the children can play on the snow again.'],
+    prog:['Three pale wolves. They pace the snow road north of the houses.'],
+    done:['The doors are quiet. Take this, from the hearth.'],reward:{gold:80,xp:90,card:'hearthmend'}});
+  add({id:'white2',giver:'Hunter Sable',req:'white1',name:'The Drift Captain',obj:{k:'kill',type:'drift',n:1},
+    offer:['A brute in a captain\'s rags is driving the pack.','I will not ask you to wade a sea of them. One captain.'],
+    prog:['The Drift Captain waits on the snow road north of the village.'],
+    done:['That was the push behind the pack. The road is yours a little further.'],reward:{gold:140,xp:160,card:'glacier'}});
+  add({id:'white3',giver:'Elder Bryn',req:'white2',name:'The Pale Warden',obj:{k:'kill',type:'pwarden',n:1},
+    offer:['The high pass is still shut. This is as far as the safe road goes.','The Pale Warden holds a bowl of snow west of the titan\'s arch. End that, and Whiteharbor can breathe. The rest of the north can wait.'],
+    prog:['The Pale Warden waits in the snow bowl west of the high arch. This is the mid-point of the northern road.'],
+    done:['The bowl is quiet. The high pass stays closed for now. You have done the first half of this road.'],reward:{gold:260,xp:320,card:'northwind'}});
+}
+function act2Talk(){
+  if(typeof KIND_LEAD==='undefined')return;
+  KIND_LEAD['Elder Bryn']='The hearth is lit. Sit if the wind is in your coat. The high pass past the Warden is not open yet.';
+  KIND_LEAD['Hunter Sable']='I track what comes down the pass. I remember who listens.';
+  KIND_LEAD['Fisher Nen']='The harbor holds icechar. They bite when the village is quiet.';
+}
+function act2Register(){act2SnowArt();act2Cards();act2Fish();act2Foes();act2Quests();act2Talk();}
+function act2Stamp(){
+  if(!act2Open()||ACT2.stamped)return;
+  act2Register();
+  const y0=act2Y(),set=(x,y,t)=>{if(map[y]&&x>=0&&x<MW&&y>=0&&y<MH)map[y][x]=t;};
+  for(let y=y0+16;y<=y0+28;y++)for(let x=14;x<=48;x++){
+    const t=map[y][x];
+    if(t===T.CH||t===T.CO||t===T.GB||t===T.CV)continue;
+    set(x,y,T.SN);
+  }
+  for(let y=y0+2;y<=y0+6;y++)for(let x=3;x<=10;x++)set(x,y,T.SN);
+  set(6,y0+3,T.PN);set(9,y0+5,T.PN);
+  const pines=[[14,16],[20,16],[22,16],[24,16],[28,16],[32,16],[36,16],[40,16],[44,16],[46,16],[14,17],[46,17],[15,26],[46,24]];
+  pines.forEach(([x,dy])=>set(x,y0+dy,T.PN));
+  for(let y=16;y<=18;y++){set(16,y0+y,T.P);set(17,y0+y,T.P);}
+  const house=(x,y)=>{
+    for(let i=0;i<4;i++)set(x+i,y,T.R);
+    set(x,y+1,T.H);set(x+1,y+1,T.D);set(x+2,y+1,T.H);set(x+3,y+1,T.H);
+  };
+  house(20,y0+18);house(28,y0+18);house(40,y0+18);house(18,y0+23);
+  for(let x=12;x<=44;x++)set(x,y0+21,T.P);
+  for(let x=14;x<=42;x++)set(x,y0+22,T.P);
+  for(let x=24;x<=44;x++)set(x,y0+25,T.P);
+  for(let y=y0+26;y<=y0+28;y++)for(let x=32;x<=46;x++)set(x,y,T.W);
+  for(let y=y0+25;y<=y0+28;y++){set(36,y,T.J);set(37,y,T.J);}
+  set(15,y0+23,T.SN);
+  const put=(name,tx,ty,extra)=>{
+    if(NPCS.some(n=>n.name===name))return;
+    NPCS.push(Object.assign({name,x:(tx+.5)*TS,y:(ty+.9)*TS,spr:'villager',lines:['Whiteharbor keeps its own quiet.']},extra||{}));
+  };
+  put('Elder Bryn',24,y0+22,{spr:'elder'});
+  put('Hunter Sable',32,y0+22,{spr:'guard'});
+  put('Fisher Nen',36,y0+25,{spr:'fisher',fisher:true});
+  if(!WAYSTONES.some(w=>w.id==='whiteharbor')){
+    const w={id:'whiteharbor',name:'Whiteharbor Waystone',tx:15,ty:y0+23,to:{x:28*TS+16,y:(y0+22)*TS+28,dir:'d'}};
+    WAYSTONES.push(w);
+    NPCS.push({name:w.name,way:w.id,x:(w.tx+.5)*TS,y:(w.ty+.9)*TS,spr:'waystone',lines:[]});
+  }
+  if(typeof SEC!=='undefined')SEC.ways.whiteharbor=1;
+  ACT2.dec=[
+    {k:'hearth',x:26*TS+16,y:(y0+20)*TS+22},
+    {k:'stall',x:34*TS+16,y:(y0+20)*TS+20},
+    {k:'lantern',x:18*TS+16,y:(y0+22)*TS+22},
+    {k:'lantern',x:24*TS+16,y:(y0+22)*TS+22},
+    {k:'lantern',x:31*TS+16,y:(y0+22)*TS+22},
+    {k:'lantern',x:40*TS+16,y:(y0+25)*TS+20},
+    {k:'ice',x:41*TS+8,y:(y0+27)*TS+14},
+    {k:'ice',x:44*TS+6,y:(y0+26)*TS+18}
+  ];
+  ACT2.stamped=true;
+  act2Evict();
+  act2Mini();
+  try{
+    if(typeof TIPS!=='undefined'&&typeof SEC!=='undefined'&&SEC.ways){
+      for(const k in SEC.ways)if(k!=='whiteharbor'&&SEC.ways[k]){TIPS.done.way=1;break;}
+    }
+  }catch(e){}
+}
+function act2Evict(){
+  const y0=act2Y();
+  const spots=[[54,y0+11],[58,y0+12],[51,y0+11],[56,y0+10],[48,y0+10]];
+  let i=0;
+  for(const e of enemies){
+    if(!e||e.type==='pale'||e.type==='drift'||e.type==='pwarden')continue;
+    const tx=Math.floor(e.hx/TS),ty=Math.floor((e.hy-4)/TS);
+    const inside=act2InTownPx(e.x,e.y-8)||act2InTownPx(e.hx,e.hy-8)||(tx>=14&&tx<=48&&ty>=y0+16&&ty<=y0+28);
+    if(!inside)continue;
+    const s=spots[i++%spots.length];
+    e.hx=s[0]*TS+TS/2;e.hy=s[1]*TS+TS-4;e.x=e.hx;e.y=e.hy;
+    e.chasing=false;e.engaged=false;e.calm=8;e.mode='look';
+  }
+}
+function act2Spawn(){
+  if(!ACT2.stamped||ACT2.spawned)return;
+  const y0=act2Y();
+  [[18,y0+12],[30,y0+11],[40,y0+12]].forEach(([x,y])=>{if(typeof addEnemy==='function')addEnemy('pale',x,y);});
+  if(typeof addEnemy==='function'){addEnemy('drift',46,y0+11);addEnemy('pwarden',7,y0+4);}
+  ACT2.spawned=true;
+  act2Evict();
+  act2ClearRoad();
+}
+function act2ClearRoad(){
+  const y0=act2Y();
+  const spots=[[55,y0+11],[59,y0+12],[52,y0+12],[61,y0+11],[57,y0+10]];
+  let i=0;
+  for(const e of enemies){
+    if(!e||e.type==='pale'||e.type==='drift'||e.type==='pwarden'||e.type==='rimegar')continue;
+    if(e.type!=='wolf'&&e.type!=='yeti')continue;
+    const tx=Math.floor(e.hx/TS),ty=Math.floor((e.hy-4)/TS);
+    if(ty<y0+9||ty>y0+14||tx>50)continue;
+    const s=spots[i++%spots.length];
+    e.hx=s[0]*TS+TS/2;e.hy=s[1]*TS+TS-4;e.x=e.hx;e.y=e.hy;
+    e.chasing=false;e.engaged=false;e.calm=8;e.mode='look';
+  }
+}
+function act2KeepOut(){
+  if(!ACT2.stamped)return;
+  let sent=false;
+  for(const e of enemies){
+    if(!e.alive||e.dying||!act2InTownPx(e.x,e.y-8))continue;
+    sent=true;
+    if(typeof townSend==='function')townSend(e,false);
+    else{e.x=e.hx;e.y=e.hy;e.chasing=false;e.calm=4;}
+  }
+  if(sent&&B&&B.ens&&!B.ens.some(o=>!o.dying))B=null;
+}
+function act2Hearth(sx,sy){
+  ctx.fillStyle='rgba(20,28,40,.28)';ctx.beginPath();ctx.ellipse(sx,sy+8,18,6,0,0,6.283);ctx.fill();
+  ctx.fillStyle='#5c6576';ctx.fillRect(sx-16,sy-2,32,12);
+  ctx.fillStyle='#8e97a8';ctx.fillRect(sx-14,sy-5,28,6);
+  ctx.fillStyle='#3a342c';ctx.fillRect(sx-8,sy-8,16,6);
+  const f=(gtime*8|0)%2;
+  ctx.fillStyle='#e8531c';ctx.fillRect(sx-6,sy-16-f,12,10);
+  ctx.fillStyle='#ffb03a';ctx.fillRect(sx-4,sy-20-f,8,10);
+  ctx.fillStyle='#fff3b0';ctx.fillRect(sx-2,sy-22-f,4,8);
+}
+function act2Stall(sx,sy){
+  ctx.fillStyle='rgba(20,28,40,.25)';ctx.fillRect(sx-20,sy+12,40,6);
+  ctx.fillStyle='#6b4423';ctx.fillRect(sx-18,sy-4,5,20);ctx.fillRect(sx+13,sy-4,5,20);
+  ctx.fillStyle='#f4e2c0';ctx.fillRect(sx-22,sy-18,44,10);
+  ctx.fillStyle='#a8232f';ctx.fillRect(sx-22,sy-18,10,10);ctx.fillRect(sx-2,sy-18,10,10);ctx.fillRect(sx+16,sy-18,6,10);
+  ctx.fillStyle='#e0b43a';ctx.fillRect(sx-22,sy-21,44,4);
+  ctx.fillStyle='#c9a15e';ctx.fillRect(sx-12,sy+2,10,8);ctx.fillRect(sx+2,sy+4,10,6);
+  ctx.fillStyle='#8a5a2c';ctx.fillRect(sx-10,sy+2,10,2);
+}
+function act2Lantern(sx,sy){
+  ctx.fillStyle='rgba(255,186,70,.28)';ctx.beginPath();ctx.arc(sx,sy-16,16,0,6.283);ctx.fill();
+  ctx.fillStyle='#3a3440';ctx.fillRect(sx-2,sy-8,4,18);
+  ctx.fillStyle='#2c2733';ctx.fillRect(sx-6,sy-20,12,3);ctx.fillRect(sx-6,sy-10,12,3);
+  ctx.fillStyle='#ffbe4a';ctx.fillRect(sx-5,sy-18,10,8);
+  ctx.fillStyle='#fff6c8';ctx.fillRect(sx-3,sy-16,6,4);
+}
+function act2Ice(sx,sy){
+  ctx.fillStyle='#e7f3ff';ctx.beginPath();ctx.ellipse(sx,sy,10,4,0,0,6.283);ctx.fill();
+  ctx.fillStyle='#ffffff';ctx.fillRect(sx-4,sy-2,4,2);
+  ctx.fillStyle='#9ec4e4';ctx.fillRect(sx-8,sy+1,14,1);
+}
+function drawAct2Decals(cx,cy){
+  if(!ACT2.stamped)return;
+  const y0=act2Y();
+  const x0=Math.floor(cx/TS)-1,yA=Math.floor(cy/TS)-1,x1=x0+Math.ceil(VW/TS)+3,yB=yA+Math.ceil(VH/TS)+3;
+  for(let y=yA;y<=yB;y++)for(let x=x0;x<=x1;x++){
+    if(!map[y]||map[y][x]!==T.R||!act2Village(x,y))continue;
+    const sx=x*TS-cx,sy=y*TS-cy;
+    ctx.fillStyle='#f7fbff';ctx.fillRect(sx,sy,TS,9);
+    ctx.fillStyle='#d5e4f4';ctx.fillRect(sx,sy+7,TS,4);
+    ctx.fillStyle='#8eabc8';ctx.fillRect(sx,sy+11,TS,2);
+    ctx.fillStyle='#ffffff';ctx.fillRect(sx+3,sy+2,7,2);ctx.fillRect(sx+16,sy+3,8,2);
+  }
+  for(const p of ACT2.dec){
+    const sx=p.x-cx,sy=p.y-cy;
+    if(sx<-64||sy<-80||sx>VW+64||sy>VH+80)continue;
+    if(p.k==='hearth')act2Hearth(sx,sy);
+    else if(p.k==='stall')act2Stall(sx,sy);
+    else if(p.k==='lantern')act2Lantern(sx,sy);
+    else if(p.k==='ice')act2Ice(sx,sy);
+  }
+}
+const _ft79=fastTravel;
+fastTravel=function(id){
+  if(id==='whiteharbor'&&!act2Open()){try{toast('Whiteharbor opens after the crown is settled.',2.4,'#ffe9a0');}catch(e){}return false;}
+  if(id==='whiteharbor')act2Stamp();
+  return _ft79.apply(this,arguments);
+};
+const _mus79=musWant;
+musWant=function(){
+  const here=areaName(Math.floor(P.x/TS),Math.floor(P.y/TS));
+  if(here==='WHITEHARBOR'&&!(B&&B.phase==='fight'))return 'harbor';
+  return _mus79();
+};
+if(typeof TRACKS!=='undefined'&&!TRACKS.harbor){
+  TRACKS.harbor={bpm:76,key:60,prog:[[0,'M'],[5,'M'],[7,'M'],[0,'M']],
+    lead:{w:'triangle',v:.04,oct:0,pat:[12,null,16,14,12,null,9,null, 9,null,12,11,9,null,7,null, 7,null,11,12,14,null,12,9, 12,null,9,null,7,null,null,null]},
+    bass:{w:'sine',v:.035,pat:[0,null,null,null,0,null,null,null]},
+    pad:{w:'sine',v:.018}};
+}
+const _lv79=levelFor;
+levelFor=function(type,tx,ty){
+  if(type==='pwarden')return 18;
+  if(type==='drift')return 17;
+  if(type==='pale')return 16;
+  return _lv79(type,tx,ty);
+};
+const _se79=startEncounter;
+startEncounter=function(e,byPlayer){
+  const r=_se79.apply(this,arguments);
+  try{
+    if(B&&e&&(e.type==='pwarden'||e.type==='pale'||e.type==='drift')){
+      const keep=e.type==='pwarden'?o=>o===e:o=>o.type==='pale'||o.type==='drift';
+      B.ens=B.ens.filter(o=>o.dying||keep(o));
+      B.total=Math.max(1,B.ens.filter(o=>!o.dying).length);
+      if(e.type==='pwarden')B.boss=true;
+    }
+  }catch(err){}
+  return r;
+};
+const _bmp79=bossMechPhase;
+bossMechPhase=function(e){
+  if(e&&e.type==='pwarden'){giveShield(e,e.p3?.04:.045,8,e.p3?'WHITEOUT - BREAK IT!':'FROST COAT - BREAK IT!');return;}
+  return _bmp79(e);
+};
+if(typeof questGoalText==='function'){
+  const _qgt79=questGoalText;
+  questGoalText=function(q){
+    if(q&&q.obj&&q.obj.type==='pale'&&q.obj.n>1)return 'Defeat '+q.obj.n+' Pale Wolves';
+    return _qgt79(q);
+  };
+}
+const _up79=update;
+update=function(dt){
+  const r=_up79.apply(this,arguments);
+  try{
+    if(act2Open()&&!ACT2.told){ACT2.told=true;if(typeof SEC!=='undefined')SEC.ways.whiteharbor=1;toast('The north road is open. Whiteharbor can be travelled from a waystone.',3.2,'#d7f4ff');}
+    if(act2Open()&&typeof zoneOfPx==='function'&&zoneOfPx(P.y)==='snow'){act2Stamp();act2Spawn();}
+    act2KeepOut();
+    if(B&&B.ens&&B.ens.some(o=>o.type==='pwarden'&&!o.dying)){
+      B.ens=B.ens.filter(o=>o.dying||o.type==='pwarden');
+      B.total=Math.max(1,B.ens.filter(o=>!o.dying).length);
+      B.boss=true;
+    }
+  }catch(e){}
+  return r;
+};
+act2Register();
 
 </script></body></html>
