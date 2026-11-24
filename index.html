@@ -3328,7 +3328,7 @@ const ACHS=[
    M13 DATA: settings defaults, text sizes, colourblind modes, tutorial steps.
    ===================================================================== */
 const SET_KEY='arcaneKnight.settings.v1';
-const SET_DEFAULT={master:.8,music:.8,sfx:.8,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0,perf:false,fps:false};  // t149u: perf default OFF (DPR2 crisp); turn ON if the phone lags; fps overlay off
+const SET_DEFAULT={master:.8,music:.8,sfx:.8,amb:1,text:0,cb:0,lefty:false,pad:true,tutDone:false,pop:0,perf:false,fps:false,shake:true,touch:1,binds:null};  // perf default OFF; shake on; touch size 1 is today's buttons; amb 1 is today's bird bed
 const POP_STYLES=[{id:'parchment',n:'PARCHMENT'},{id:'scroll',n:'WAX-SEALED SCROLL'},{id:'sign',n:'SHOP SIGN'},{id:'chest',n:'TREASURE CHEST'},{id:'banner',n:'MINIMAL BANNER'}];
 const TEXT_SIZES=[{n:'NORMAL',k:1},{n:'LARGE',k:1.15},{n:'EXTRA LARGE',k:1.3}];
 // colour-vision assist: a daltonisation filter over the canvas (error redistributed into channels the player can tell apart)
@@ -8872,12 +8872,12 @@ function drawCombatHud(){
   // leash warning
   if(b.fleeT>.05&&b.phase==='fight'){const f=clamp(b.fleeT/2.2,0,1),cx=VW/2,cy=Math.round(VH*.6);txt('ESCAPING...',cx,cy,{size:14,align:'center',col:'#ffb0a0'});bar(cx-60,cy+6,120,6,f,'#ff8a70');}
   // banner
-  if(b.banner){const bb=b.banner,pr=bb.t/bb.dur,sc=pr<.15?lerp(2,1,pr/.15):1,a=pr>.8?(1-pr)/.2:1,cy=Math.round(VH*.33);
+  if(b.banner&&!(typeof FF!=='undefined'&&FF.on)){const bb=b.banner,pr=bb.t/bb.dur,sc=pr<.15?lerp(2,1,pr/.15):1,a=pr>.8?(1-pr)/.2:1,cy=Math.round(VH*.33);
     ctx.save();ctx.translate(VW/2,cy);ctx.scale(sc,sc);ctx.globalAlpha=a;
     ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(-VW,-30,VW*2,60);
     txt(bb.s,0,12,{size:Math.min(38,VW/9,(VW-24)/(bb.s.length*.62)),align:'center',col:bb.col,lw:6});ctx.restore();ctx.globalAlpha=1;}
   if(b.phase==='win'){const a=Math.min(1,b.t*3);txt(b.total>1?'ALL ENEMIES DELETED!':'ENEMY DELETED!',VW/2,VH*.35,{size:Math.min(34,VW/(b.total>1?13:10)),align:'center',col:'#ffe14d',alpha:a,lw:6});}
-  if(b.phase==='lose'){const a=Math.min(1,b.t*2);txt('HERO DELETED...',VW/2,VH*.35,{size:Math.min(34,VW/10),align:'center',col:'#ff6b6b',alpha:a,lw:6});
+  if(b.phase==='lose'){const a=Math.min(1,b.t*2);txt('You fell...',VW/2,VH*.35,{size:Math.min(34,VW/10),align:'center',col:'#ff6b6b',alpha:a,lw:6});
     if(b.t>1.6){ctx.fillStyle=`rgba(0,0,0,${clamp((b.t-1.6)/.7,0,1)})`;ctx.fillRect(0,0,VW,VH);}}
   if(b.phase==='reward'){
     const loot=b.drops.filter(d=>d&&d.item),nl=Math.min(loot.length,4,Math.max(1,Math.floor((VH-ST-SB-(b.levels?190:150)-50)/34)));
@@ -9742,7 +9742,7 @@ function ffBegin(){
   if(!B||!ffEligible()||!B.ens.length||!B.ens.every(e=>e.type==='slime'))return;
   // a beginner's fight: at most 2 slimes, the rest go back to their meadow
   for(const e of B.ens.slice(2)){e.engaged=false;e.st='idle';e.cur=null;}B.ens=B.ens.slice(0,2);B.total=B.ens.length;
-  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';TEV0=Object.assign({},TEV);ffFillHand();
+  FF.on=true;FF.step=0;FF.flash=1;B.ffTut=true;B.phase='fight';B.banner=null;TEV0=Object.assign({},TEV);ffFillHand();
   for(const e of B.ens){e.tut=true;e.tutSlime=true;lessonSoften(e);}
 }
 let TEV0=null;
@@ -9830,7 +9830,7 @@ const ffProtect=()=>!!(FF.on&&B&&B.ffTut);
 function drawFF(){
   if(!FF.on||!B)return;const s=FF_STEPS[FF.step];if(!s)return;
   const w=Math.min(VW-SL-SR-24,420),x=Math.round(VW/2-w/2),h=56;
-  let y=ST+64;if(B.banner)y=Math.round(VH*.33)+38;   // the ambush / boss title keeps the upper band
+  const y=ST+64;   // stay under the health plates so the lesson never covers the foe
   ctx.fillStyle='#f6f0e2';ctx.fillRect(x,y,w,h);ctx.strokeStyle=FF.flash>0?'#fff':'#343b32';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);
   txt('LESSON '+(FF.step+1)+'/'+FF_STEPS.length,x+10,y+14,{size:9,col:'#80563a',lw:2,out:'#f6f0e2'});
   const font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(TOUCH?s.t:s.k,w-20,font);ls.slice(0,2).forEach((l,i)=>txt(l,x+10,y+30+i*14,{size:11,col:'#3a2a18',lw:2,out:'#f6f0e2'}));
@@ -9992,6 +9992,10 @@ function setLoad(){
   for(const k of ['master','music','sfx'])SET[k]=Number.isFinite(o[k])?cl01(o[k]):SET_DEFAULT[k];
   if('perf' in o)SET.perf=!!o.perf; else SET.perf=SET_DEFAULT.perf;
   if('fps' in o)SET.fps=!!o.fps; else SET.fps=SET_DEFAULT.fps;
+  SET.amb=Number.isFinite(o.amb)?cl01(o.amb):SET_DEFAULT.amb;
+  SET.shake=o.shake===false?false:true;
+  SET.touch=Number.isFinite(o.touch)?clamp(o.touch|0,0,2):1;
+  SET.binds=o.binds&&typeof o.binds==='object'?Object.assign({},o.binds):null;
   SET.text=Number.isFinite(o.text)?clamp(o.text|0,0,TEXT_SIZES.length-1):0;SET.cb=Number.isFinite(o.cb)?clamp(o.cb|0,0,CB_MODES.length-1):0;
   SET.pop=Number.isFinite(o.pop)?clamp(o.pop|0,0,POP_STYLES.length-1):0;SET.lefty=o.lefty===true;SET.pad=o.pad!==false;SET.tutDone=o.tutDone===true;
 }
@@ -10035,6 +10039,7 @@ function pollPad(){
   const ui=state!=='play'||!!DLG,want={};
   for(const i in PAD_MAP){const c=PAD_MAP[i];want[c]=want[c]||b(+i);}
   want.Enter=b(0)&&ui;want.Escape=b(1)&&ui;want.KeyE=b(1)&&!ui;want.Space=b(0)&&state==='title';
+  if(B&&B.phase==='fight'&&b(typeof padBind==='function'?padBind('dodge'):1)&&!ui){want.KeyE=false;want.ShiftLeft=true;}
   for(const c in want)padKey(c,!!want[c]);
 }
 
@@ -13356,7 +13361,7 @@ function render(){
   if(typeof OPEN!=='undefined'&&OPEN.on){drawOpening();return;}
   if(state==='fishlab'){drawFishLab();return;}
   if(state==='editor'){drawWorld();edCopyDraw();drawEditor();return;}
-  const sh=B&&B.shake>0?B.shake:0;
+  const sh=B&&B.shake>0&&!(typeof SET!=='undefined'&&SET.shake===false)?B.shake:0;
   ctx.save();if(sh)ctx.translate(Math.round((Math.random()-.5)*sh*14),Math.round((Math.random()-.5)*sh*10));
   drawWorld();drawChestFx();drawLifeOverlay();
   if(typeof PHOTO!=='undefined'&&PHOTO.on){ctx.restore();if(typeof drawPhotoChrome==='function')drawPhotoChrome();return;}
@@ -16587,7 +16592,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v79';
+const GAME_VER='v80.1';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -16875,7 +16880,7 @@ function birdGain(on){
   if(!AC)return;
   birdStart();
   if(!BIRD.g||BIRD.ctx!==AC)return;
-  const v=on?BIRD_LEVEL*sfxVol():0;
+  const v=on?BIRD_LEVEL*sfxVol()*(typeof SET!=='undefined'&&SET.amb!=null?SET.amb:1):0;
   if(BIRD.v===v)return;
   BIRD.v=v;
   BIRD.g.gain.setTargetAtTime(v,AC.currentTime,1);
@@ -19517,8 +19522,16 @@ function act2Foes(){
   Object.assign(TIERS,{pale:['WOLF','WOLF','WOLF'],drift:['CAPTAIN','CAPTAIN','CAPTAIN'],pwarden:['WARDEN','WARDEN','WARDEN']});
   Object.assign(TITLES,{pale:['Pale Wolf','Pale Wolf','Pale Wolf'],drift:['Drift Captain','Drift Captain','Drift Captain'],pwarden:['The Pale Warden','The Pale Warden','The Pale Warden']});
   if(typeof SHORT!=='undefined')Object.assign(SHORT,{pale:'PALE WOLF',drift:'DRIFT CAPTAIN',pwarden:'PALE WARDEN'});
-  if(typeof BAND!=='undefined'&&BAND.rimegar)BAND.pwarden=BAND.rimegar;
-  if(typeof ATK!=='undefined'&&ATK.rimegar)ATK.pwarden=ATK.rimegar;
+  if(typeof BAND!=='undefined'){
+    if(BAND.wolf)BAND.pale=BAND.wolf;
+    if(BAND.yeti)BAND.drift=BAND.yeti;
+    if(BAND.rimegar)BAND.pwarden=BAND.rimegar;
+  }
+  if(typeof ATK!=='undefined'){
+    if(ATK.wolf)ATK.pale=ATK.wolf;
+    if(ATK.yeti)ATK.drift=ATK.yeti;
+    if(ATK.rimegar)ATK.pwarden=ATK.rimegar;
+  }
 }
 function act2Quests(){
   if(QUEST_BY_ID.white1)return;
@@ -19766,5 +19779,280 @@ update=function(dt){
   return r;
 };
 act2Register();
+
+/* ---------- src/world/v80.js ---------- */
+/* v80 Act II, second half: the high pass past the Pale Warden.
+   Bryn opens it once that fight is done. A snow shelf, a frozen ruin, and the Glacier Heart.
+   The Heart is phases and patterns, not a health slog. */
+const PASS={stamped:false,spawned:false,told:false,ended:false};
+function passOpen(){return typeof act2Open==='function'&&act2Open()&&typeof QS!=='undefined'&&QS.st&&QS.st.white3==='done';}
+function passY(){return typeof act2Y==='function'?act2Y():90;}
+function passShelf(tx,ty){const y0=passY();return tx>=12&&tx<=28&&ty>=y0+2&&ty<=y0+8;}
+function passCave(tx,ty){const y0=passY();return tx>=19&&tx<=25&&ty>=y0+2&&ty<=y0+4;}
+const _area80=areaName;
+areaName=function(tx,ty){
+  if(PASS.stamped&&passCave(tx,ty))return 'FROZEN RUIN';
+  if(PASS.stamped&&passShelf(tx,ty))return 'HIGH PASS';
+  return _area80(tx,ty);
+};
+function passCards(){
+  const add=(def,base)=>{
+    if(CARD[def.id])return;
+    CARDS.push(def);CARD[def.id]=def;
+    if(typeof CAST!=='undefined'&&CAST[base])CAST[def.id]=CAST[base];
+    try{if(SP.ic&&SP.ic[base])SP.ic[def.id]=SP.ic[base];}catch(e){}
+    if(typeof CARD_SCHOOL!=='undefined')CARD_SCHOOL[def.id]=CARD_SCHOOL[base]||'frost';
+  };
+  add({id:'peaksunder',name:'PEAK SUNDER',lab:'SUNDER',col:'#d7f4ff',pow:95,rar:'rare',tgt:1,desc:'A crack of ice from the high pass.'},'frostbolt');
+  add({id:'frostmail',name:'FROST MAIL',lab:'MAIL',col:'#c5d8ee',pow:0,rar:'rare',desc:'The ruin lends you its coat.'},'shield');
+}
+function passFish(){
+  if(FISH_BY.silverling)return;
+  const add=f=>{FISHES.push(f);FISH_BY[f.id]=f;};
+  add({id:'silverling',n:'Silverling',tier:2,lv:6,w:6,price:70,heal:.2,xp:28,dif:1.4,rar:2,col:'#e8f4ff'});
+  add({id:'icefin',n:'Icefin',tier:2,lv:7,w:8,price:90,heal:.22,xp:36,dif:1.6,rar:2,col:'#b7d4f0'});
+  add({id:'crownchar',n:'Crownchar',tier:3,lv:8,w:11,price:140,heal:.26,xp:50,dif:1.8,rar:3,col:'#ffe9a0'});
+  const y0=passY();
+  FISH_SPOTS.push({id:'ruin',name:'Ruin Pool',tx:23,ty:y0+3,lv:6,tier:2,bank:[23,y0+4]});
+}
+function passFoes(){
+  if(ENEMY.frostling)return;
+  const y0=passY();
+  Object.assign(ENEMY,{
+    frostling:{name:'Frostling',hp:320,xp:90,gold:[16,28],speed:36,chase:72,aggro:6*TS,spr:'wolf',vr:200,vh:.8,ar:80,hs:.1,ds:.07,as:.02,ss:.02,rs:.14},
+    shard:{name:'Shardbrute',hp:780,xp:200,gold:[48,80],speed:26,chase:52,aggro:5*TS,spr:'yeti',vr:180,vh:.75,ar:84,hs:.08,ds:.06,as:.02,ss:.02,rs:.1},
+    gheart:{name:'The Glacier Heart',hp:1700,xp:640,gold:[180,260],speed:22,chase:46,aggro:6*TS,spr:'yeti',boss:true,big:true,vr:260,vh:.85,ar:130,hs:.03,ds:.04,as:.01,ss:.01,rs:.04,freezeImmune:true,p2at:.58,p3at:.3,
+      territory:{tx0:18,ty0:y0+2,tx1:26,ty1:y0+6}}
+  });
+  Object.assign(TIERS,{frostling:['FROSTLING','FROSTLING','FROSTLING'],shard:['SHARDBRUTE','SHARDBRUTE','SHARDBRUTE'],gheart:['HEART','HEART','HEART']});
+  Object.assign(TITLES,{frostling:['Frostling','Frostling','Frostling'],shard:['Shardbrute','Shardbrute','Shardbrute'],gheart:['The Glacier Heart','The Glacier Heart','The Glacier Heart']});
+  if(typeof SHORT!=='undefined')Object.assign(SHORT,{frostling:'FROSTLING',shard:'SHARDBRUTE',gheart:'GLACIER HEART'});
+  if(typeof BAND!=='undefined'){
+    if(BAND.wolf)BAND.frostling=BAND.wolf;
+    if(BAND.yeti)BAND.shard=BAND.yeti;
+    BAND.gheart=BAND.rimegar||[130,215];
+  }
+  if(typeof ATK!=='undefined'){
+    if(ATK.wolf)ATK.frostling=ATK.wolf;
+    if(ATK.yeti)ATK.shard=ATK.yeti;
+    if(ATK.rimegar)ATK.gheart=ATK.rimegar;
+  }
+}
+function passQuests(){
+  if(QUEST_BY_ID.white4)return;
+  const add=q=>{QUESTS.push(q);QUEST_BY_ID[q.id]=q;};
+  add({id:'white4',giver:'Elder Bryn',req:'white3',name:'The High Pass',obj:{k:'kill',type:'frostling',n:3},
+    offer:['The Warden is quiet, so the shelf above the bowl is a road.','Three frostlings pace it. Clear them, and the ruin door is yours.'],
+    prog:['Three frostlings on the high pass, east of the Warden\'s bowl.'],
+    done:['The shelf is still. Sable has been watching the ruin.'],reward:{gold:120,xp:140,card:'frostmail'}});
+  add({id:'white5',giver:'Hunter Sable',req:'white4',name:'The Frozen Ruin',obj:{k:'kill',type:'shard',n:1},
+    offer:['A brute of ice holds the ruin door. One. I counted.'],
+    prog:['The Shardbrute is inside the frozen ruin on the high pass.'],
+    done:['The door is a door again. Nen says the pool in there has woken.'],reward:{gold:160,xp:180}});
+  add({id:'white6',giver:'Elder Bryn',req:'white5',name:'The Glacier Heart',obj:{k:'kill',type:'gheart',n:1},
+    offer:['The heart of the pass is awake. It is not a long fight if you learn its tells.','End it, and this road is finished.'],
+    prog:['The Glacier Heart waits in the frozen ruin.'],
+    done:['The pass is a road. Whiteharbor can breathe, and so can the north.'],reward:{gold:320,xp:420,card:'peaksunder'}});
+  add({id:'white7',giver:'Fisher Nen',req:'white5',name:'The Ruin Pool',obj:{k:'fish',type:'any',n:2},
+    offer:['The pool in the ruin holds silverling, icefin, and a crownchar if you are patient.','Bring me two. Any two.'],
+    prog:['Catch two fish from the ruin pool.'],
+    done:['They taste like the mountain. Thank you for coming back.'],reward:{gold:100,xp:80}});
+}
+function passTalk(){
+  if(typeof KIND_LEAD==='undefined')return;
+  if(passOpen()){
+    KIND_LEAD['Elder Bryn']='The high pass is open. The Glacier Heart is the end of this road, not a longer one.';
+    KIND_LEAD['Hunter Sable']='I walked the shelf. The ruin is the only door that still matters.';
+    KIND_LEAD['Fisher Nen']='The harbor is quiet. The ruin pool is the new bite.';
+  }
+}
+function passRegister(){passCards();passFish();passFoes();passQuests();passTalk();}
+function passStamp(){
+  if(!passOpen()||PASS.stamped)return;
+  passRegister();
+  const y0=passY(),set=(x,y,t)=>{if(map[y]&&x>=0&&x<MW&&y>=0&&y<MH)map[y][x]=t;};
+  for(let y=y0+1;y<=y0+8;y++)for(let x=12;x<=28;x++){
+    if(x>=30)continue;
+    set(x,y,T.SN);
+  }
+  set(11,y0+4,T.P);set(11,y0+5,T.P);
+  for(let x=12;x<=22;x++)set(x,y0+5,T.P);
+  for(let y=y0+2;y<=y0+4;y++)for(let x=19;x<=25;x++)set(x,y,T.CV);
+  set(22,y0+3,T.IC);set(23,y0+3,T.PW);set(21,y0+4,T.P);set(22,y0+5,T.P);
+  for(let i=0;i<4;i++)set(14+i,y0+6,T.R);
+  set(14,y0+7,T.H);set(15,y0+7,T.D);set(16,y0+7,T.H);set(17,y0+7,T.H);
+  [[12,2],[13,8],[26,3],[28,6],[18,8]].forEach(([x,dy])=>set(x,y0+dy,T.PN));
+  PASS.stamped=true;
+  if(typeof act2Mini==='function')act2Mini();
+}
+function passSpawn(){
+  if(!PASS.stamped||PASS.spawned)return;
+  const y0=passY();
+  [[13,y0+7],[16,y0+4],[27,y0+7]].forEach(([x,y])=>{if(typeof addEnemy==='function')addEnemy('frostling',x,y);});
+  if(typeof addEnemy==='function'){addEnemy('shard',20,y0+6);addEnemy('gheart',23,y0+3);}
+  PASS.spawned=true;
+}
+function passEnding(){
+  if(PASS.ended||PASS.told)return;
+  const heart=enemies.find(e=>e.type==='gheart');
+  if(!heart||heart.alive&&!heart.dying)return;
+  PASS.told=true;PASS.ended=true;
+  try{
+    startCut('a2',null,[
+      {w:'narr',t:'The Glacier Heart goes quiet. Snow settles on the ruin, and the shelf is only a road.'},
+      {w:'narr',t:'Bryn keeps the hearth. Sable racks her bow. Nen watches the pool. The high pass is finished.'}
+    ]);
+  }catch(e){}
+}
+const _bmp80=bossMechPhase;
+bossMechPhase=function(e){
+  if(e&&e.type==='gheart'){giveShield(e,e.p3?.04:.045,8,e.p3?'HEARTBREAK - BREAK IT!':'GLACIER COAT - BREAK IT!');return;}
+  return _bmp80(e);
+};
+const _lv80=levelFor;
+levelFor=function(type,tx,ty){
+  if(type==='gheart')return 20;
+  if(type==='shard')return 20;
+  if(type==='frostling')return 19;
+  return _lv80(type,tx,ty);
+};
+const _se80=startEncounter;
+startEncounter=function(e,byPlayer){
+  const r=_se80.apply(this,arguments);
+  try{
+    if(B&&e&&(e.type==='gheart'||e.type==='frostling'||e.type==='shard')){
+      const keep=e.type==='gheart'?o=>o===e:o=>o.type==='frostling'||o.type==='shard';
+      B.ens=B.ens.filter(o=>o.dying||keep(o));
+      B.total=Math.max(1,B.ens.filter(o=>!o.dying).length);
+      if(e.type==='gheart')B.boss=true;
+    }
+  }catch(err){}
+  return r;
+};
+const _mus80=musWant;
+musWant=function(){
+  const here=areaName(Math.floor(P.x/TS),Math.floor(P.y/TS));
+  if((here==='HIGH PASS'||here==='FROZEN RUIN')&&!(B&&B.phase==='fight'))return 'peak';
+  return _mus80();
+};
+if(typeof TRACKS!=='undefined'&&!TRACKS.peak){
+  TRACKS.peak={bpm:70,key:58,prog:[[0,'m'],[3,'M'],[7,'M'],[0,'m']],
+    lead:{w:'triangle',v:.035,oct:0,pat:[12,null,15,12,10,null,8,null, 8,null,10,12,15,null,12,null]},
+    bass:{w:'sine',v:.03,pat:[0,null,null,null,0,null,null,null]},
+    pad:{w:'sine',v:.016}};
+}
+if(typeof paceGoals==='function'){
+  const _goals80=paceGoals;
+  paceGoals=function(){
+    const g=_goals80();
+    g.push({id:'highpass',n:'The high pass',ok:!!PASS.stamped,g:90,h:'Walk the shelf Bryn opens after the Pale Warden.'});
+    g.push({id:'heart',n:'The Glacier Heart',ok:!!(QS.st&&QS.st.white6==='done')||PASS.ended,g:140,h:'Finish the Act II boss. The fight is the pattern, not the patience.'});
+    return g;
+  };
+}
+const _up80=update;
+update=function(dt){
+  const r=_up80.apply(this,arguments);
+  try{
+    if(passOpen()&&typeof zoneOfPx==='function'&&zoneOfPx(P.y)==='snow'){passStamp();passSpawn();passTalk();}
+    if(B&&B.ens&&B.ens.some(o=>o.type==='gheart'&&!o.dying)){
+      B.ens=B.ens.filter(o=>o.dying||o.type==='gheart');
+      B.total=Math.max(1,B.ens.filter(o=>!o.dying).length);
+    }
+    passEnding();
+  }catch(e){}
+  return r;
+};
+passRegister();
+
+/* ---------- src/world/v801.js ---------- */
+/* v80.1 Controller and settings.
+   Gamepad API, with Xbox / PlayStation / Switch face names.
+   Touch controls stay as they are until a pad is actually used.
+   New settings sit on the existing screen: ambience, shake, touch size, difficulty, remap. */
+const PAD_BIND_DEFAULT={shoot:0,dodge:1,cast:2,next:3,pause:9};
+const PAD_FACE={
+  xbox:['A','B','X','Y'],
+  ps:['Cross','Circle','Square','Triangle'],
+  switch:['B','A','Y','X']
+};
+function padLayout(){
+  const id=String(PAD.id||'').toLowerCase();
+  if(/xbox|xinput|x-box/.test(id))return 'xbox';
+  if(/switch|nintendo|pro controller/.test(id))return 'switch';
+  if(/playstation|dualshock|dualsense|sony|054c|wireless controller/.test(id))return 'ps';
+  return 'xbox';
+}
+function padBind(name){
+  const b=SET.binds&&SET.binds[name];
+  return b==null?PAD_BIND_DEFAULT[name]:b|0;
+}
+function padFace(name){
+  const i=padBind(name),faces=PAD_FACE[padLayout()]||PAD_FACE.xbox;
+  if(i>=0&&i<4)return faces[i];
+  if(i===9)return 'Start';
+  if(i===8)return 'Select';
+  return 'Btn '+i;
+}
+function padAssign(name,index){
+  SET.binds=Object.assign({},SET.binds,{[name]:index|0});
+  if(SET.binds[name]===PAD_BIND_DEFAULT[name])delete SET.binds[name];
+  if(SET.binds&&!Object.keys(SET.binds).length)SET.binds=null;
+  try{setSave();}catch(e){}
+}
+function padListen(name){PAD.listen=name;PAD.listenT=4;}
+const _poll801=pollPad;
+pollPad=function(){
+  _poll801();
+  if(!PAD.on||!PAD.listen)return;
+  let gp=null;try{const l=navigator.getGamepads?navigator.getGamepads():[];for(const g of l)if(g&&g.connected){gp=g;break;}}catch(e){}
+  if(!gp)return;
+  const bt=gp.buttons||[];
+  for(let i=0;i<bt.length;i++){
+    const down=!!(bt[i]&&(bt[i].pressed||bt[i].value>.5));
+    if(down&&!PAD.mem['l'+i]){PAD.mem['l'+i]=1;padAssign(PAD.listen,i);const n=PAD.listen;PAD.listen=null;try{toast(n+' is now '+padFace(n),2,'#9ad0ff');}catch(e){}return;}
+    if(!down)PAD.mem['l'+i]=0;
+  }
+};
+const TOUCH_SC=[.85,1,1.15];
+const _layout801=layoutTouch;
+layoutTouch=function(){
+  _layout801();
+  const sc=TOUCH_SC[SET.touch|0]||1;
+  if(sc===1||!btn.atk)return;
+  btn.atk.r=Math.round(btn.atk.r*sc);
+};
+const _drawTouch801=drawTouch;
+drawTouch=function(){
+  _drawTouch801();
+  if(!PAD.on||state==='title')return;
+  const line=padFace('shoot')+' Shot   '+padFace('dodge')+' Dodge   '+padFace('cast')+' Cast   '+padFace('next')+' Next';
+  const y=Math.min(VH-48,(btn.atk?btn.atk.y-btn.atk.r-48:VH-64));
+  ctx.fillStyle='rgba(20,14,8,.82)';ctx.fillRect(VW/2-250,y-16,500,24);
+  txt(line,VW/2,y,{size:13,align:'center',col:'#fff6d8',lw:3});
+};
+if(UI_MODES.settings){
+  const _rows=UI_MODES.settings.rows;
+  UI_MODES.settings.rows=function(){
+    const r=_rows();
+    const ambi=volRow('amb','AMBIENCE');
+    const shake=optRow('SCREEN SHAKE','shake',()=>SET.shake?'ON':'OFF',()=>{SET.shake=!SET.shake;setSave();},'Off keeps the picture still');
+    const touch=optRow('TOUCH SIZE','touch',()=>['SMALL','NORMAL','LARGE'][SET.touch|0],()=>{SET.touch=((SET.touch|0)+1)%3;setSave();layoutTouch();},'Normal is the size the game ships with');
+    const diff=optRow('DIFFICULTY','diff',()=>{
+      const n=(typeof DELVE_TIERS!=='undefined'&&DELVE_TIERS[DELVE.tier])||'Normal';
+      return String(n).toUpperCase();
+    },()=>{
+      if(typeof delveSetTier!=='function')return;
+      const next=((DELVE.tier|0)+1)%3;
+      if(next>0&&typeof delveUnlocked==='function'&&!delveUnlocked()){try{toast('Veteran and Nightmare open after the crown.',2.4,'#ffe9a0');}catch(e){}return;}
+      delveSetTier(next);
+    },'Normal stays the gentle road');
+    const remap=optRow('REMAP DODGE','remap',()=>PAD.listen==='dodge'?'PRESS A BUTTON':padFace('dodge'),()=>padListen('dodge'),'The next pad button becomes dodge');
+    const head=r.findIndex(x=>x.t==='head'&&/CONTROL/.test(x.s||''));
+    const extra=[{t:'head',s:'AUDIO EXTRA'},ambi,shake,touch,diff,remap];
+    if(head>=0)r.splice(head,0,...extra);else r.push(...extra);
+    return r;
+  };
+}
 
 </script></body></html>
