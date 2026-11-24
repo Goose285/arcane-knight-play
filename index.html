@@ -5179,7 +5179,8 @@ function updateEnemyWorld(e,dt){
   e.bob+=dt*5;e.alert=Math.max(0,e.alert-dt);
   const wx0=e.x,wy0=e.y;lifeEnemy(e,dt);wanderEnemy(e,dt);
   if(inTownPx(e.x,e.y-8)){e.x=wx0;e.y=wy0;e.mode='look';e.mt=1.2;e.ta=e.fa+Math.PI;e.fa=e.ta;}   // the village is off limits
-  if(!B&&P.grace<=0&&!DLG&&state==='play'&&!(e.calm>0)&&!playerInTown()&&sees(e))startEncounter(e);
+  if(e.lessonRest>0)e.lessonRest-=dt;
+  if(!B&&P.grace<=0&&!DLG&&state==='play'&&!(e.calm>0)&&!(e.lessonRest>0)&&!playerInTown()&&sees(e))startEncounter(e);
 }
 // ---- shooting an unaware monster from range starts the fight too ----
 /* hold SHOT while exploring to charge; release = normal shot (tap) or a piercing-guard charged shot (full charge) */
@@ -5985,7 +5986,7 @@ function tryDodge(e,dt,c){
     const sg=lat>=0?1:-1,nx=-uy*sg,ny=ux*sg;
     const hop=(typeof DELVE!=='undefined'&&DELVE.tier===2)?520:(typeof DELVE!=='undefined'&&DELVE.tier===1)?440:360;
     e.dash={vx:nx*hop,vy:ny*hop,t:.26};e.dodgeCd=2.6-.3*(e.tier||0);e.dodged=(e.dodged||0)+1;
-    burst(c.x,c.y+8,'#e8e0c8',5,70,.3);floatText(c.x,c.y-30,'DODGE','#cfe6ff',11);return;
+    burst(c.x,c.y+8,'#e8e0c8',5,70,.3);floatText(c.x,c.y-70,'DODGE','#cfe6ff',11);return;
   }
 }
 // melee enemies fan out around the player instead of queueing up: each takes its own slot on a circle
@@ -9465,12 +9466,14 @@ function drawOpening(){
     DAY.t=keep.t;DAY.sun=keep.sun;DAY.nightAmt=keep.n;DAY.night=keep.night;
   }
   if(OPEN.veil>0){ctx.fillStyle='rgba(246,232,210,'+OPEN.veil+')';ctx.fillRect(0,0,VW,VH);}
-  const capH=78,cy=VH-(typeof SB==='number'?SB:0)-capH-10;
+  const font='bold '+scaleText(13)+'px "Courier New",monospace';
+  const capW=Math.max(160,VW-88);
+  const full=wrapText(b.cap,capW,font);
+  const shown=wrapText(b.cap.slice(0,Math.floor(OPEN.c)),capW,font);
+  const capH=Math.max(78,28+full.length*18+16),cy=VH-(typeof SB==='number'?SB:0)-capH-10;
   panel(16,cy,VW-32,capH,{fill:'#f6f0e2',border:'#80563a',inner:'#c9ad7e',shadow:'rgba(58,42,24,.25)'});
   if(b.who)txt(b.who,28,cy+16,{size:10,col:'#80563a',lw:2,out:'#f6f0e2'});
-  const font='bold '+scaleText(13)+'px "Courier New",monospace';
-  const shown=b.cap.slice(0,Math.floor(OPEN.c));
-  wrapText(shown,VW-64,font).slice(0,2).forEach((l,i)=>txt(l,28,cy+36+i*16,{size:13,col:'#3a2a18',out:false}));
+  shown.forEach((l,i)=>txt(l,28,cy+36+i*18,{size:13,col:'#3a2a18',out:false}));
   if(OPEN.c>=b.cap.length&&Math.floor(gtime*2)%2===0)txt('Tap to continue',VW-28,cy+capH-12,{size:10,align:'right',col:'#80563a',lw:2,out:'#f6f0e2'});
   const sw=132,sh=48,sx=VW-(typeof SR==='number'?SR:0)-sw-12,sy=(typeof ST==='number'?ST:0)+10;
   OPEN.skip={x:sx,y:sy,w:sw,h:sh};
@@ -9749,7 +9752,62 @@ function ffFillHand(){if(!B||!B.hand)return;const ev=FF_STEPS[FF.step]&&FF_STEPS
   if((ev==='aim'||ev==='burn')&&!B.hand.some(id=>id==='fire'))B.hand[0]='fire';
   if(ev==='sword'&&!B.hand.some(id=>id==='sword'))B.hand[0]='sword';
   if(ev==='curse'&&!B.hand.some(id=>id==='shadow'))B.hand[0]='shadow';}
-function ffFinish(skipped){FF.on=false;if(B){B.ffTut=false;B.lessonFight=true;}QS.met.__ff=true;if(!skipped){toast('Lesson complete! Now finish the slimes!',2.6,'#9be8a0');sfx('questdone');}saveGame('ff');}
+function ffMeadowDrop(){
+  const orin=typeof NPCS!=='undefined'?NPCS.find(n=>n&&n.name==='Elder Orin'):null;
+  const ax=orin?orin.x:P.x,ay=orin?orin.y-110:P.y+48;
+  let best=null,bd=1e9;
+  for(let dy=-8;dy<=8;dy++)for(let dx=-8;dx<=8;dx++){
+    const tx=Math.floor(ax/TS)+dx,ty=Math.floor(ay/TS)+dy;
+    if(!map[ty]||typeof solidTile!=='function'||solidTile(tx,ty))continue;
+    const id=map[ty][tx];
+    if(id!==T.G&&id!==T.P&&id!==T.L&&id!==T.K)continue;
+    const x=(tx+.5)*TS,y=(ty+.72)*TS;
+    if(typeof bodyBlocked==='function'&&bodyBlocked(x,y))continue;
+    if(enemies.some(e=>e&&e.alive&&!e.dying&&Math.hypot(e.x-x,e.y-y)<72))continue;
+    const d=Math.hypot(x-ax,y-ay)+(orin?0:Math.abs(dy)*8);
+    if(d<bd){bd=d;best={x,y};}
+  }
+  return best;
+}
+function ffCalmLesson(list){
+  const seen=new Set(list||[]);
+  for(const e of enemies){
+    if(!e||!e.alive)continue;
+    if(!seen.has(e)&&!(e.type==='slime'&&(e.tut||e.tutSlime)&&Math.hypot(e.x-P.x,e.y-P.y)<180))continue;
+    e.engaged=false;e.st='idle';e.cur=null;e.lessonRest=10;e.atkCd=2;
+  }
+}
+function ffFinish(skipped){
+  FF.on=false;
+  const mobs=B?B.ens.slice():[];
+  if(skipped){
+    try{if(typeof resetFighters==='function')resetFighters(false);}catch(e){}
+    B=null;
+    ffCalmLesson(mobs);
+    let drop=ffMeadowDrop();
+    if(!drop){
+      for(let i=1;i<=8&&!drop;i++){
+        const x=P.x,y=P.y+i*24;
+        const tx=Math.floor(x/TS),ty=Math.floor(y/TS);
+        if(map[ty]&&!solidTile(tx,ty)&&(map[ty][tx]===T.G||map[ty][tx]===T.P||map[ty][tx]===T.L))drop={x,y};
+      }
+    }
+    if(drop){P.x=drop.x;P.y=drop.y;P.moving=false;}
+    for(const e of enemies){
+      if(!e||!e.alive||!(e.lessonRest>0))continue;
+      if(Math.hypot(e.x-P.x,e.y-P.y)<88){e.x+=110;e.y-=36;}
+    }
+    P.grace=Math.max(P.grace||0,3.5);
+    try{snapCam();}catch(e){}
+    toast('Lesson skipped. The meadow is quiet for a moment.',3.2,'#9be8a0');
+    sfx('select');
+  }else{
+    if(B){B.ffTut=false;B.lessonFight=true;}
+    toast('Lesson complete! Now finish the slimes!',2.6,'#9be8a0');
+    sfx('questdone');
+  }
+  QS.met.__ff=true;saveGame('ff');
+}
 function updateFF(dt){
   FF.flash=Math.max(0,FF.flash-dt);FF.wait=(FF.on?(FF.wait||0):0)+dt;
   if(!FF.on)return;if(!B){FF.on=false;return;}
@@ -9776,7 +9834,8 @@ function drawFF(){
   txt('LESSON '+(FF.step+1)+'/'+FF_STEPS.length,x+10,y+14,{size:9,col:'#80563a',lw:2,out:'#f6f0e2'});
   const font='bold '+scaleText(11)+'px "Courier New",monospace',ls=wrapText(TOUCH?s.t:s.k,w-20,font);ls.slice(0,2).forEach((l,i)=>txt(l,x+10,y+30+i*14,{size:11,col:'#3a2a18',lw:2,out:'#f6f0e2'}));
   for(let i=0;i<FF_STEPS.length;i++){ctx.fillStyle=i<FF.step?'#9be8a0':i===FF.step?'#ffe14d':'#4a3a2a';ctx.fillRect(x+w-14-(FF_STEPS.length-i)*12,y+7,8,8);}
-  const sw=132,sh=48,sx=x+w-sw,sy=Math.min(y+h+6,VH-(typeof SB==='number'?SB:0)-sh-8);
+  // pinned under the health plate, clear of the minimap (top-right) so the first tap cannot open the map
+  const sw=132,sh=48,sx=Math.round((typeof SL==='number'?SL:0)+8),sy=Math.round((typeof ST==='number'?ST:0)+108);
   FF.skipR={x:sx,y:sy,w:sw,h:sh};
   panel(sx,sy,sw,sh,{fill:'#f6f0e2',border:'#80563a',inner:'#c9ad7e',shadow:'rgba(58,42,24,.25)'});
   txt('SKIP',sx+sw/2,sy+31,{size:16,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
@@ -13276,7 +13335,16 @@ function drawTitle(){
 let SANITY_T=0;
 
 /* ---- frame ---- */
+function dismissSplash(){
+  const sp=document.getElementById('splash');
+  if(!sp||sp.dataset.bye)return;
+  sp.dataset.bye='1';
+  sp.style.opacity='0';
+  sp.style.visibility='hidden';
+  setTimeout(()=>{try{sp.remove();}catch(e){}},280);
+}
 function render(){
+  dismissSplash();
   ctx.setTransform(S,0,0,S,0,0);ctx.imageSmoothingEnabled=false;
   ctx.fillStyle='#000';ctx.fillRect(0,0,VW,VH);
   if(state==='title'){drawTitle();if(TOUCH)drawTouchTitle();return;}
@@ -16514,7 +16582,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v76.5';
+const GAME_VER='v76.6';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
