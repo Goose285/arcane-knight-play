@@ -9845,7 +9845,11 @@ function drawFF(){
 function ffTap(p){
   const r=FF.skipR;if(!(FF.on&&r&&p))return false;
   const s=6;
-  if(p.x>=r.x-s&&p.x<=r.x+r.w+s&&p.y>=r.y-s&&p.y<=r.y+r.h+s){ffFinish(true);return true;}
+  if(p.x>=r.x-s&&p.x<=r.x+r.w+s&&p.y>=r.y-s&&p.y<=r.y+r.h+s){
+    // The button stays under the health plate. An aimed foe standing on that spot is a cast, not a skip.
+    if(B&&B.phase==='fight'&&typeof expSelActive==='function'&&expSelActive()&&B.ens&&B.ens.some(e=>e&&!e.dying&&Math.hypot((e.x||0)-(p.x+cam.x),(e.y||0)-(p.y+cam.y))<(typeof eRad==='function'?eRad(e):18)+24))return false;
+    ffFinish(true);return true;
+  }
   return false;
 }
 /* ---- guide trail: footsteps to the objective during the first quest ---- */
@@ -16582,7 +16586,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v76.6';
+const GAME_VER='v77';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -18562,5 +18566,580 @@ try{
   const flat=(ED.bakedOps||[]).concat(ED.ops||[]).flatMap(o=>o&&o.k==='group'&&o.ops?o.ops:[o]);
   for(const o of flat)if(o&&ed765Knows(o.k))ed765Apply(o);
 }catch(e){}
+
+/* ---------- src/world/v77.js ---------- */
+/* v77 Paced Start.
+   After the full 15-step lesson, a new game meets Oakvale one beat at a time.
+   A save from before v77 keeps every system, because v76 left them open.
+   Order: village, quests, shop, fish, tavern, poker, pets, house, delve, diff, rush.
+   Rush also opens rematches and challenges. Tests stay ungated unless __FORCE_PACE. */
+const PACE={fresh:false,open:{},seen:{},style:null,choosing:false,board:false,queue:[],intro:null,goals:{},next:null};
+const HOMEDECOR={on:false,sel:null,tool:'place',bag:'table',own:{table:1,rug:1,lamp:1,fern:1},got:{},items:[],wall:'timber',floor:'oak',light:'warm',ui:[]};
+const PACE_GATES=[
+  {id:'village',n:'The village',t:'Oakvale is yours to walk. The fountain is where people gather.'},
+  {id:'quests',n:'Quests',t:'The villagers will trust you with work. Their quests live in the journal.'},
+  {id:'shop',n:"Brum's forge",t:'Brum opens the forge. Cards, and a fishing rod, are on the bench.'},
+  {id:'fish',n:'Fishing',t:'The river will take a rod. Cast when the water ripples.'},
+  {id:'tavern',n:'The Oakvale Tap',t:'The Tap is warm tonight. There is stew, and a card table in the corner.'},
+  {id:'poker',n:"Hold'em",t:"The table is 20 gold to sit. Blinds are 1 and 2. Nothing is taken if you are short."},
+  {id:'pets',n:'Companions',t:'Marlo will trust you with a pet. They follow, and they help in a fight.'},
+  {id:'house',n:'Your house',t:'The house key works. Step through the door, then arrange the rooms.'},
+  {id:'delve',n:'Delve',t:'A side stair remembers older depths. The portal home waits down there.'},
+  {id:'diff',n:'Harder roads',t:'Veteran and Nightmare open now that the crown is settled.'},
+  {id:'rush',n:'Rush and challenges',t:'The arena master will run the rush, the rematches, and the challenges.'}
+];
+const PACE_BTN={pets:'pets',fish:'fish'};
+const DECOR={
+  table:{n:'Oak Table',s:'TABLE',w:2,h:1,g:40},
+  rug:{n:'Woven Rug',s:'RUG',w:2,h:2,g:30},
+  lamp:{n:'Brass Lamp',s:'LAMP',w:1,h:1,g:36},
+  fern:{n:'Potted Fern',s:'FERN',w:1,h:1,g:20},
+  stool:{n:'Stool',s:'STOOL',w:1,h:1,g:16},
+  banner:{n:'Banner',s:'FLAG',w:1,h:2,g:24},
+  trophy:{n:'Boss Trophy',s:'CUP',w:1,h:1,g:0},
+  fish:{n:'Mounted Fish',s:'FISH',w:1,h:1,g:0},
+  legend:{n:'Legend Frame',s:'STAR',w:1,h:1,g:0}
+};
+const PACE_WALLS=[{id:'timber',n:'Timber'},{id:'plaster',n:'Plaster'},{id:'night',n:'Night'}];
+const PACE_FLOORS=[{id:'oak',n:'Oak'},{id:'stone',n:'Stone'},{id:'hearth',n:'Hearth'}];
+const PACE_LIGHTS=[{id:'warm',n:'Warm'},{id:'day',n:'Day'},{id:'dim',n:'Dim'}];
+const PACE_WALL_COL={timber:'rgba(120,78,42,0)',plaster:'rgba(244,232,208,.55)',night:'rgba(28,36,72,.5)'};
+const PACE_FLOOR_COL={oak:'rgba(176,112,58,0)',stone:'rgba(168,168,176,.5)',hearth:'rgba(186,72,36,.48)'};
+function paceOn(){return !(typeof navigator!=='undefined'&&navigator.webdriver&&!window.__FORCE_PACE);}
+function paceHas(id){return !paceOn()||!!PACE.open[id];}
+function paceMenuLocked(id){const g=PACE_BTN[id];return !!(g&&paceOn()&&!paceHas(g));}
+function paceBoardOpen(){return !!(typeof STORY!=='undefined'&&STORY.ending);}
+function pacePack(){return {f:PACE.fresh?1:0,o:Object.assign({},PACE.open),s:Object.assign({},PACE.seen),y:PACE.style,h:paceHousePack(),g:PACE.goals||{}};}
+function paceHousePack(){
+  return {wall:HOMEDECOR.wall||'timber',floor:HOMEDECOR.floor||'oak',light:HOMEDECOR.light||'warm',bag:Object.assign({},HOMEDECOR.own||{}),got:Object.assign({},HOMEDECOR.got||{}),items:(HOMEDECOR.items||[]).map(it=>({id:it.id,x:it.x|0,y:it.y|0,r:it.r|0}))};
+}
+function paceDecorReset(){
+  HOMEDECOR.on=false;HOMEDECOR.sel=null;HOMEDECOR.tool='place';HOMEDECOR.bag='table';
+  HOMEDECOR.own={table:1,rug:1,lamp:1,fern:1};HOMEDECOR.got={};HOMEDECOR.items=[];
+  HOMEDECOR.wall='timber';HOMEDECOR.floor='oak';HOMEDECOR.light='warm';
+}
+function paceOpenAll(){
+  PACE.fresh=false;PACE.choosing=false;PACE.queue.length=0;PACE.intro=null;
+  PACE_GATES.forEach(g=>{PACE.open[g.id]=1;PACE.seen[g.id]=1;});
+}
+function paceBeat(){
+  const q=typeof QS!=='undefined'&&QS.st?QS.st:{};
+  const ch=typeof STORY!=='undefined'?STORY.ch|0:0;
+  const end=typeof STORY!=='undefined'&&!!STORY.ending;
+  const lesson=typeof QS!=='undefined'&&QS.met&&!!QS.met.__ff;
+  const slimes=q.slimes==='done'||q.slimes==='ready';
+  const goblins=q.goblins==='done'||q.goblins==='ready';
+  const crypt=q.crypt==='done'||q.crypt==='ready';
+  const pet=typeof PET!=='undefined'&&PET.owned&&Object.keys(PET.owned).some(k=>PET.owned[k]);
+  const lv=P.lv|0;
+  if(end||(typeof X7!=='undefined'&&(X7.ngp|0)>0))return 11;
+  if(crypt||(typeof lichDown!=='undefined'&&lichDown)||ch>=4||lv>=12)return 9;
+  if(ch>=3||lv>=9)return 8;
+  if(ch>=2||pet||lv>=7)return 7;
+  if(goblins||lv>=5)return 6;
+  if(slimes||ch>=1||lv>=3)return 4;
+  if(lesson)return 2;
+  return 0;
+}
+function paceGrant(id,quiet){
+  if(PACE.open[id])return false;
+  PACE.open[id]=1;
+  const g=PACE_GATES.find(q=>q.id===id);
+  if(!g)return true;
+  if(!quiet&&!PACE.seen[id]){PACE.seen[id]=1;PACE.queue.push(g);}
+  else PACE.seen[id]=1;
+  return true;
+}
+function paceApplyBeat(quiet){
+  const n=paceBeat();
+  for(let i=0;i<n&&i<PACE_GATES.length;i++)paceGrant(PACE_GATES[i].id,quiet);
+  PACE.next=PACE_GATES.find(g=>!PACE.open[g.id])||null;
+}
+function paceUnpack(v){
+  PACE.fresh=false;PACE.open={};PACE.seen={};PACE.style=null;PACE.goals={};PACE.queue=[];PACE.intro=null;PACE.choosing=false;PACE.board=false;
+  paceDecorReset();
+  if(!v){if(paceOn())paceOpenAll();return;}
+  PACE.fresh=!!v.f;PACE.style=v.y||null;PACE.goals=v.g&&typeof v.g==='object'?Object.assign({},v.g):{};
+  if(v.o)for(const k in v.o)if(v.o[k])PACE.open[k]=1;
+  if(v.s)for(const k in v.s)if(v.s[k])PACE.seen[k]=1;
+  const h=v.h||{};
+  if(h.wall&&PACE_WALLS.some(w=>w.id===h.wall))HOMEDECOR.wall=h.wall;
+  if(h.floor&&PACE_FLOORS.some(w=>w.id===h.floor))HOMEDECOR.floor=h.floor;
+  if(h.light&&PACE_LIGHTS.some(w=>w.id===h.light))HOMEDECOR.light=h.light;
+  if(h.got&&typeof h.got==='object')HOMEDECOR.got=Object.assign({},h.got);
+  if(h.bag&&typeof h.bag==='object'){HOMEDECOR.own={};for(const k in h.bag)if(DECOR[k])HOMEDECOR.own[k]=Math.max(0,h.bag[k]|0);}
+  if(Array.isArray(h.items)){
+    const kept=[];
+    h.items.forEach(it=>{
+      if(!it||!DECOR[it.id])return;
+      const row={id:it.id,x:it.x|0,y:it.y|0,r:(it.r|0)%4};
+      if(!decorInside(row)||decorBlocksDoor(row)||kept.some(o=>decorHits(o,row)))return;
+      kept.push(row);
+    });
+    HOMEDECOR.items=kept;
+  }
+  if(paceOn())paceApplyBeat(false);
+}
+function paceBegin(){
+  if(!paceOn())return;
+  PACE.fresh=true;PACE.open={};PACE.seen={};PACE.style=null;PACE.choosing=false;PACE.board=false;PACE.queue=[];PACE.intro=null;PACE.goals={};
+  paceDecorReset();
+}
+function paceAfterLesson(){
+  if(!paceOn())return;
+  PACE.fresh=true;
+  paceGrant('village',false);paceGrant('quests',false);
+  if(!PACE.style)PACE.choosing=true;
+  try{saveGame('pace');}catch(e){}
+}
+function paceEarnDecor(){
+  HOMEDECOR.got=HOMEDECOR.got||{};
+  const boss=(typeof trophyCount==='function'&&trophyCount()>0)||(typeof bossDown!=='undefined'&&bossDown)||(typeof lichDown!=='undefined'&&lichDown);
+  if(boss&&!HOMEDECOR.got.trophy){HOMEDECOR.got.trophy=1;HOMEDECOR.own.trophy=(HOMEDECOR.own.trophy||0)+1;}
+  const caught=(typeof X7!=='undefined'&&X7.jr&&Object.keys(X7.jr).length)||(typeof FSH!=='undefined'&&(FSH.caught|0)>0);
+  if(caught&&!HOMEDECOR.got.fish){HOMEDECOR.got.fish=1;HOMEDECOR.own.fish=(HOMEDECOR.own.fish||0)+1;}
+  let leg=false;
+  try{leg=Object.keys(COL).some(id=>COL[id]>0&&CARD[id]&&CARD[id].rar==='legendary');}catch(e){}
+  try{if(!leg&&typeof GEAR!=='undefined'&&typeof GEAR_SLOTS!=='undefined')leg=GEAR_SLOTS.some(s=>GEAR.eq[s]&&GEAR.eq[s].rar==='legendary');}catch(e){}
+  if(leg&&!HOMEDECOR.got.legend){HOMEDECOR.got.legend=1;HOMEDECOR.own.legend=(HOMEDECOR.own.legend||0)+1;}
+}
+function paceTick(){
+  if(!paceOn()||state==='title'||state==='fishlab')return;
+  if(PACE.fresh&&!(typeof QS!=='undefined'&&QS.met&&QS.met.__ff))return;
+  paceApplyBeat(false);paceEarnDecor();
+  if(paceOn()&&!paceHas('diff')&&typeof DELVE!=='undefined'&&DELVE.ui==='diff')DELVE.ui=null;
+}
+function paceSoon(id){
+  const g=PACE_GATES.find(q=>q.id===id);
+  try{toast((g?g.n:'That')+' is not open yet. Keep on with Oakvale, and it will be.',2.6,'#ffe9a0');}catch(e){}
+  try{sfx('clang');}catch(e){}
+  return false;
+}
+function paceSoft(id,who,lines){
+  if(state==='paused'||!who)return paceSoon(id);
+  try{DLG={name:who,lines:lines,i:0,c:0};}catch(e){return paceSoon(id);}
+  return false;
+}
+function paceStyle(id){
+  if(id!=='sword'&&id!=='fire'&&id!=='heal')return;
+  if(typeof CARD==='undefined'||!CARD[id])return;
+  PACE.style=id;PACE.choosing=false;
+  try{
+    const cap=RAR[CARD[id].rar].own|0;
+    if((COL[id]||0)<cap)COL[id]=(COL[id]||0)+1;
+    const have=DECK.filter(x=>x===id),rest=DECK.filter(x=>x!==id);
+    DECK=have.concat(rest);
+    if(typeof deckCount==='function'&&typeof deckLimit==='function'&&deckCount(id)<deckLimit(id)&&DECK.length<DECK_MAX)DECK.unshift(id);
+  }catch(e){}
+  const name=id==='fire'?'Fireball':id==='heal'?'Heal':'Sword';
+  try{toast(name+' leads your deck.',2.8,'#ffe9a0');sfx('select');saveGame('style');}catch(e){}
+}
+function paceGoals(){
+  const jr=typeof X7!=='undefined'&&X7.jr?Object.keys(X7.jr).length:0;
+  const rem=typeof X7!=='undefined'&&X7.rematch?Object.keys(X7.rematch).reduce((a,k)=>a+(X7.rematch[k]|0),0):0;
+  const depth=typeof X7!=='undefined'&&X7.depth?X7.depth.best|0:0;
+  let legend=false,owned=0;
+  try{legend=Object.keys(COL).some(id=>COL[id]>0&&CARD[id]&&CARD[id].rar==='legendary');owned=Object.keys(COL).filter(id=>COL[id]>0&&CARD[id]).length;}catch(e){}
+  try{if(!legend&&typeof GEAR!=='undefined'){const bag=(GEAR.inv||[]).concat(GEAR_SLOTS.map(s=>GEAR.eq[s]));legend=bag.some(it=>it&&(it.rar==='legendary'||it.unique||it.fx));}}catch(e){}
+  const cups=typeof trophyCount==='function'?trophyCount():0;
+  return [
+    {id:'legend',n:'A legendary hunt',ok:!!legend,g:100,h:'Find a named legendary, or a legendary card. No sponge of a fight.'},
+    {id:'rematch',n:'A boss rematch',ok:rem>=1,g:80,h:'Win one rematch. Health stays near the real fight.'},
+    {id:'depth',n:'Delve depth 5',ok:depth>=5,g:90,h:'Reach depth 5 in the Endless Crypt.'},
+    {id:'journal',n:'Fish journal',ok:jr>=6,g:70,h:'Record six kinds of fish.'},
+    {id:'collection',n:'A collection',ok:cups>=3||owned>=12,g:80,h:'Hang three trophies, or own twelve cards.'},
+    {id:'crown',n:'The crown is settled',ok:paceBoardOpen(),g:120,h:'The Hollow Crown is told. The road stays open.'}
+  ];
+}
+function paceClaim(id){
+  PACE.goals=PACE.goals||{};
+  if(PACE.goals[id])return false;
+  const g=paceGoals().find(q=>q.id===id);
+  if(!g||!g.ok)return false;
+  PACE.goals[id]=1;P.gold+=g.g;
+  try{toast(g.n+'  +'+g.g+' G',2.4,'#ffe9a0');sfx('coin');saveGame('goal');}catch(e){}
+  return true;
+}
+function paceInHouse(){return typeof zoneOfPx==='function'&&zoneOfPx(P.y)==='house';}
+function decorFoot(it){
+  const d=DECOR[it.id];if(!d)return null;
+  const swap=(it.r|0)%2===1;
+  return {x:it.x,y:it.y,w:swap?d.h:d.w,h:swap?d.w:d.h};
+}
+function decorHits(a,b){const A=decorFoot(a),B=decorFoot(b);if(!A||!B)return false;return A.x<B.x+B.w&&B.x<A.x+A.w&&A.y<B.y+B.h&&B.y<A.y+A.h;}
+function decorInside(it){
+  const f=decorFoot(it);if(!f||typeof HOUSE_ROOM==='undefined')return false;
+  const R=HOUSE_ROOM;
+  return f.x>=R.x0+1&&f.y>=R.y0+1&&f.x+f.w-1<=R.x1-1&&f.y+f.h-1<=R.y1-1;
+}
+function decorBlocksDoor(it){
+  const f=decorFoot(it);if(!f||typeof HOUSE_ROOM==='undefined')return true;
+  const doorY=HOUSE_ROOM.y1-1;
+  return f.y<=doorY&&f.y+f.h-1>=doorY&&f.x<=33&&f.x+f.w-1>=29;
+}
+function decorPlace(id,tx,ty,rot){
+  if(!DECOR[id])return 'Unknown piece';
+  if(!(HOMEDECOR.own&&HOMEDECOR.own[id]>0))return 'Not in the cupboard';
+  const it={id,x:tx|0,y:ty|0,r:(rot|0)%4};
+  if(!decorInside(it)||decorBlocksDoor(it))return 'Leave the doorway clear';
+  if((HOMEDECOR.items||[]).some(o=>decorHits(o,it)))return 'Something is already there';
+  HOMEDECOR.own[id]--;HOMEDECOR.items.push(it);HOMEDECOR.sel=HOMEDECOR.items.length-1;
+  try{saveGame('decor');}catch(e){}
+  return null;
+}
+function decorSelected(){return HOMEDECOR.items&&HOMEDECOR.sel!=null?HOMEDECOR.items[HOMEDECOR.sel]:null;}
+function decorRotate(){
+  const it=decorSelected();if(!it)return 'Pick a piece';
+  const n={id:it.id,x:it.x,y:it.y,r:((it.r|0)+1)%4};
+  const rest=HOMEDECOR.items.filter((_,i)=>i!==HOMEDECOR.sel);
+  if(!decorInside(n)||decorBlocksDoor(n)||rest.some(o=>decorHits(o,n)))return 'It will not turn there';
+  it.r=n.r;try{saveGame('decor');}catch(e){}
+  return null;
+}
+function decorMove(tx,ty){
+  const it=decorSelected();if(!it)return 'Pick a piece';
+  const n={id:it.id,x:tx|0,y:ty|0,r:it.r|0};
+  const rest=HOMEDECOR.items.filter((_,i)=>i!==HOMEDECOR.sel);
+  if(!decorInside(n)||decorBlocksDoor(n)||rest.some(o=>decorHits(o,n)))return 'That does not fit the room';
+  it.x=n.x;it.y=n.y;try{saveGame('decor');}catch(e){}
+  return null;
+}
+function decorStore(){
+  const i=HOMEDECOR.sel|0,it=HOMEDECOR.items&&HOMEDECOR.items[i];if(!it||HOMEDECOR.sel==null)return;
+  HOMEDECOR.own[it.id]=(HOMEDECOR.own[it.id]||0)+1;
+  HOMEDECOR.items.splice(i,1);HOMEDECOR.sel=null;try{saveGame('decor');}catch(e){}
+}
+function decorSell(){
+  const i=HOMEDECOR.sel|0,it=HOMEDECOR.items&&HOMEDECOR.items[i];if(!it||HOMEDECOR.sel==null)return;
+  const g=DECOR[it.id].g|0;
+  if(!g){decorStore();try{toast('Trophies go back to the cupboard',1.6,'#ffe9a0');}catch(e){}return;}
+  const pay=Math.max(1,Math.round(g*.5));
+  P.gold+=pay;HOMEDECOR.items.splice(i,1);HOMEDECOR.sel=null;
+  try{toast('Sold for '+pay+' G',1.8,'#ffe9a0');saveGame('decor');}catch(e){}
+}
+function decorBuy(id){
+  const d=DECOR[id];if(!d)return 'Unknown piece';
+  if(!d.g)return 'That one is earned, not bought';
+  if(P.gold<d.g)return 'Need '+d.g+' G';
+  P.gold-=d.g;HOMEDECOR.own[id]=(HOMEDECOR.own[id]||0)+1;HOMEDECOR.bag=id;
+  try{toast(d.n+' is in the cupboard',1.6,'#ffe9a0');sfx('coin');saveGame('decor');}catch(e){}
+  return null;
+}
+function decorPick(p){
+  if(!p)return -1;
+  const wx=p.x+cam.x,wy=p.y+cam.y;let best=-1,bd=52;
+  (HOMEDECOR.items||[]).forEach((it,i)=>{
+    const f=decorFoot(it);if(!f)return;
+    const cx=(f.x+f.w/2)*TS,cy=(f.y+f.h/2)*TS,d=Math.hypot(wx-cx,wy-cy);
+    if(d<bd){bd=d;best=i;}
+  });
+  return best;
+}
+function paceBarGeom(){
+  const sb=typeof SB==='number'?SB:0,sl=typeof SL==='number'?SL:0,sr=typeof SR==='number'?SR:0;
+  const x=Math.round(sl+156),right=VW-sr-148,w=Math.max(280,Math.round(right-x));
+  const y=Math.round(VH-sb-154);
+  return {x,y,w};
+}
+function paceUiButtons(){
+  const box=paceBarGeom(),gap=4,rows=[[],[]];
+  const tools=[['PLACE','place'],['MOVE','move'],['TURN','turn'],['STORE','store'],['SELL','sell'],['WALL','wall'],['FLOOR','floor'],['LIGHT','light'],['DONE','done']];
+  const pieces=Object.keys(DECOR);
+  const tw=Math.floor((box.w-(5-1)*gap)/5),pw=Math.floor((box.w-(Math.min(5,pieces.length)-1)*gap)/Math.min(5,pieces.length));
+  pieces.forEach((id,i)=>{
+    const col=i%5,row=i<5?0:1;
+    rows[0].push({x:box.x+col*(pw+gap),y:box.y+row*36,w:pw,h:32,id:'piece:'+id,lab:DECOR[id].s||DECOR[id].n});
+  });
+  tools.forEach((t,i)=>{
+    const col=i%5,row=Math.floor(i/5);
+    rows[1].push({x:box.x+col*(tw+gap),y:box.y+76+row*36,w:tw,h:32,id:t[1],lab:t[0]});
+  });
+  return rows[0].concat(rows[1]);
+}
+function decorDrawOne(it,i){
+  const f=decorFoot(it);if(!f)return;
+  const x=Math.round(f.x*TS-cam.x),y=Math.round(f.y*TS-cam.y),w=f.w*TS,h=f.h*TS;
+  ctx.save();
+  ctx.fillStyle='rgba(20,10,4,.45)';ctx.fillRect(x+4,y+h-6,w-6,6);
+  ctx.lineWidth=3;ctx.strokeStyle='#2a160c';
+  if(it.id==='rug'){
+    ctx.fillStyle='#f4e2c0';ctx.fillRect(x+1,y+1,w-2,h-2);ctx.strokeRect(x+1,y+1,w-2,h-2);
+    ctx.fillStyle='#9a3030';ctx.fillRect(x+1,y+1,w-2,6);ctx.fillRect(x+1,y+h-7,w-2,6);ctx.fillRect(x+1,y+1,6,h-2);ctx.fillRect(x+w-7,y+1,6,h-2);
+    ctx.fillStyle='#e0b050';ctx.fillRect(x+w/2-8,y+h/2-8,16,16);
+  }else if(it.id==='table'){
+    ctx.fillStyle='#4e3018';ctx.fillRect(x+6,y+h-12,6,10);ctx.fillRect(x+w-12,y+h-12,6,10);
+    ctx.fillStyle='#c47a3a';ctx.fillRect(x+1,y+2,w-2,h-10);ctx.strokeRect(x+1,y+2,w-2,h-10);
+    ctx.fillStyle='#f0c888';ctx.fillRect(x+3,y+4,w-6,5);
+  }else if(it.id==='lamp'){
+    ctx.fillStyle='#5a4030';ctx.fillRect(x+w/2-3,y+h-16,6,12);ctx.fillStyle='#f0c04a';ctx.fillRect(x+w/2-10,y+4,20,12);ctx.strokeRect(x+w/2-10,y+4,20,12);
+    const glow=HOMEDECOR.light==='dim'?.16:.4;
+    ctx.fillStyle='rgba(255,210,110,'+glow+')';ctx.beginPath();ctx.arc(x+w/2,y+10,36,0,6.283);ctx.fill();
+  }else if(it.id==='fern'){
+    ctx.fillStyle='#7a3e22';ctx.fillRect(x+w/2-8,y+h-14,16,12);ctx.strokeRect(x+w/2-8,y+h-14,16,12);
+    ctx.fillStyle='#2f7a32';ctx.beginPath();ctx.ellipse(x+w/2,y+h/2-2,12,14,0,0,6.283);ctx.fill();
+    ctx.fillStyle='#7ed06a';ctx.beginPath();ctx.ellipse(x+w/2-4,y+h/2-6,6,8,0,0,6.283);ctx.fill();
+  }else if(it.id==='stool'){
+    ctx.fillStyle='#4e3018';ctx.fillRect(x+5,y+h-14,4,10);ctx.fillRect(x+w-9,y+h-14,4,10);
+    ctx.fillStyle='#d09048';ctx.beginPath();ctx.ellipse(x+w/2,y+10,11,6,0,0,6.283);ctx.fill();ctx.stroke();
+  }else if(it.id==='banner'){
+    ctx.fillStyle='#4e3018';ctx.fillRect(x+2,y+1,w-4,5);ctx.fillStyle='#2a6a34';ctx.fillRect(x+w/2-7,y+6,14,h-12);ctx.strokeRect(x+w/2-7,y+6,14,h-12);
+    ctx.fillStyle='#f0d060';ctx.fillRect(x+w/2-3,y+10,6,8);
+  }else if(it.id==='trophy'){
+    ctx.fillStyle='#6a4018';ctx.fillRect(x+w/2-8,y+h-10,16,8);ctx.fillStyle='#ffd23f';ctx.fillRect(x+w/2-10,y+2,20,16);ctx.strokeRect(x+w/2-10,y+2,20,16);
+    ctx.fillStyle='#fff6c8';ctx.fillRect(x+w/2-4,y+5,8,6);
+  }else if(it.id==='fish'){
+    ctx.fillStyle='#5a3a22';ctx.fillRect(x+1,y+1,w-2,h-2);ctx.strokeRect(x+1,y+1,w-2,h-2);
+    ctx.fillStyle='#3aa0e0';ctx.beginPath();ctx.ellipse(x+w/2,y+h/2,12,7,0,0,6.283);ctx.fill();
+    ctx.fillStyle='#e8f6ff';ctx.fillRect(x+w/2-2,y+h/2-2,3,3);
+  }else if(it.id==='legend'){
+    ctx.fillStyle='#3a2210';ctx.fillRect(x+1,y+1,w-2,h-2);ctx.strokeRect(x+1,y+1,w-2,h-2);
+    ctx.fillStyle='#ffb02e';ctx.fillRect(x+6,y+6,w-12,h-12);ctx.fillStyle='#fff6d0';ctx.fillRect(x+w/2-3,y+h/2-5,6,10);
+  }
+  if(i===HOMEDECOR.sel){ctx.strokeStyle='#ffe14d';ctx.lineWidth=3;ctx.strokeRect(x-1,y-1,w+2,h+2);}
+  ctx.restore();
+}
+function paceDrawHouse(){
+  if(!paceInHouse()||typeof HOUSE_ROOM==='undefined')return;
+  const dirty=HOMEDECOR.on||(HOMEDECOR.items&&HOMEDECOR.items.length)||HOMEDECOR.wall!=='timber'||HOMEDECOR.floor!=='oak'||HOMEDECOR.light!=='warm';
+  if(!dirty)return;
+  const R=HOUSE_ROOM,cx=Math.round(cam.x),cy=Math.round(cam.y);
+  const x=(R.x0+1)*TS-cx,y=(R.y0+1)*TS-cy,w=(R.x1-R.x0-1)*TS,h=(R.y1-R.y0-1)*TS;
+  ctx.save();
+  if(HOMEDECOR.floor!=='oak'){ctx.fillStyle=PACE_FLOOR_COL[HOMEDECOR.floor]||'rgba(0,0,0,0)';ctx.fillRect(x,y,w,h);}
+  if(HOMEDECOR.wall!=='timber'){
+    ctx.fillStyle=PACE_WALL_COL[HOMEDECOR.wall]||'rgba(0,0,0,0)';
+    ctx.fillRect(R.x0*TS-cx,R.y0*TS-cy,(R.x1-R.x0+1)*TS,TS);
+    ctx.fillRect(R.x0*TS-cx,(R.y0+1)*TS-cy,TS,h);
+    ctx.fillRect(R.x1*TS-cx,(R.y0+1)*TS-cy,TS,h);
+  }
+  if(HOMEDECOR.light==='dim'){ctx.fillStyle='rgba(16,20,40,.34)';ctx.fillRect(x,y,w,h);}
+  else if(HOMEDECOR.light==='day'){ctx.fillStyle='rgba(255,244,220,.14)';ctx.fillRect(x,y,w,h);}
+  (HOMEDECOR.items||[]).forEach(decorDrawOne);
+  ctx.restore();
+}
+function paceFillBtn(r,on){
+  ctx.fillStyle=on?'#e0b44a':'#80563a';ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.fillStyle=on?'#fff6d4':'#f6f0e2';ctx.fillRect(r.x+2,r.y+2,r.w-4,r.h-4);
+  txt(r.lab,r.x+r.w/2,r.y+r.h/2+4,{size:10,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
+}
+function paceDrawEditor(){
+  HOMEDECOR.ui=[];
+  if(!paceInHouse()||PACE.board||PACE.choosing||PACE.intro)return;
+  if(!HOMEDECOR.on){
+    if(!paceOn()||!paceHas('house'))return;
+    const box=paceBarGeom();
+    const r={x:Math.round(VW/2-100),y:Math.round(VH-(typeof SB==='number'?SB:0)-58),w:200,h:42,id:'arrange'};
+    HOMEDECOR.ui=[r];
+    ctx.fillStyle='#80563a';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.fillStyle='#f6f0e2';ctx.fillRect(r.x+2,r.y+2,r.w-4,r.h-4);
+    txt('ARRANGE',r.x+r.w/2,r.y+26,{size:14,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
+    return;
+  }
+  const btns=paceUiButtons();
+  HOMEDECOR.ui=btns;
+  btns.forEach(r=>{
+    const piece=r.id.indexOf('piece:')===0?r.id.slice(6):null;
+    const on=piece?HOMEDECOR.bag===piece:HOMEDECOR.tool===r.id;
+    const n=piece?(HOMEDECOR.own[piece]|0):0;
+    paceFillBtn(r,on);
+    if(piece)txt(n?String(n):DECOR[piece].g?'BUY':'',r.x+r.w-8,r.y+12,{size:8,align:'right',col:n?'#3f8f3a':'#8a3e12',lw:2,out:'#f6f0e2'});
+  });
+}
+function paceDrawChoice(){
+  if(!PACE.choosing||!paceOn())return;
+  const w=Math.min(VW-48,520),h=158,x=Math.round((VW-w)/2),y=Math.round(VH*.22);
+  panel(x,y,w,h,{fill:'#f6f0e2',border:'#80563a'});
+  txt('A FIRST CARD',x+16,y+22,{size:14,col:'#3a2a18',lw:2,out:'#f6f0e2'});
+  txt('Orin sets three cards on the fountain rim. Take the one you trust.',x+16,y+42,{size:10,col:'#5a4638',lw:2,out:'#f6f0e2'});
+  const labs=[['SWORD','sword'],['FLAME','fire'],['MEND','heal']];
+  const bw=Math.floor((w-32-16)/3);
+  PACE.choiceR=labs.map((lab,i)=>({x:x+16+i*(bw+8),y:y+64,w:bw,h:72,id:lab[1]}));
+  PACE.choiceR.forEach((r,i)=>{
+    ctx.fillStyle='#80563a';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.fillStyle='#c9ad7e';ctx.fillRect(r.x+3,r.y+3,r.w-6,r.h-6);
+    txt(labs[i][0],r.x+r.w/2,r.y+42,{size:16,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
+  });
+}
+function paceDrawIntro(){
+  if(PACE.choosing||PACE.board||!paceOn())return;
+  if(!PACE.intro&&PACE.queue.length)PACE.intro=PACE.queue.shift();
+  const g=PACE.intro;if(!g)return;
+  const w=Math.min(VW-40,480),h=150,x=Math.round((VW-w)/2),y=Math.round(VH*.2);
+  panel(x,y,w,h,{fill:'#f6f0e2',border:'#80563a'});
+  txt('SOMETHING NEW',x+16,y+24,{size:11,col:'#8a5a32',lw:2,out:'#f6f0e2'});
+  txt(g.n,x+16,y+48,{size:18,col:'#3a2a18',lw:2,out:'#f6f0e2'});
+  const font='bold '+scaleText(12)+'px "Courier New",monospace';
+  wrapText(g.t,w-32,font).slice(0,3).forEach((l,i)=>txt(l,x+16,y+74+i*16,{size:12,col:'#5a4638',lw:2,out:'#f6f0e2'}));
+  PACE.introBtn={x:x+w-132,y:y+h-48,w:112,h:36};
+  ctx.fillStyle='#3f8f3a';ctx.fillRect(PACE.introBtn.x,PACE.introBtn.y,112,36);
+  txt('NEXT',PACE.introBtn.x+56,PACE.introBtn.y+24,{size:14,align:'center',col:'#fff8e0',lw:2,out:'#163a12'});
+}
+function paceDrawBoard(){
+  if(!PACE.board)return;
+  const list=paceGoals();
+  const w=Math.min(VW-20,560),h=Math.min(VH-16,48+list.length*46),x=Math.round((VW-w)/2),y=Math.round((VH-h)/2);
+  panel(x,y,w,h,{fill:'#f6f0e2',border:'#80563a'});
+  txt('AFTER THE CROWN',x+16,y+22,{size:15,col:'#3a2a18',lw:2,out:'#f6f0e2'});
+  PACE.goalR=[];
+  list.forEach((g,i)=>{
+    const yy=y+32+i*46;
+    txt(g.n,x+14,yy+16,{size:13,col:'#3a2a18',lw:2,out:'#f6f0e2'});
+    txt(g.h,x+14,yy+32,{size:9,col:'#5a4638',lw:2,out:'#f6f0e2'});
+    const claimed=PACE.goals&&PACE.goals[g.id];
+    const r={x:x+w-118,y:yy+4,w:100,h:34,id:g.id};
+    PACE.goalR.push(r);
+    ctx.fillStyle=claimed?'#2d6a4f':g.ok?'#80563a':'#6a5a48';ctx.fillRect(r.x,r.y,r.w,r.h);
+    txt(claimed?'TAKEN':g.ok?'CLAIM '+g.g:'LATER',r.x+r.w/2,r.y+22,{size:10,align:'center',col:'#f6f0e2',lw:2,out:'#1c0e06'});
+  });
+  PACE.boardX={x:x+w-78,y:y+6,w:66,h:26};
+  ctx.fillStyle='#7a2a2a';ctx.fillRect(PACE.boardX.x,PACE.boardX.y,66,26);
+  txt('CLOSE',PACE.boardX.x+33,PACE.boardX.y+18,{size:11,align:'center',col:'#fff',lw:2,out:'#1c0e06'});
+}
+function paceDrawHint(){
+  if(!paceOn()||!PACE.fresh||PACE.choosing||PACE.intro||PACE.board||HOMEDECOR.on||state!=='play'||B||DLG)return;
+  const next=PACE.next||PACE_GATES.find(g=>!PACE.open[g.id]);
+  if(!next)return;
+  const w=Math.min(260,VW-SL-SR-40),x=Math.round(VW/2-w/2),y=Math.round(VH-(typeof SB==='number'?SB:0)-108);
+  ctx.fillStyle='#f6f0e2';ctx.fillRect(x,y,w,28);ctx.strokeStyle='#80563a';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,26);
+  txt('Soon: '+next.n,x+w/2,y+19,{size:13,align:'center',col:'#5a4638',lw:2,out:'#f6f0e2'});
+}
+function paceOverControl(p){
+  if(typeof joyZone==='function'){const z=joyZone();if(p.x>=z.x0&&p.x<=z.x1&&p.y>VH*.42)return true;}
+  if(typeof btn!=='undefined'&&btn.atk&&Math.hypot(p.x-btn.atk.x,p.y-btn.atk.y)<btn.atk.r+10)return true;
+  if(typeof btn!=='undefined'&&btn.pause&&Math.hypot(p.x-btn.pause.x,p.y-btn.pause.y)<btn.pause.r+8)return true;
+  return false;
+}
+function paceDecorTap(p){
+  const hit=(HOMEDECOR.ui||[]).find(r=>inRect(p,r));
+  if(!HOMEDECOR.on){
+    if(hit&&hit.id==='arrange'){HOMEDECOR.on=true;try{sfx('select');}catch(e){}return true;}
+    return false;
+  }
+  if(!hit){
+    if(paceOverControl(p))return false;
+    const tx=Math.floor((p.x+cam.x)/TS),ty=Math.floor((p.y+cam.y)/TS);
+    const picked=decorPick(p);
+    if(picked<0){const probe={id:'table',x:tx,y:ty,r:0};if(!decorInside(probe))return false;}
+    if(HOMEDECOR.tool==='move'){
+      if(picked>=0&&HOMEDECOR.sel!==picked){HOMEDECOR.sel=picked;return true;}
+      const why=decorMove(tx,ty);if(why)try{toast(why,1.5,'#ffb0a0');}catch(e){}
+      return true;
+    }
+    if(HOMEDECOR.tool==='place'){
+      if(picked>=0){HOMEDECOR.sel=picked;return true;}
+      const why=decorPlace(HOMEDECOR.bag||'table',tx,ty,0);
+      if(why)try{toast(why,1.5,'#ffb0a0');}catch(e){}
+      return true;
+    }
+    if(picked>=0){HOMEDECOR.sel=picked;return true;}
+    return true;
+  }
+  if(hit.id.indexOf('piece:')===0){
+    const id=hit.id.slice(6);
+    if(!(HOMEDECOR.own[id]>0)){const why=decorBuy(id);if(why)try{toast(why,1.5,'#ffb0a0');}catch(e){}return true;}
+    HOMEDECOR.bag=id;HOMEDECOR.tool='place';return true;
+  }
+  if(hit.id==='done'){HOMEDECOR.on=false;try{saveGame('decor');}catch(e){}return true;}
+  if(hit.id==='turn'){const why=decorRotate();if(why)try{toast(why,1.5,'#ffb0a0');}catch(e){}return true;}
+  if(hit.id==='store'){decorStore();return true;}
+  if(hit.id==='sell'){decorSell();return true;}
+  if(hit.id==='wall'){const i=PACE_WALLS.findIndex(w=>w.id===HOMEDECOR.wall);HOMEDECOR.wall=PACE_WALLS[(i+1)%PACE_WALLS.length].id;try{saveGame('decor');}catch(e){}return true;}
+  if(hit.id==='floor'){const i=PACE_FLOORS.findIndex(w=>w.id===HOMEDECOR.floor);HOMEDECOR.floor=PACE_FLOORS[(i+1)%PACE_FLOORS.length].id;try{saveGame('decor');}catch(e){}return true;}
+  if(hit.id==='light'){const i=PACE_LIGHTS.findIndex(w=>w.id===HOMEDECOR.light);HOMEDECOR.light=PACE_LIGHTS[(i+1)%PACE_LIGHTS.length].id;try{saveGame('decor');}catch(e){}return true;}
+  HOMEDECOR.tool=hit.id;return true;
+}
+function pacePointer(p){
+  if(!p)return false;
+  if(PACE.choosing&&PACE.choiceR){const r=PACE.choiceR.find(q=>inRect(p,q));if(r){paceStyle(r.id);return true;}if(PACE.choiceR.length)return false;}
+  if(PACE.intro){
+    if(PACE.introBtn&&inRect(p,PACE.introBtn)){PACE.intro=null;try{sfx('select');}catch(e){}return true;}
+    return false;
+  }
+  if(PACE.board){
+    if(PACE.boardX&&inRect(p,PACE.boardX)){PACE.board=false;return true;}
+    const g=(PACE.goalR||[]).find(q=>inRect(p,q));if(g){paceClaim(g.id);return true;}
+    return true;
+  }
+  if(paceDecorTap(p))return true;
+  return false;
+}
+function paceShowIntro(id){const g=PACE_GATES.find(q=>q.id===id);if(g){PACE.choosing=false;PACE.intro=g;}}
+const _save77=saveGame;
+saveGame=function(why){const ok=_save77(why);if(!ok||NOSAVE)return ok;try{const o=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(o){o.v77=pacePack();localStorage.setItem(SAVE_KEY,JSON.stringify(o));}}catch(e){}return ok;};
+const _load77=loadSave;
+loadSave=function(s){const r=_load77(s);try{paceUnpack(s&&s.v77);}catch(e){}return r;};
+const _ff77=ffFinish;
+ffFinish=function(skipped){const r=_ff77(skipped);try{paceAfterLesson();}catch(e){}return r;};
+const _shop77=openShop;
+openShop=function(){if(!paceHas('shop'))return paceSoft('shop','BRUM THE SMITH',['The forge is cold for a new knight.','Help the village first. Then I will open the bench, and a rod.']);return _shop77.apply(this,arguments);};
+const _fish77=startFishing;
+startFishing=function(spot){if(!paceHas('fish'))return paceSoon('fish');return _fish77.apply(this,arguments);};
+const _openFish77=openFishing;
+openFishing=function(){if(!paceHas('fish'))return paceSoon('fish');return _openFish77.apply(this,arguments);};
+const _sit77=pokerSit;
+pokerSit=function(){if(!paceHas('poker'))return paceSoon('poker');return _sit77.apply(this,arguments);};
+const _house77=enterHouse;
+enterHouse=function(){if(!paceHas('house'))return paceSoon('house');return _house77.apply(this,arguments);};
+const _pets77=openPets;
+openPets=function(){if(!paceHas('pets'))return paceSoft('pets','MARLO THE KEEPER',['The pens are not ready for a new knight.','Walk with Oakvale a while longer. A companion will be waiting.']);return _pets77.apply(this,arguments);};
+const _delve77=delvePortal;
+delvePortal=function(){if(!paceHas('delve'))return paceSoon('delve');return _delve77.apply(this,arguments);};
+const _rush77=rushStart;
+rushStart=function(mode){if(!paceHas('rush'))return paceSoon('rush');return _rush77.apply(this,arguments);};
+const _arena77=openArenaMaster;
+openArenaMaster=function(){if(!paceHas('rush'))return paceSoft('rush','ARENA MASTER',['The arena is quiet for now.','Come back when the crown is settled. The rush, the rematches, and the challenges will be waiting.']);return _arena77.apply(this,arguments);};
+if(typeof endlessStart==='function'){const _en=endlessStart;endlessStart=function(){if(!paceHas('rush'))return paceSoon('rush');return _en.apply(this,arguments);};}
+if(typeof rematchStart==='function'){const _re=rematchStart;rematchStart=function(type){if(!paceHas('rush'))return paceSoon('rush');return _re.apply(this,arguments);};}
+if(typeof chToggle==='function'){const _ch=chToggle;chToggle=function(k){if(!paceHas('rush'))return paceSoon('rush');return _ch.apply(this,arguments);};}
+if(typeof delveOpenDiff==='function'){const _df=delveOpenDiff;delveOpenDiff=function(){if(!paceHas('diff'))return paceSoon('diff');return _df.apply(this,arguments);};}
+if(typeof delveSetTier==='function'){const _st=delveSetTier;delveSetTier=function(n){if((n|0)>0&&!paceHas('diff'))return paceSoon('diff');return _st.apply(this,arguments);};}
+if(typeof delveTierHidden==='function'){const _th=delveTierHidden;delveTierHidden=function(){if(paceOn()&&!paceHas('diff'))return true;return _th();};}
+if(typeof delvePortalHere==='function'){const _ph=delvePortalHere;delvePortalHere=function(){if(paceOn()&&!paceHas('delve'))return false;return _ph();};}
+const _title77=startFromTitle;
+startFromTitle=function(){
+  const it=titleMenu.items[titleMenu.sel];
+  const confirming=titleMenu.save&&!titleMenu.confirm&&it!=='Continue'&&it!=='Restore Backup'&&it!=='Fishing Lab';
+  if(paceOn()&&!confirming&&it==='New Game')paceBegin();
+  return _title77.apply(this,arguments);
+};
+const _up77=update;
+update=function(dt){const r=_up77.apply(this,arguments);try{paceTick();}catch(e){}return r;};
+const _dw77=drawWorld;
+drawWorld=function(){_dw77();try{paceDrawHouse();}catch(e){}};
+const _rn77=render;
+render=function(){const r=_rn77.apply(this,arguments);try{paceDrawHint();if(PACE.choosing)paceDrawChoice();else paceDrawIntro();paceDrawBoard();paceDrawEditor();}catch(e){}return r;};
+const _tap77=tapUI;
+tapUI=function(p){if(pacePointer(p))return true;return _tap77.apply(this,arguments);};
+const _td77=touchDown;
+touchDown=function(id,p){if(pacePointer(p)){touches.set(id,{kind:'tap'});return;}return _td77.apply(this,arguments);};
+const _pmTile77=pmTile;
+pmTile=function(x,y,w,h,lab,ic,act,id,badge){
+  if(paceMenuLocked(id))return _pmTile77(x,y,w,h,'SOON','lock',()=>paceSoon(PACE_BTN[id]),id);
+  return _pmTile77(x,y,w,h,lab,ic,act,id,badge);
+};
+const _pmPill77=pmPill;
+pmPill=function(x,y,w,h,lab,ic,act,id,o){
+  if(paceMenuLocked(id))return _pmPill77(x,y,w,h,'SOON','lock',()=>paceSoon(PACE_BTN[id]),id,o);
+  return _pmPill77(x,y,w,h,lab,ic,act,id,o);
+};
+if(typeof PM_DRAW!=='undefined'&&PM_DRAW.character){
+  const _ch77=PM_DRAW.character;
+  PM_DRAW.character=function(x,y,w,h){_ch77(x,y,w,h);
+    if(!paceOn()||paceHas('diff'))return;
+    const dw=Math.min(w-8,320),dh=32,dx=x,dy=y+h-dh-2;
+    ctx.fillStyle='#f6f0e2';ctx.fillRect(dx+3,dy+3,dw-6,dh-6);
+    txt('DIFFICULTY',dx+12,dy+21,{size:12,col:'#3a2a18',lw:0,out:false});
+    txt('SOON',dx+dw-14,dy+21,{size:12,align:'right',col:'#8a5a20',lw:0,out:false});
+  };
+}
+if(typeof PM_DRAW!=='undefined'&&PM_DRAW.journal){
+  const _jour77=PM_DRAW.journal;
+  PM_DRAW.journal=function(x,y,w,h){_jour77(x,y,w,h);
+    if(!paceOn())return;
+    const open=paceBoardOpen();
+    pmPill(x,y+h-34,188,28,open?'CROWN GOALS':'AFTER THE ENDING','star',()=>{
+      if(!open){toast('These goals wait until the crown is settled.',2.6,'#ffe9a0');return;}
+      PACE.board=true;HOMEDECOR.on=false;pressed.KeyP=true;
+    },'goals',{size:9});
+  };
+}
 
 </script></body></html>
