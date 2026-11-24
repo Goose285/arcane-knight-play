@@ -7532,7 +7532,7 @@ function deckRemove(id){
   if(DECK.length<=DECK_MIN){uiMsg(`Deck needs at least ${DECK_MIN} cards`);sfx('clang');return;}
   DECK.splice(DECK.lastIndexOf(id),1);sfx('select');
 }
-const shotCost=()=>60+50*P.up;
+const shotCost=()=>(typeof ED765!=='undefined'&&ED765.shotBase!=null?ED765.shotBase:60)+50*P.up;
 function buyShot(){const c=shotCost();if(P.gold<c){uiMsg('Not enough gold');sfx('clang');return;}P.gold-=c;P.up++;sfx('level');uiMsg('Arcane Shot reforged! (+2 dmg, stronger cards)',false);saveGame('shop');}
 function buyCard(id){
   const c=CARD[id],pr=RAR[c.rar].price;
@@ -11824,6 +11824,7 @@ function drawEditor(){
      if(ED.tool==='paint'){ctx.save();ctx.globalAlpha=.55;for(const [x,y] of edBrushTiles(tx,ty)){if(!edIn(x,y))continue;ctx.drawImage(edArt(it).tile,x*TS-cx,y*TS-cy,TS,TS);}ctx.globalAlpha=1;ctx.strokeStyle='#ffe14d';ctx.lineWidth=2;for(const [x,y] of edBrushTiles(tx,ty))ctx.strokeRect(x*TS-cx+1,y*TS-cy+1,TS-2,TS-2);ctx.restore();ED.ghost={tx,ty,ok:true};}
      else ED.ghost={tx,ty,ok:edGhost(it,tx,ty,cx,cy)};}
    else if(w&&ED.tool==='erase'){ctx.strokeStyle='rgba(255,140,120,.9)';ctx.lineWidth=2;for(const [x,y] of edBrushTiles(Math.floor(w.x/TS),Math.floor(w.y/TS)))ctx.strokeRect(x*TS-cx+1,y*TS-cy+1,TS-2,TS-2);}}
+  if(typeof ed765Overlay==='function')ed765Overlay(cx,cy);
   // bars
   edLayout();
   ctx.fillStyle='rgba(16,8,2,.55)';ctx.fillRect(0,0,VW,ST+Math.round(40*(ED.k||1)));
@@ -14639,8 +14640,8 @@ UI_MODES.codex={title:()=>CODEX_PAGE?'CODEX - '+(CODEX_PAGES.find(p=>p[0]===CODE
     R.push(cxRow('Open the Daily hub',true,()=>openDaily()));}
   else if(P2==='bounty'){bountyEnsure();R.push(H('THIS WEEK\'S BOUNTIES - rare card + 120 G each'));X7.bounty.list.forEach(b=>R.push(cxRow((b.paid?'[PAID] ':b.done?'[DONE] ':'')+b.d,b.done&&!b.paid,()=>bountyClaim(b),'Progress '+Math.min(b.p,b.n)+'/'+b.n)));}
   else if(P2==='market'){if(!x7Weekend()){R.push(H('Zell the Wanderer only comes to Oakvale on SATURDAY and SUNDAY.'));R.push(H('Your hats can still be equipped:'));}
-    else{R.push(H('ZELL\'S WEEKEND WARES (by the Notice Board)'));const mc=marketCard();if(mc)R.push(cxRow('Rare card: '+CARD[mc].name+'  400 G',P.gold>=400,()=>{if(P.gold<400)return;P.gold-=400;grantCard(mc);toast('Bought '+CARD[mc].name,2.4,'#ffd23f');sfx('coin');}));
-      FISH_BAITS.forEach(b=>R.push(cxRow('Bait: '+b.n+'  '+Math.round(b.gold*.8)+' G (weekend price)',P.gold>=b.gold*.8,()=>{const g=Math.round(b.gold*.8);if(P.gold<g)return;P.gold-=g;FSH.bait=b.id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');})));}
+    else{R.push(H('ZELL\'S WEEKEND WARES (by the Notice Board)'));const mc=marketCard();const zellG=typeof ed765Price==='function'?ed765Price('zell:card',400):400;if(mc)R.push(cxRow('Rare card: '+CARD[mc].name+'  '+zellG+' G',P.gold>=zellG,()=>{if(P.gold<zellG)return;P.gold-=zellG;grantCard(mc);toast('Bought '+CARD[mc].name,2.4,'#ffd23f');sfx('coin');}));
+      FISH_BAITS.forEach(b=>R.push(cxRow('Bait: '+b.n+'  '+(typeof ed765Price==='function'?ed765Price('bait:'+b.id,Math.round(b.gold*.8)):Math.round(b.gold*.8))+' G (weekend price)',P.gold>=(typeof ed765Price==='function'?ed765Price('bait:'+b.id,Math.round(b.gold*.8)):Math.round(b.gold*.8)),()=>{const g=typeof ed765Price==='function'?ed765Price('bait:'+b.id,Math.round(b.gold*.8)):Math.round(b.gold*.8);if(P.gold<g)return;P.gold-=g;FSH.bait=b.id;toast('Equipped '+b.n,1.8,'#7dffb0');sfx('coin');})));}
     Object.keys(HATS).forEach(id=>{const h=HATS[id],own=X7.pet.hats[id];if(!own&&(h.fest||h.cos||!x7Weekend()))return;
       R.push(cxRow((own?(PET.active&&X7.pet.outfit[PET.active]===id?'[WORN] ':'[OWNED] '):'')+h.n+(own?'':'  '+(h.g?h.g+' G ':'')+(h.sh?h.sh+' shards':'')),true,()=>own?equipHat(id):buyHat(id),own?'Tap to put on / take off your active pet':'Pet outfit'));});}
   else if(P2==='events'){const k=festKind();R.push(H(k?(k==='harvest'?'HARVEST FESTIVAL':'LANTERN NIGHT')+' this weekend! Find 6 '+(k==='harvest'?'golden acorns':'paper stars')+' around town ('+(X7.fest.got|0)+'/6)':'Festivals: Harvest Festival / Lantern Night on alternating weekends'));
@@ -16513,7 +16514,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v76.4';
+const GAME_VER='v76.5';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -17922,5 +17923,576 @@ function wildTick(dt){
 }
 setTimeout(wildPlace,1600);setTimeout(wildPlace,2400);
 {const _up=update;update=function(dt){try{wildTick(dt);}catch(e){}return _up.apply(this,arguments);};}
+
+/* ---------- src/ui/editor-v765.js ---------- */
+/* v76.5 world editor. Extra op kinds only: wild, door, shop, qtext, stamp.
+   Older op lists (tiles, house, npc, emove, ...) still apply through the original editor.
+   Nothing here writes the hero's gold or arcaneKnight.save.v1. */
+const ED765_CAP=220;
+const ED765={seq:1,kind:'cattail',kit:'cottage',place:null,price:{},goals:{},stamps:[],gates:[],pending:[],shotBase:null,preview:'',wildReady:false,priceSnap:null,doorSnap:null,qSnap:null,sSnap:null};
+const ED765_KITS={
+  cottage:{name:'Cottage',w:5,h:4},
+  smithy:{name:'Smithy',w:7,h:5},
+  inn:{name:'Inn',w:9,h:6},
+  chapel:{name:'Chapel',w:7,h:5},
+  bakery:{name:'Bakery',w:6,h:5}
+};
+const ED765_KINDS=[['CATTAIL','cattail'],['LILY','lily'],['FROG','frog'],['BUNNY','bunny'],['BIRD','bird'],['DAISY','daisy']];
+function ed765Knows(k){return k==='wild'||k==='door'||k==='shop'||k==='qtext'||k==='stamp';}
+function ed765Price(id,fallback){const v=ED765.price[id];return v==null?fallback:v;}
+function ed765Count(){
+  let n=0;
+  if(typeof WILD==='undefined')return 0;
+  for(const d of WILD.deco)if(!d._hide)n++;
+  for(const c of WILD.crit)if(!c._hide)n++;
+  return n;
+}
+function ed765SnapPrices(){
+  if(ED765.priceSnap)return;
+  const s={shot:60,rar:{},lights:[],rods:[],fish:{},stew:18,horse:250,furn:{},hats:{},baits:{}};
+  try{for(const k in RAR)s.rar[k]=RAR[k].price;}catch(e){}
+  try{s.lights=LIGHTS.map(l=>l.price);}catch(e){}
+  try{s.rods=RODS.map(r=>r.price);}catch(e){}
+  try{for(const id in FISH_BY)s.fish[id]=FISH_BY[id].price;}catch(e){}
+  try{if(TAVERN.stew)s.stew=TAVERN.stew.gold;}catch(e){}
+  try{s.horse=HORSE.price;}catch(e){}
+  try{for(const id in FURN)s.furn[id]=FURN[id].g;}catch(e){}
+  try{for(const id in HATS)if(HATS[id].g)s.hats[id]=HATS[id].g;}catch(e){}
+  try{for(const b of FISH_BAITS)s.baits[b.id]=Math.round(b.gold*.8);}catch(e){}
+  ED765.priceSnap=s;
+}
+function ed765RestorePrices(){
+  ed765SnapPrices();
+  const s=ED765.priceSnap;
+  ED765.price={};ED765.shotBase=null;
+  try{for(const k in s.rar)RAR[k].price=s.rar[k];}catch(e){}
+  try{LIGHTS.forEach((l,i)=>{l.price=s.lights[i];});}catch(e){}
+  try{RODS.forEach((r,i)=>{r.price=s.rods[i];});}catch(e){}
+  try{for(const id in s.fish)if(FISH_BY[id])FISH_BY[id].price=s.fish[id];}catch(e){}
+  try{if(TAVERN.stew)TAVERN.stew.gold=s.stew;}catch(e){}
+  try{HORSE.price=s.horse;}catch(e){}
+  try{for(const id in s.furn)if(FURN[id])FURN[id].g=s.furn[id];}catch(e){}
+  try{for(const id in s.hats)if(HATS[id])HATS[id].g=s.hats[id];}catch(e){}
+}
+function ed765SnapDoors(){
+  if(ED765.doorSnap)return;
+  ED765.doorSnap={
+    house:{tx:HOUSE_DOOR.tx,ty:HOUSE_DOOR.ty},
+    front:{x:HOUSE_FRONT.x,y:HOUSE_FRONT.y},
+    out:{x:HOUSE_OUT.x,y:HOUSE_OUT.y},
+    inn:typeof INN!=='undefined'?{door:INN.door,x0:INN.x0,x1:INN.x1,y0:INN.y0,y1:INN.y1}:null,
+    smith:(typeof SMITH_SHOP!=='undefined'&&SMITH_SHOP.door)?{tx:SMITH_SHOP.door.tx,wy:SMITH_SHOP.door.wy}:null,
+    tap:(typeof TAVERN!=='undefined'&&TAVERN.door)?{tx:TAVERN.door.tx,wy:TAVERN.door.wy}:null
+  };
+}
+function ed765RestoreDoors(){
+  ed765SnapDoors();
+  const s=ED765.doorSnap;
+  HOUSE_DOOR.tx=s.house.tx;HOUSE_DOOR.ty=s.house.ty;
+  HOUSE_FRONT.x=s.front.x;HOUSE_FRONT.y=s.front.y;
+  HOUSE_OUT.x=s.out.x;HOUSE_OUT.y=s.out.y;
+  if(s.inn&&typeof INN!=='undefined'){INN.door=s.inn.door;INN.x0=s.inn.x0;INN.x1=s.inn.x1;INN.y0=s.inn.y0;INN.y1=s.inn.y1;}
+  if(s.smith&&SMITH_SHOP.door){SMITH_SHOP.door.tx=s.smith.tx;SMITH_SHOP.door.wy=s.smith.wy;}
+  if(s.tap&&TAVERN.door){TAVERN.door.tx=s.tap.tx;TAVERN.door.wy=s.tap.wy;}
+  ED765.stamps=[];ED765.gates=[];
+}
+function ed765SnapText(){
+  if(ED765.qSnap)return;
+  ED765.qSnap=(typeof QUESTS!=='undefined'?QUESTS:[]).map(q=>({id:q.id,name:q.name,offer:q.offer&&q.offer.slice(),prog:q.prog&&q.prog.slice(),done:q.done&&q.done.slice()}));
+  ED765.sSnap=[];
+  try{for(const n of NPCS)if(n&&n.sign)ED765.sSnap.push({name:n.name,lines:n.lines?n.lines.slice():[]});}catch(e){}
+}
+function ed765RestoreText(){
+  ed765SnapText();
+  ED765.goals={};
+  for(const s of ED765.qSnap){const q=typeof QUEST_BY_ID!=='undefined'?QUEST_BY_ID[s.id]:null;if(!q)continue;q.name=s.name;if(s.offer)q.offer=s.offer.slice();if(s.prog)q.prog=s.prog.slice();if(s.done)q.done=s.done.slice();}
+  for(const s of ED765.sSnap){const n=NPCS.find(q=>q.name===s.name&&q.sign);if(n)n.lines=s.lines.slice();}
+}
+function ed765Reset(){
+  if(ED765.wildReady&&typeof WILD!=='undefined'){
+    for(let i=WILD.deco.length-1;i>=0;i--)if(WILD.deco[i]._added)WILD.deco.splice(i,1);
+    for(let i=WILD.crit.length-1;i>=0;i--)if(WILD.crit[i]._added)WILD.crit.splice(i,1);
+    for(const d of WILD.deco){d.x=d._x0;d.y=d._y0;d._hide=false;}
+    for(const c of WILD.crit){c.x=c._x0;c.y=c._y0;c.hx=c._hx0;c.hy=c._hy0;c._hide=false;}
+  }
+  ed765RestorePrices();ed765RestoreDoors();ed765RestoreText();
+}
+function ed765EnsureWild(){if(!ED765.wildReady&&typeof WILD!=='undefined'&&WILD.ready)ed765IndexWild();}
+function ed765IndexWild(){
+  if(ED765.wildReady||typeof WILD==='undefined'||!WILD.ready)return;
+  WILD.deco.forEach((d,i)=>{d._eid=d._eid||('d'+i);d._x0=d.x;d._y0=d.y;d._hide=!!d._hide;});
+  WILD.crit.forEach((c,i)=>{c._eid=c._eid||('c'+i);c._x0=c.x;c._y0=c.y;c._hx0=c.hx;c._hy0=c.hy;c._hide=!!c._hide;});
+  ED765.wildReady=true;
+  const q=ED765.pending.splice(0);
+  for(const op of q)ed765Apply(op);
+}
+function ed765ById(id){
+  if(typeof WILD==='undefined')return null;
+  for(const d of WILD.deco)if(d._eid===id)return {o:d,list:'deco'};
+  for(const c of WILD.crit)if(c._eid===id)return {o:c,list:'crit'};
+  return null;
+}
+function ed765Basin(tx,ty){
+  if(typeof wildBasin==='function'&&wildBasin(tx,ty))return true;
+  const t=map[ty]&&map[ty][tx];
+  if(t===T.PW||t===T.PR)return true;
+  if(typeof isVillagePondTile==='function'&&isVillagePondTile(tx,ty))return true;
+  return false;
+}
+function ed765WildBlock(kind,tx,ty){
+  ed765EnsureWild();
+  if(!ED765.wildReady)return 'Plants are still sprouting';
+  if(!edIn(tx,ty))return 'Outside the map';
+  if(ed765Basin(tx,ty))return 'Not in the fountain';
+  if(kind==='cattail'||kind==='lily'){
+    const t=map[ty]&&map[ty][tx];
+    if(t!==T.W&&t!==T.U)return kind==='cattail'?'Cattails only sit in shallow water':'Lilies only sit on water';
+    if(kind==='cattail'){
+      const s=typeof wildShallow==='function'?wildShallow(tx,ty):null;
+      if(!s)return 'Cattails only sit fully in shallow water';
+      if(ed765Basin(s.tx,s.ty))return 'Not in the fountain';
+      if(typeof wildFeet==='function'&&!wildFeet(s.ax,s.ay,8))return 'That water is too shallow at the bank';
+    }
+  }else if(map[ty][tx]===T.W||map[ty][tx]===T.U||map[ty][tx]===T.PW)return 'That one stays on land';
+  else if(typeof solidTile==='function'&&solidTile(tx,ty))return 'No room there';
+  return null;
+}
+function ed765WildWhy(kind,tx,ty){
+  const b=ed765WildBlock(kind,tx,ty);if(b)return b;
+  if(ed765Count()>=ED765_CAP)return 'Too many plants and critters';
+  return null;
+}
+function ed765WildSpot(kind,tx,ty){
+  if(kind==='cattail'&&typeof wildShallow==='function'){const s=wildShallow(tx,ty);if(s)return {x:s.ax,y:s.ay,tx:s.tx,ty:s.ty};}
+  return {x:(tx+.5)*TS,y:(ty+.62)*TS,tx,ty};
+}
+function ed765SpawnWild(op){
+  const spr=ed765Spr(op.kind);if(!spr||typeof wildAdd!=='function')return;
+  const ph=(op.tx*3+op.ty)%628/100,face=(op.tx+op.ty)&1?-1:1;
+  if(op.kind==='frog'||op.kind==='bunny'||op.kind==='bird'||op.kind==='turtle'||op.kind==='butter'||op.kind==='snail'){
+    wildAddCrit(op.kind,spr,op.x,op.y,null,null,face);
+    const c=WILD.crit[WILD.crit.length-1];c._eid=op.id;c._added=true;c.hx=op.x;c.hy=op.y;
+  }else{
+    const sc=typeof wildFit==='function'?wildFit(spr,op.kind==='cattail'?18:20):1;
+    wildAdd({kind:op.kind==='lily'?'pad':op.kind,id:spr.id||op.kind,spr,x:op.x,y:op.y,tx:op.tx,ty:op.ty,sh:0,ph,face,sc,bob:op.kind==='lily'?1:0,ground:op.kind!=='cattail'&&op.kind!=='lily'});
+    const d=WILD.deco[WILD.deco.length-1];d._eid=op.id;d._added=true;
+  }
+}
+function ed765Spr(kind){
+  if(typeof WILD==='undefined'||!WILD.spr)return null;
+  if(kind==='cattail')return WILD.spr.cattail&&WILD.spr.cattail[0];
+  if(kind==='lily')return (WILD.spr.lily&&WILD.spr.lily[0])||(WILD.spr.pad&&WILD.spr.pad[0]);
+  return WILD.spr[kind]||null;
+}
+function ed765ApplyWild(op){
+  ed765EnsureWild();
+  if(!ED765.wildReady){ED765.pending.push(op);return;}
+  if(op.a==='add'){
+    if(ed765ById(op.id))return;
+    const why=ed765WildWhy(op.kind,op.tx,op.ty);
+    if(why)return;
+    ed765SpawnWild(op);
+  }else if(op.a==='move'){
+    const h=ed765ById(op.id);if(!h)return;
+    const kind=h.list==='crit'?h.o.k:(h.o.kind==='pad'?'lily':h.o.kind);
+    if(ed765WildBlock(kind,op.tx,op.ty))return;
+    h.o.x=op.x;h.o.y=op.y;h.o._hide=false;
+    if(h.list==='crit'){h.o.hx=op.x;h.o.hy=op.y;}
+    else{h.o.tx=op.tx;h.o.ty=op.ty;}
+  }else if(op.a==='del'){
+    const h=ed765ById(op.id);if(!h)return;
+    if(h.o._added){
+      const list=h.list==='crit'?WILD.crit:WILD.deco;
+      const i=list.indexOf(h.o);if(i>=0)list.splice(i,1);
+    }else h.o._hide=true;
+  }
+}
+function ed765HouseDoor(tx,ty){return HOUSE_DOOR.tx===tx&&(HOUSE_DOOR.ty===ty||HOUSE_DOOR.ty===ty+1);}
+function ed765LinkAt(tx,ty){
+  if(ed765HouseDoor(tx,ty))return {kind:'house'};
+  if(typeof INN!=='undefined'&&INN.door===tx&&(ty===INN.y1||ty===INN.y0+2||ty===INN.y1-1))return {kind:'inn'};
+  if(typeof SMITH_SHOP!=='undefined'&&SMITH_SHOP.door&&SMITH_SHOP.door.tx===tx&&SMITH_SHOP.door.wy===ty)return {kind:'smith'};
+  if(typeof TAVERN!=='undefined'&&TAVERN.door&&TAVERN.door.tx===tx&&TAVERN.door.wy===ty)return {kind:'tap'};
+  const s=ED765.stamps.find(q=>q.tx===tx&&q.ty===ty);if(s)return {kind:'stamp',s};
+  let g=ED765.gates.find(q=>q.tx===tx&&q.ty===ty);
+  if(!g){g={tx,ty,ox:tx,oy:ty+1};ED765.gates.push(g);}
+  return g;
+}
+function ed765ShiftLink(link,dx,dy){
+  if(!link)return;
+  if(link.kind==='house'){
+    HOUSE_DOOR.tx+=dx;HOUSE_DOOR.ty+=dy;
+    HOUSE_FRONT.x+=dx*TS;HOUSE_FRONT.y+=dy*TS;
+    HOUSE_OUT.x+=dx*TS;HOUSE_OUT.y+=dy*TS;
+  }else if(link.kind==='inn'&&typeof INN!=='undefined')INN.door+=dx;
+  else if(link.kind==='smith'&&SMITH_SHOP.door){SMITH_SHOP.door.tx+=dx;SMITH_SHOP.door.wy+=dy;}
+  else if(link.kind==='tap'&&TAVERN.door){TAVERN.door.tx+=dx;TAVERN.door.wy+=dy;}
+  else if(link.kind==='stamp'&&link.s){link.s.tx+=dx;link.s.ty+=dy;link.s.ox+=dx;link.s.oy+=dy;}
+  else if(link.tx!=null){link.tx+=dx;link.ty+=dy;link.ox+=dx;link.oy+=dy;}
+}
+function ed765DoorOk(d){
+  const tx=d.h.tx+d.dtx,ty=d.h.ty+d.dty;
+  if(!edIn(tx,ty)||ed765Basin(tx,ty))return false;
+  const id=map[ty]&&map[ty][tx];
+  if(id===T.D||id===T.W||id===T.U||id===T.PW||id===T.PR)return false;
+  return id===T.G||id===T.K||id===T.L||id===T.P||id===T.F||id===T.H||id===T.RL;
+}
+function ed765ApplyDoor(op){
+  if(!map[op.ty]||map[op.ty][op.tx]==null)return;
+  const id=map[op.ty][op.tx];
+  if(id!==T.D&&id!==T.F)return;
+  const link=ed765LinkAt(op.tx,op.ty);
+  const back=id===T.F?T.H:T.H;
+  edSetTile(op.tx,op.ty,back);
+  edSetTile(op.nx,op.ny,id);
+  ed765ShiftLink(link,op.nx-op.tx,op.ny-op.ty);
+}
+function ed765ShopRows(){
+  ed765SnapPrices();
+  const s=ED765.priceSnap,rows=[];
+  const add=(shop,id,name,get,set)=>rows.push({shop,id,name,get,set});
+  add('Brum','shot','Reforge Arcane Shot',()=>ED765.shotBase!=null?ED765.shotBase:s.shot,v=>{ED765.shotBase=v;});
+  for(const k in s.rar)add('Brum','rar:'+k,k+' cards',()=>RAR[k].price,v=>{RAR[k].price=v;});
+  try{LIGHTS.forEach((l,i)=>add('Brum','light:'+l.id,l.name,()=>l.price,v=>{l.price=v;}));}catch(e){}
+  try{RODS.forEach((r,i)=>add('Brum','rod:'+r.id,r.n,()=>r.price,v=>{r.price=v;}));}catch(e){}
+  try{if(TAVERN.stew)add('Mara','stew',TAVERN.stew.name||'River Stew',()=>TAVERN.stew.gold,v=>{TAVERN.stew.gold=v;});}catch(e){}
+  try{add('Ned','horse','Horse',()=>HORSE.price,v=>{HORSE.price=v;});}catch(e){}
+  try{for(const id in s.fish)add('Tobin','fish:'+id,FISH_BY[id].n||id,()=>FISH_BY[id].price,v=>{FISH_BY[id].price=v;});}catch(e){}
+  add('Zell','zell:card','Weekend rare card',()=>ed765Price('zell:card',400),v=>{ED765.price['zell:card']=v;});
+  try{for(const b of FISH_BAITS)add('Zell','bait:'+b.id,b.n,()=>ed765Price('bait:'+b.id,Math.round(b.gold*.8)),v=>{ED765.price['bait:'+b.id]=v;});}catch(e){}
+  try{for(const id in s.furn)add('House','furn:'+id,FURN[id].n||id,()=>FURN[id].g,v=>{FURN[id].g=v;});}catch(e){}
+  try{for(const id in s.hats)add('Zell','hat:'+id,HATS[id].n||id,()=>HATS[id].g,v=>{HATS[id].g=v;});}catch(e){}
+  return rows;
+}
+function ed765ApplyShop(op){
+  const row=ed765ShopRows().find(r=>r.id===op.id);if(!row)return;
+  const v=Math.max(1,Math.min(9999,op.price|0));
+  ED765.price[op.id]=v;row.set(v);
+}
+function ed765Preview(id){
+  const row=ed765ShopRows().find(r=>r.id===id)||ed765ShopRows()[0];
+  const gold=P.gold;
+  const text=row.shop+' would charge '+row.get()+' G for '+row.name+'. Your gold stays '+gold+'.';
+  if(P.gold!==gold)P.gold=gold;
+  ED765.preview=text;
+  return {text,gold:P.gold,price:row.get(),id:row.id};
+}
+function ed765ApplyText(op){
+  const text=(op.text||'').trim();
+  if(!text)return false;
+  if(op.kind==='quest'){
+    const q=QUEST_BY_ID[op.id];if(!q||!q.obj)return false;
+    if(op.field==='goal'){ED765.goals[op.id]=text.slice(0,180);return true;}
+    if(op.field==='name'){q.name=text.slice(0,48);return true;}
+    if(op.field==='offer'&&q.offer){q.offer=[text.slice(0,220)];return true;}
+    if(op.field==='prog'&&q.prog){q.prog=[text.slice(0,220)];return true;}
+    if(op.field==='done'&&q.done){q.done=[text.slice(0,220)];return true;}
+    return false;
+  }
+  if(op.kind==='sign'){
+    const n=NPCS.find(q=>q.sign&&q.name===op.name);if(!n)return false;
+    n.lines=[text.slice(0,220)];return true;
+  }
+  return false;
+}
+function ed765StampWhy(spec,x0,y0){
+  for(let y=0;y<spec.h;y++)for(let x=0;x<spec.w;x++){
+    const tx=x0+x,ty=y0+y;
+    if(!edIn(tx,ty))return 'No room there';
+    const id=map[ty][tx];
+    if(id===T.D)return 'That covers a door';
+    if(ed765Basin(tx,ty)||id===T.PW||id===T.PR||id===T.W||id===T.U)return 'That covers the fountain or water';
+    if(typeof HOUSE_DOOR!=='undefined'&&HOUSE_DOOR.tx===tx&&HOUSE_DOOR.ty===ty)return 'That covers a door';
+  }
+  const dx=x0+(spec.w>>1),dy=y0+spec.h-1;
+  if(!edIn(dx,dy+1)||ed765Basin(dx,dy+1))return 'The door needs a step in front';
+  return null;
+}
+function ed765ApplyStamp(op){
+  const spec=ED765_KITS[op.kit];if(!spec)return;
+  if(ED765.stamps.some(s=>s.id===op.id))return;
+  if(ed765StampWhy(spec,op.x0,op.y0))return;
+  const doorX=op.x0+(spec.w>>1),doorY=op.y0+spec.h-1;
+  for(let y=0;y<spec.h;y++)for(let x=0;x<spec.w;x++){
+    const tx=op.x0+x,ty=op.y0+y,edge=x===0||x===spec.w-1||y===0;
+    let id=T.F;
+    if(y===0)id=T.R;
+    else if(y===1)id=T.RL;
+    else if(ty===doorY&&tx===doorX)id=T.F;
+    else if(edge||y===spec.h-1)id=T.H;
+    edSetTile(tx,ty,id);
+  }
+  if(map[doorY+1]&&(map[doorY+1][doorX]===T.G||map[doorY+1][doorX]===T.L||map[doorY+1][doorX]===T.K))edSetTile(doorX,doorY+1,T.P);
+  ED765.stamps.push({id:op.id,kit:op.kit,tx:doorX,ty:doorY,ox:doorX,oy:doorY+1,x0:op.x0,y0:op.y0,w:spec.w,h:spec.h});
+}
+function ed765Apply(op){
+  if(!op)return;
+  if(op.k==='wild')ed765ApplyWild(op);
+  else if(op.k==='door')ed765ApplyDoor(op);
+  else if(op.k==='shop')ed765ApplyShop(op);
+  else if(op.k==='qtext')ed765ApplyText(op);
+  else if(op.k==='stamp')ed765ApplyStamp(op);
+}
+function ed765WildAt(wx,wy){
+  if(!ED765.wildReady)return null;
+  let best=null,bd=22*22;
+  const see=(o,list)=>{if(o._hide)return;const dx=wx-o.x,dy=wy-(o.y-8);const d=dx*dx+dy*dy;if(d<bd){bd=d;best={o,list};}};
+  for(const d of WILD.deco)see(d,'deco');
+  for(const c of WILD.crit)see(c,'crit');
+  if(!best)return null;
+  const o=best.o,kind=best.list==='crit'?o.k:(o.kind==='pad'?'lily':o.kind);
+  return {kind:'wild',id:o._eid,o,wk:kind,tx:o.tx!=null?o.tx:Math.floor(o.x/TS),ty:o.ty!=null?o.ty:Math.floor(o.y/TS)};
+}
+function ed765WildMoveOk(d){return !ed765WildBlock(d.h.wk,d.h.tx+d.dtx,d.h.ty+d.dty);}
+function ed765PlaceWild(kind,tx,ty){
+  const why=ed765WildWhy(kind,tx,ty);if(why)return why;
+  const spot=ed765WildSpot(kind,tx,ty);
+  const id='a'+(ED765.seq++);
+  edPush({k:'wild',a:'add',id,kind,x:spot.x,y:spot.y,tx:spot.tx,ty:spot.ty});
+  return null;
+}
+function ed765DelWild(id){const h=ed765ById(id);if(!h)return;edPush({k:'wild',a:'del',id});}
+function ed765MoveDoor(tx,ty,nx,ny){edPush({k:'door',tx,ty,nx,ny});}
+function ed765SetPrice(id,price){edPush({k:'shop',id,price:Math.max(1,Math.min(9999,price|0))});}
+function ed765SetQuest(id,field,text){
+  const t=(text||'').trim();
+  if(!t)return false;
+  const q=QUEST_BY_ID[id];
+  if(!q||!q.obj)return false;
+  edPush({k:'qtext',kind:'quest',id,field,text:t});
+  return true;
+}
+function ed765SetSign(name,text){
+  const t=(text||'').trim();if(!t)return false;
+  edPush({k:'qtext',kind:'sign',name,text:t});return true;
+}
+function ed765PlaceStamp(kit,tx,ty){
+  const spec=ED765_KITS[kit];if(!spec)return 'Unknown building';
+  const x0=tx-(spec.w>>1),y0=ty-spec.h+1;
+  const why=ed765StampWhy(spec,x0,y0);if(why)return why;
+  edPush({k:'stamp',id:'st'+(ED765.seq++),kit,x0,y0});
+  return null;
+}
+function ed765FindShallow(){
+  for(let y=OWY0+2;y<OWY0+OW_H-2;y++)for(let x=2;x<MW-2;x++){
+    if(!map[y]||(map[y][x]!==T.W&&map[y][x]!==T.U)||ed765Basin(x,y))continue;
+    if(!ed765WildWhy('cattail',x,y))return {tx:x,ty:y};
+  }
+  return null;
+}
+function ed765FindLand(){
+  for(let y=OWY0+3;y<OWY0+OW_H-3;y++)for(let x=3;x<MW-3;x++){
+    if(!ed765WildWhy('bunny',x,y)&&map[y][x]===T.G)return {tx:x,ty:y};
+  }
+  return null;
+}
+function ed765FindFountain(){
+  if(typeof VILLAGE_POND==='undefined')return null;
+  for(let y=VILLAGE_POND.y0;y<=VILLAGE_POND.y1;y++)for(let x=VILLAGE_POND.x0;x<=VILLAGE_POND.x1;x++){
+    const t=map[y]&&map[y][x];
+    if(t===T.W||t===T.PW||t===T.PR||t===T.U)return {tx:x,ty:y};
+  }
+  return {tx:VILLAGE_POND.x0,ty:VILLAGE_POND.y0};
+}
+function ed765FindPad(w,h){
+  const spec={w,h};
+  for(let y=OWY0+3;y<OWY0+OW_H-h-2;y++)for(let x=3;x<MW-w-2;x++){
+    if(ed765StampWhy(spec,x,y))continue;
+    if(typeof SPAWN!=='undefined'&&Math.hypot((x+.5)*TS-SPAWN.x,(y+.5)*TS-SPAWN.y)<200)continue;
+    return {x0:x,y0:y,tx:x+(w>>1),ty:y+h-1};
+  }
+  return null;
+}
+function ed765Tool(t){
+  ED.sel=null;ED.tool=t;
+  if(t==='shop'){ed765CloseText();ed765OpenShop();edMsg('Shop prices. Preview never spends your gold.');}
+  else if(t==='text'){ed765CloseShop();ed765OpenText();edMsg('Quest and sign wording. Objectives stay.');}
+  else{ed765ClosePanels();
+    edMsg(t==='wild'?'Tap water for cattails and lilies. Tap land for critters.':t==='stamp'?'Tap grass to stamp a building. The door stays open.':t==='doors'?'Drag a door, lantern, or chest. The door keeps its exit.':'');}
+}
+function ed765MapTool(){return ED.tool==='wild'||ED.tool==='stamp'||ED.tool==='shop'||ED.tool==='text'||ED.tool==='doors';}
+function ed765Tap(w){
+  const tx=Math.floor(w.x/TS),ty=Math.floor(w.y/TS);
+  if(ED.tool==='wild'){const why=ed765PlaceWild(ED765.kind,tx,ty);edMsg(why||('Placed '+ED765.kind));return;}
+  if(ED.tool==='stamp'){const why=ed765PlaceStamp(ED765.kit,tx,ty);edMsg(why||('Placed '+ED765_KITS[ED765.kit].name));return;}
+  if(ED.tool==='doors'&&(ED765.place==='lantern'||ED765.place==='chest')){
+    const id=ED765.place==='lantern'?T.LN:T.CHST;
+    if(!edIn(tx,ty)||ed765Basin(tx,ty)||map[ty][tx]===T.W||map[ty][tx]===T.D){edMsg('Cannot place that there');return;}
+    edPush({k:'tiles',t:[[tx,ty,id]]});edMsg(ED765.place==='lantern'?'Lantern placed':'Chest placed');
+  }
+}
+function ed765AddButtons(){
+  const k=edK(),u=v=>Math.round(v*k),m=u(4),bh=Math.max(u(36),44),L=SL+u(58),R=VW-SR-m;
+  let x=L,y=ST+u(84);
+  const tools=[['PLANTS','wild'],['DOORS','doors'],['SHOP','shop'],['QUESTS','text'],['STAMPS','stamp']];
+  for(const [lab,t] of tools){
+    const w=Math.max(u(72),86);
+    if(x+w>R){x=L;y+=bh+u(4);}
+    edBtn(x,y,w,bh,lab,()=>ed765Tool(t),ED.tool===t,'#6a4424');
+    x+=w+u(4);
+  }
+  if(ED.tool==='wild'||ED.tool==='stamp'||ED.tool==='doors'){
+    const yb=VH-SB-m-bh;let xx=SL+m;
+    const chips=ED.tool==='wild'?ED765_KINDS:ED.tool==='stamp'?[['COTTAGE','cottage'],['SMITHY','smithy'],['INN','inn'],['CHAPEL','chapel'],['BAKERY','bakery']]:[['LANTERN','lantern'],['CHEST','chest']];
+    for(const [lab,id] of chips){
+      const w=Math.max(u(78),90);
+      const on=ED.tool==='wild'?ED765.kind===id:ED.tool==='stamp'?ED765.kit===id:ED765.place===id;
+      edBtn(xx,yb,w,bh,lab,()=>{if(ED.tool==='wild')ED765.kind=id;else if(ED.tool==='stamp')ED765.kit=id;else ED765.place=id;edMsg(lab);},on,'#2d6a4f');
+      xx+=w+u(4);
+    }
+    if(ED.sel&&ED.sel.kind==='wild')edBtn(xx,yb,u(88),bh,'DELETE',()=>{ed765DelWild(ED.sel.id);ED.sel=null;},false,'#7a2a2a');
+    ED.barTop=Math.min(ED.barTop,yb-u(6));
+  }
+}
+function ed765Overlay(cx,cy){
+  const x0=Math.max(0,Math.floor(cx/TS)-1),x1=Math.min(MW,Math.ceil((cx+VW)/TS)+1);
+  const y0=Math.max(OWY0,Math.floor(cy/TS)-1),y1=Math.min(OWY0+OW_H,Math.ceil((cy+VH)/TS)+1);
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+    const id=map[y]&&map[y][x];let lab=null;
+    if(id===T.D||(ED765.stamps.some(s=>s.tx===x&&s.ty===y)))lab='DOOR';
+    else if(id===T.LN)lab='LANTERN';
+    else if(id===T.CHST)lab='CHEST';
+    if(!lab)continue;
+    txt(lab,x*TS-cx+TS/2,y*TS-cy-1,{size:7,align:'center',col:'#ffe9a0',lw:3,out:'#1c0e06'});
+  }
+  if(ED765.wildReady){
+    const mark=(o,lab)=>{if(o._hide||o.x<cx-40||o.y<cy-40||o.x>cx+VW+40||o.y>cy+VH+40)return;txt(lab,o.x-cx,o.y-cy+14,{size:7,align:'center',col:'#d8f0c8',lw:3,out:'#10240f'});};
+    for(const d of WILD.deco)mark(d,(d.kind==='pad'?'LILY':(d.kind||'PLANT')).toUpperCase());
+    for(const c of WILD.crit)mark(c,(c.k||'CRITTER').toUpperCase());
+  }
+  const d=ED.drag;
+  if(d&&d.moved&&(d.h.kind==='door'||d.h.kind==='wild')){
+    const ok=d.h.kind==='door'?ed765DoorOk(d):ed765WildMoveOk(d);
+    const tx=d.h.tx+d.dtx,ty=d.h.ty+d.dty;
+    ctx.strokeStyle=ok?'#ffe14d':'#ff5040';ctx.lineWidth=2;ctx.strokeRect(tx*TS-cx+1,ty*TS-cy+1,TS-2,TS-2);
+  }
+}
+function ed765PanelCss(){return 'position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(28,14,6,.78);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif';}
+function ed765Card(){return 'background:#efe6d2;color:#3a2a18;border:4px solid #80563a;border-radius:14px;width:min(920px,96vw);max-height:92vh;overflow:auto;padding:14px 16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.35)';}
+function ed765BtnCss(){return 'min-width:48px;min-height:48px;font:bold 18px monospace;background:#80563a;color:#f6f0e2;border:2px solid #c9ad7e;border-radius:10px;padding:8px 12px';}
+function ed765Ensure(){
+  if(document.getElementById('ed765shop'))return;
+  const shop=document.createElement('div');shop.id='ed765shop';shop.style.cssText=ed765PanelCss();shop.style.display='none';
+  shop.innerHTML='<div style="'+ed765Card()+'"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:20px">Shop prices</b><button id="ed765shopX" style="'+ed765BtnCss()+'">CLOSE</button></div><div id="ed765prev" style="margin:8px 0;font:bold 15px monospace;color:#2d6a4f"></div><div id="ed765shopBody"></div></div>';
+  document.body.appendChild(shop);
+  shop.querySelector('#ed765shopX').onclick=()=>ed765CloseShop();
+  const text=document.createElement('div');text.id='ed765text';text.style.cssText=ed765PanelCss();text.style.display='none';
+  text.innerHTML='<div style="'+ed765Card()+'"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:20px">Quest and sign text</b><button id="ed765textX" style="'+ed765BtnCss()+'">CLOSE</button></div><div id="ed765textBody" style="margin-top:8px"></div><div style="margin-top:8px;font:bold 13px monospace;color:#80563a">Objectives stay on the tracker. Blank text is ignored.</div></div>';
+  document.body.appendChild(text);
+  text.querySelector('#ed765textX').onclick=()=>ed765CloseText();
+}
+function ed765OpenShop(){
+  ed765Ensure();ed765SnapPrices();
+  const body=document.getElementById('ed765shopBody');body.innerHTML='';
+  let shop='';
+  for(const r of ed765ShopRows()){
+    if(r.shop!==shop){shop=r.shop;const h=document.createElement('div');h.textContent=shop;h.style.cssText='margin:12px 0 4px;font:bold 16px Georgia,serif;color:#80563a';body.appendChild(h);}
+    const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin:4px 0';
+    const lab=document.createElement('div');lab.style.cssText='flex:1;font:bold 15px Georgia,serif';lab.textContent=r.name+'   '+r.get()+' G';
+    const mk=(d,t)=>{const b=document.createElement('button');b.textContent=t;b.style.cssText=ed765BtnCss();b.onclick=()=>{const g=P.gold;ed765SetPrice(r.id,r.get()+d);if(P.gold!==g)P.gold=g;ed765OpenShop();};return b;};
+    const pv=document.createElement('button');pv.textContent='PREVIEW';pv.style.cssText=ed765BtnCss();pv.onclick=()=>{const g=P.gold,p=ed765Preview(r.id);if(P.gold!==g)P.gold=g;document.getElementById('ed765prev').textContent=p.text;};
+    row.appendChild(lab);row.appendChild(mk(-5,'−'));row.appendChild(mk(5,'+'));row.appendChild(pv);body.appendChild(row);
+  }
+  document.getElementById('ed765prev').textContent=ED765.preview||'Change a price, then PREVIEW. Your gold does not move.';
+  document.getElementById('ed765shop').style.display='flex';
+}
+function ed765CloseShop(){const o=document.getElementById('ed765shop');if(o)o.style.display='none';}
+function ed765OpenText(){
+  ed765Ensure();ed765SnapText();
+  const body=document.getElementById('ed765textBody');body.innerHTML='';
+  const ta=document.createElement('textarea');ta.id='ed765ta';ta.style.cssText='width:100%;height:64px;font:16px Georgia,serif;background:#f6f0e2;color:#3a2a18;border:2px solid #c9ad7e;border-radius:8px';
+  let cur={kind:'quest',id:QUESTS[0]&&QUESTS[0].id,field:'goal'};
+  if(QUESTS[0])ta.value=ED765.goals[QUESTS[0].id]||questGoalText(QUESTS[0]);
+  const save=document.createElement('button');save.textContent='SAVE TEXT';save.style.cssText=ed765BtnCss()+'margin:8px 8px 8px 0';
+  save.onclick=()=>{
+    const g=P.gold;let ok=false;
+    if(cur.kind==='quest')ok=ed765SetQuest(cur.id,cur.field,ta.value);
+    else ok=ed765SetSign(cur.name,ta.value);
+    if(P.gold!==g)P.gold=g;
+    edMsg(ok?'Text saved':'That text cannot hide an objective');
+  };
+  body.appendChild(ta);body.appendChild(save);
+  const add=(lab,fn)=>{const b=document.createElement('button');b.textContent=lab;b.style.cssText=ed765BtnCss()+'margin:4px 4px 0 0';b.onclick=fn;body.appendChild(b);};
+  (typeof QUESTS!=='undefined'?QUESTS:[]).slice(0,24).forEach(q=>add(q.name,()=>{cur={kind:'quest',id:q.id,field:'goal'};ta.value=ED765.goals[q.id]||questGoalText(q);}));
+  NPCS.filter(n=>n.sign&&n.lines&&n.lines.length).slice(0,12).forEach(n=>add(n.name,()=>{cur={kind:'sign',name:n.name};ta.value=(n.lines&&n.lines[0])||'';}));
+  const fields=document.createElement('div');
+  [['GOAL','goal'],['NAME','name'],['OFFER','offer']].forEach(([lab,f])=>{
+    const b=document.createElement('button');b.textContent=lab;b.style.cssText=ed765BtnCss()+'margin:8px 4px 0 0';
+    b.onclick=()=>{if(cur.kind!=='quest')return;cur.field=f;const q=QUEST_BY_ID[cur.id];ta.value=f==='goal'?(ED765.goals[q.id]||questGoalText(q)):f==='name'?q.name:(q.offer&&q.offer[0])||'';};
+    fields.appendChild(b);
+  });
+  body.appendChild(fields);
+  document.getElementById('ed765text').style.display='flex';
+}
+function ed765CloseText(){const o=document.getElementById('ed765text');if(o)o.style.display='none';}
+function ed765ClosePanels(){ed765CloseShop();ed765CloseText();}
+const _edApply765=edApply;
+edApply=function(op){if(op&&ed765Knows(op.k))return ed765Apply(op);return _edApply765(op);};
+const _edRebuild765=edRebuild;
+edRebuild=function(){ed765Reset();return _edRebuild765();};
+const _questGoal765=questGoalText;
+questGoalText=function(q){const g=q&&ED765.goals[q.id];if(g&&String(g).trim())return String(g).trim();return _questGoal765(q);};
+const _edHit765=edHit;
+edHit=function(wx,wy){
+  const w=ed765WildAt(wx,wy);if(w)return w;
+  const tx=Math.floor(wx/TS),ty=Math.floor(wy/TS),id=map[ty]&&map[ty][tx];
+  if(id===T.D||ED765.stamps.some(s=>s.tx===tx&&s.ty===ty))return {kind:'door',tx,ty,id};
+  return _edHit765(wx,wy);
+};
+const _edDragOk765=edDragOk;
+edDragOk=function(d){if(d.h&&d.h.kind==='door')return ed765DoorOk(d);if(d.h&&d.h.kind==='wild')return ed765WildMoveOk(d);return _edDragOk765(d);};
+const _edCommit765=edCommitDrag;
+edCommitDrag=function(){
+  const d=ED.drag;
+  if(d&&d.h&&(d.h.kind==='door'||d.h.kind==='wild')){
+    ED.drag=null;if(!d.moved||(!d.dtx&&!d.dty))return;
+    if(!edDragOk(d)){edMsg('Cannot move it there');return;}
+    if(d.h.kind==='door')ed765MoveDoor(d.h.tx,d.h.ty,d.h.tx+d.dtx,d.h.ty+d.dty);
+    else{const spot=ed765WildSpot(d.h.wk,d.h.tx+d.dtx,d.h.ty+d.dty);edPush({k:'wild',a:'move',id:d.h.id,x:spot.x,y:spot.y,tx:spot.tx,ty:spot.ty,kind:d.h.wk});}
+    sfx('select');return;
+  }
+  return _edCommit765();
+};
+const _edLayout765=edLayout;
+edLayout=function(){_edLayout765();try{ed765AddButtons();}catch(e){}};
+const _edDown765=edDown;
+edDown=function(id,p){
+  if(!ed765MapTool())return _edDown765(id,p);
+  const r=ED.rects.find(q=>inRect(p,q));
+  ED.ptrs.set(id,{x:p.x,y:p.y,sx:p.x,sy:p.y,t0:performance.now(),moved:false,ui:r||null});
+  if(r){if(r.hold){ED.hold=r.hold;ED.holdT=0;}return;}
+  ED765.down=edW(p);
+};
+const _edMove765=edMove;
+edMove=function(id,p){
+  if(!ed765MapTool())return _edMove765(id,p);
+  const q=ED.ptrs.get(id);if(!q)return;q.x=p.x;q.y=p.y;if(Math.hypot(p.x-q.sx,p.y-q.sy)>6*edK())q.moved=true;
+};
+const _edUp765=edUp;
+edUp=function(id){
+  if(!ed765MapTool())return _edUp765(id);
+  const q=ED.ptrs.get(id);ED.ptrs.delete(id);if(!q)return;
+  if(q.ui){if(q.hold){if(ED.hold===q.hold)ED.hold=null;return;}if(!q.moved&&inRect({x:q.x,y:q.y},q.ui)){sfx('select');q.ui.act();}}
+  else if(!q.moved&&ED765.down)ed765Tap(ED765.down);
+  ED765.down=null;
+};
+const _edExit765=edExit;
+edExit=function(){ed765ClosePanels();return _edExit765();};
+const _wildDraw765=wildDrawOne;
+wildDrawOne=function(d){if(d&&d._hide)return;return _wildDraw765(d);};
+const _wildPush765=wildPush;
+wildPush=function(ents){
+  if(!WILD.ready)return;
+  const d=WILD.deco,c=WILD.crit;
+  if(d.some(x=>x._hide)||c.some(x=>x._hide)){WILD.deco=d.filter(x=>!x._hide);WILD.crit=c.filter(x=>!x._hide);try{_wildPush765(ents);}finally{WILD.deco=d;WILD.crit=c;}}
+  else _wildPush765(ents);
+};
+const _wildPlace765=wildPlace;
+wildPlace=function(){const before=WILD.ready;_wildPlace765();if(!before&&WILD.ready)ed765IndexWild();};
+ed765SnapPrices();ed765SnapDoors();ed765SnapText();
+try{
+  const flat=(ED.bakedOps||[]).concat(ED.ops||[]).flatMap(o=>o&&o.k==='group'&&o.ops?o.ops:[o]);
+  for(const o of flat)if(o&&ed765Knows(o.k))ed765Apply(o);
+}catch(e){}
 
 </script></body></html>
