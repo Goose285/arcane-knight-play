@@ -2678,7 +2678,7 @@ const maxHp=()=>80+15*(P.lv-1)+gearStats().hp+storyHp()+boonHp();
 const xpNeedOld=l=>40+(l-1)*35;   // (pre-t154u curve, kept for tests)
 const xpNeedAt=l=>Math.round(40+(l-1)*35+3.5*Math.pow(Math.max(0,l-1),1.9));   // t154u: steeper mid/late game; the first few levels barely change
 const xpNeed=()=>xpNeedAt(P.lv);
-const arcaneDmg=()=>6+(P.lv-1)+P.up*2+gearStats().shot;
+const arcaneDmg=()=>(6+(P.lv-1)+P.up*2+gearStats().shot)*(typeof buildFrac==='function'?1+buildFrac('shot'):1);
 const cardMult=()=>1+0.08*(P.lv-1)+P.up*0.05+gearStats().shot*0.01;
 let state='title';      // title | play | paused
 let gtime=0;
@@ -3656,7 +3656,7 @@ function respecSkills(){const c=respecCost();if(!c||P.gold<c)return false;P.gold
 /* stat bonuses merged into gearStats() */
 function skillStats(){return {hp:12*skillRank('hp'),gauge:.06*skillRank('gauge'),crit:.02*skillRank('crit')};}
 const schoolOf=id=>CARD_SCHOOL[id]||null;
-const schoolMult=id=>{const s=schoolOf(id);return s?1+.07*skillRank(s):1;};
+const schoolMult=id=>{const s=schoolOf(id);return (s?1+.07*skillRank(s):1)*(typeof buildFrac==='function'&&typeof buildTag==='function'?1+buildFrac(buildTag(id)):1);};
 const holyHeal=()=>1+(skillRank('holy')>=3?.1:0);
 function packSkills(){return {r:SK.r};}
 function unpackSkills(s){resetSkills();if(s&&s.r)SKILL_NODES.forEach(n=>{SK.r[n.id]=clamp(s.r[n.id]|0,0,n.max);});}
@@ -16586,7 +16586,7 @@ window.__cozyStyle=COZY_STYLE;
 /* ---------- src/world/v73.js ---------- */
 /* v74 Cozy Village: the version line, a findable Hold'em table, a short dice tumble,
    and wood interiors for the Tap and the forge. Odds, buy-in, and collision tiles stay put. */
-const GAME_VER='v77';
+const GAME_VER='v78';
 function v73Shops(){
   const w=window.__t159West;if(!w||typeof OX!=='number')return null;
   const box=s=>({x0:OX+s.x0,y0:OY+s.y0,x1:OX+s.x0+s.w-1,y1:OY+s.y0+s.h-1,door:OX+s.x0+s.door,kind:s===w.tap?'tap':'forge'});
@@ -19141,5 +19141,305 @@ if(typeof PM_DRAW!=='undefined'&&PM_DRAW.journal){
     },'goals',{size:9});
   };
 }
+
+/* ---------- src/ui/v771.js ---------- */
+/* v77.1 Store prep. Three save slots, a credits page, and a store build
+   that hides the prototype and the world editor. Slot 1 is arcaneKnight.save.v1. */
+const STORE_BUILD=false;
+const SLOT={i:0,acc:0,rects:[],del:false};
+function storeOn(){
+  if(window.__STORE_BUILD===true)return true;
+  if(STORE_BUILD===true)return true;
+  try{return new URLSearchParams(location.search).get('store')==='1';}catch(e){return false;}
+}
+function slotKey(i){return i?SAVE_KEY+'.s'+(i+1):SAVE_KEY;}
+function readSlotRaw(i){
+  try{const s=JSON.parse(localStorage.getItem(slotKey(i))||'null');return s&&s.v===1&&s.P&&isFinite(s.P.x)?s:null;}catch(e){return null;}
+}
+function slotChapter(s){
+  const ch=s&&s.story&&typeof s.story.ch==='number'?s.story.ch|0:0;
+  if(s&&s.story&&s.story.e)return 'The crown';
+  if(!ch)return 'Prologue';
+  const c=typeof CHAPTERS!=='undefined'&&CHAPTERS[Math.min(CHAPTERS.length,ch)-1];
+  return c?c.name:('Chapter '+ch);
+}
+function slotInfo(i){
+  const s=readSlotRaw(i);
+  if(!s)return {empty:true,lv:0,ch:'Empty',play:0};
+  return {empty:false,lv:s.P.lv|0,ch:slotChapter(s),play:s.play|0,gold:s.P.gold|0};
+}
+function fmtPlay(sec){sec=Math.max(0,sec|0);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h?h+'h '+m+'m':m+'m';}
+function stampPlay(i){
+  try{
+    const k=slotKey(i),o=JSON.parse(localStorage.getItem(k)||'null');if(!o||!o.P)return;
+    o.play=(o.play|0)+(SLOT.acc|0);SLOT.acc=0;localStorage.setItem(k,JSON.stringify(o));
+  }catch(e){}
+}
+const _read771=readSave;
+readSave=function(){return readSlotRaw(SLOT.i);};
+const _save771=saveGame;
+saveGame=function(why){
+  if(!SLOT.i){const ok=_save771(why);if(ok)stampPlay(0);return ok;}
+  let stash=null;try{stash=localStorage.getItem(SAVE_KEY);}catch(e){}
+  const ok=_save771(why);
+  try{
+    const neu=localStorage.getItem(SAVE_KEY);
+    if(neu)localStorage.setItem(slotKey(SLOT.i),neu);
+    if(stash!=null)localStorage.setItem(SAVE_KEY,stash);else localStorage.removeItem(SAVE_KEY);
+    stampPlay(SLOT.i);
+  }catch(e){}
+  return ok;
+};
+const _clear771=clearSave;
+clearSave=function(){if(!SLOT.i)return _clear771();try{localStorage.removeItem(slotKey(SLOT.i));}catch(e){}};
+function deleteActiveSlot(){
+  try{localStorage.removeItem(slotKey(SLOT.i));if(!SLOT.i)localStorage.removeItem(BAK_KEY);}catch(e){}
+  SLOT.del=false;titleMenu.confirm=false;initTitleMenu();
+  try{toast('That hero is gone from this device.',2.2,'#ffe9a0');}catch(e){}
+}
+const _init771=initTitleMenu;
+initTitleMenu=function(){
+  _init771();
+  const items=[];
+  if(titleMenu.save)items.push('Continue');
+  items.push('New Game');
+  if(titleMenu.save)items.push('Delete Save');
+  if(titleMenu.bak&&!SLOT.i)items.push('Restore Backup');
+  items.push('Credits');
+  if(!storeOn())items.push('Fishing Lab');
+  titleMenu.items=items;
+  if(titleMenu.sel>=items.length)titleMenu.sel=0;
+};
+const _start771=startFromTitle;
+startFromTitle=function(){
+  const it=titleMenu.items[titleMenu.sel];
+  if(it==='Credits'){openCreditPage();return;}
+  if(it==='Delete Save'){
+    if(!titleMenu.confirm){titleMenu.confirm=true;SLOT.del=true;try{sfx('select');}catch(e){}return;}
+    deleteActiveSlot();return;
+  }
+  SLOT.del=false;
+  return _start771.apply(this,arguments);
+};
+function pickSlot(i){
+  if(i<0||i>2||i===SLOT.i)return;
+  if(state==='play')stampPlay(SLOT.i);
+  SLOT.i=i;SLOT.acc=0;SLOT.del=false;titleMenu.confirm=false;titleMenu.sel=0;
+  if(typeof initTitleMenu==='function')initTitleMenu();
+  try{sfx('select');}catch(e){}
+}
+function drawSlotBar(){
+  if(state!=='title')return;
+  const n=3,gap=8,w=Math.min(230,Math.floor((VW-28-(n-1)*gap)/n)),h=46;
+  const x0=Math.round((VW-n*w-(n-1)*gap)/2),y=6;
+  SLOT.rects=[];
+  for(let i=0;i<n;i++){
+    const x=x0+i*(w+gap),info=slotInfo(i),on=SLOT.i===i;
+    ctx.fillStyle=on?'#e0b44a':'#80563a';ctx.fillRect(x,y,w,h);
+    ctx.fillStyle=on?'#fff8e8':'#f6f0e2';ctx.fillRect(x+3,y+3,w-6,h-6);
+    txt('SLOT '+(i+1),x+10,y+15,{size:11,col:'#3a2210',lw:2,out:'#f6f0e2'});
+    if(info.empty)txt('Empty',x+10,y+34,{size:12,col:'#8a7058',lw:2,out:'#f6f0e2'});
+    else{
+      txt('Lv '+info.lv+'  '+info.ch,x+10,y+30,{size:10,col:'#3a2210',lw:2,out:'#f6f0e2'});
+      txt(fmtPlay(info.play),x+10,y+42,{size:10,col:'#5a4638',lw:2,out:'#f6f0e2'});
+    }
+    SLOT.rects.push({x,y,w,h,i});
+  }
+  if(SLOT.del&&titleMenu.confirm)txt('Press again to delete slot '+(SLOT.i+1)+'.',VW/2,y-10,{size:12,align:'center',col:'#fff6d4',lw:3,out:'#3a2210'});
+}
+const CREDIT={on:false,y:36};
+const STORE_CREDITS=[
+  ['ARCANE KNIGHT',18],
+  ['Realm of Embers',13],
+  ['',8],
+  ['Game by Seth Moynahan',14],
+  ['',8],
+  ['ART',13],
+  ['Pictures made with ChatGPT image generation,',11],
+  ['and pixel art drawn in the game itself.',11],
+  ['The village, meadow, and snow use the game\'s own ground art.',11],
+  ['',8],
+  ['AUDIO',13],
+  ['Music and sound effects are original synthesis in this game.',11],
+  ['No third-party music library is used.',11],
+  ['Daytime birds: "Forest birds singing. Dawn chorus"',11],
+  ['by SamsterBirdies on Freesound.',11],
+  ['Licence: CC0 1.0 Universal. Public domain.',11],
+  ['Night crickets stay procedural.',11],
+  ['',8],
+  ['TOOLS',13],
+  ['The game is a canvas page, built by a small script from its source.',11],
+  ['Written with a code editor. Art prompts used ChatGPT.',11],
+  ['',10],
+  ['Thank you for playing.',13]
+];
+function openCreditPage(){CREDIT.on=true;CREDIT.y=20;try{sfx('select');}catch(e){}}
+function drawCreditPage(){
+  if(!CREDIT.on)return;
+  ctx.fillStyle='rgba(28,18,10,.55)';ctx.fillRect(0,0,VW,VH);
+  const w=Math.min(VW-24,640),h=Math.min(VH-20,420),x=Math.round((VW-w)/2),y=Math.round((VH-h)/2);
+  panel(x,y,w,h,{fill:'#f6f0e2',border:'#80563a'});
+  ctx.save();ctx.beginPath();ctx.rect(x+8,y+8,w-16,h-44);ctx.clip();
+  let yy=y+CREDIT.y;
+  STORE_CREDITS.forEach(row=>{if(row[0])txt(row[0],x+w/2,yy,{size:row[1],align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});yy+=(row[0]?row[1]:4)+3;});
+  ctx.restore();
+  CREDIT.close={x:x+w-108,y:y+h-36,w:92,h:28};
+  ctx.fillStyle='#80563a';ctx.fillRect(CREDIT.close.x,CREDIT.close.y,92,28);
+  txt('CLOSE',CREDIT.close.x+46,CREDIT.close.y+19,{size:12,align:'center',col:'#fff8e0',lw:2,out:'#3a2210'});
+}
+const _tap771=tapUI;
+tapUI=function(p){
+  if(CREDIT.on){CREDIT.on=false;return true;}
+  if(state==='title'&&SLOT.rects){const r=SLOT.rects.find(q=>inRect(p,q));if(r){pickSlot(r.i);return true;}}
+  return _tap771.apply(this,arguments);
+};
+const _td771=touchDown;
+touchDown=function(id,p){
+  if(CREDIT.on){CREDIT.on=false;touches.set(id,{kind:'tap'});return;}
+  if(state==='title'&&SLOT.rects&&SLOT.rects.some(q=>inRect(p,q))){tapUI(p);touches.set(id,{kind:'tap'});return;}
+  return _td771.apply(this,arguments);
+};
+const _up771=update;
+update=function(dt){
+  if(CREDIT.on){
+    if(hit('Escape','Enter','Space','KeyE'))CREDIT.on=false;
+    if(hit('ArrowDown','KeyS'))CREDIT.y=Math.max(-220,CREDIT.y-18);
+    if(hit('ArrowUp','KeyW'))CREDIT.y=Math.min(40,CREDIT.y+18);
+    return;
+  }
+  if(state==='play'&&typeof P!=='undefined'&&P.hp>0)SLOT.acc+=dt||0;
+  if(state==='title'){
+    if(hit('Digit1'))pickSlot(0);
+    if(hit('Digit2'))pickSlot(1);
+    if(hit('Digit3'))pickSlot(2);
+  }
+  const r=_up771.apply(this,arguments);
+  if(SLOT.acc>20)stampPlay(SLOT.i);
+  return r;
+};
+const _rn771=render;
+render=function(){const r=_rn771.apply(this,arguments);try{drawSlotBar();drawCreditPage();}catch(e){}return r;};
+const _pmTile771=pmTile;
+pmTile=function(x,y,w,h,lab,ic,act,id,badge){
+  if(storeOn()&&id==='editor')return {x,y,w:0,h:0};
+  return _pmTile771(x,y,w,h,lab,ic,act,id,badge);
+};
+if(typeof edOpen==='function'){const _ed771=edOpen;edOpen=function(){if(storeOn()){try{toast('The world editor is not in this build.',2.2,'#ffe9a0');}catch(e){}return;}return _ed771.apply(this,arguments);};}
+if(typeof PM_DRAW!=='undefined'&&PM_DRAW.settings){
+  const _set771=PM_DRAW.settings;
+  PM_DRAW.settings=function(x,y,w,h){_set771(x,y,w,h);
+    pmPill(x+w-150,y+h-30,140,28,'CREDITS','scroll',()=>{CREDIT.on=true;CREDIT.y=28;},'credits',{size:11});
+  };
+}
+
+/* ---------- src/player/v78.js ---------- */
+/* v78 Builds. Spellblade, Ranger, and Warden. Points still come from level.
+   The trees open with Brum's forge. A respec at the house or with Orin is free.
+   Bonuses stay small so Normal does not stop being gentle. */
+const BUILD_TREES=[
+  {id:'SPELLBLADE',n:'Spellblade',col:'#6fb7ff'},
+  {id:'RANGER',n:'Ranger',col:'#7dffa0'},
+  {id:'WARDEN',n:'Warden',col:'#e0b44a'}
+];
+const BUILD_NODES=[
+  {id:'sb1',g:'SPELLBLADE',name:'Keen Edge',max:1,cost:1,lvl:()=>1,col:'#6fb7ff',eff:'Shots +3%'},
+  {id:'sb2',g:'SPELLBLADE',name:'Riposte',max:1,cost:1,lvl:()=>1,col:'#6fb7ff',eff:'Sword and lance +4%'},
+  {id:'sb3',g:'SPELLBLADE',name:'Arc Steel',max:1,cost:1,lvl:()=>2,col:'#6fb7ff',eff:'Shots +3%'},
+  {id:'sb4',g:'SPELLBLADE',name:'Guard Break',max:1,cost:1,lvl:()=>2,col:'#6fb7ff',eff:'Melee cards +3%'},
+  {id:'sb5',g:'SPELLBLADE',name:'Tempo',max:1,cost:1,lvl:()=>3,col:'#6fb7ff',eff:'Shots +2%'},
+  {id:'sb6',g:'SPELLBLADE',name:'Twin Cut',max:1,cost:1,lvl:()=>3,col:'#6fb7ff',eff:'Melee cards +3%'},
+  {id:'sb7',g:'SPELLBLADE',name:'Spell Edge',max:1,cost:1,lvl:()=>4,col:'#6fb7ff',eff:'Shots and melee +2%'},
+  {id:'sb8',g:'SPELLBLADE',name:'Measure',max:1,cost:1,lvl:()=>4,col:'#6fb7ff',eff:'Shots +2%'},
+  {id:'sb9',g:'SPELLBLADE',name:'Spellstorm',max:1,cost:2,lvl:()=>5,col:'#ffe14d',eff:'Capstone: shots and melee +8%',cap:1},
+  {id:'rg1',g:'RANGER',name:'Quiet Aim',max:1,cost:1,lvl:()=>1,col:'#7dffa0',eff:'Shots +3%'},
+  {id:'rg2',g:'RANGER',name:'Far Cast',max:1,cost:1,lvl:()=>1,col:'#7dffa0',eff:'Ranged cards +4%'},
+  {id:'rg3',g:'RANGER',name:'Mark',max:1,cost:1,lvl:()=>2,col:'#7dffa0',eff:'Ranged cards +3%'},
+  {id:'rg4',g:'RANGER',name:'Volley',max:1,cost:1,lvl:()=>2,col:'#7dffa0',eff:'Shots +3%'},
+  {id:'rg5',g:'RANGER',name:'Trail',max:1,cost:1,lvl:()=>3,col:'#7dffa0',eff:'Ranged cards +2%'},
+  {id:'rg6',g:'RANGER',name:'Keen Shaft',max:1,cost:1,lvl:()=>3,col:'#7dffa0',eff:'Shots +2%'},
+  {id:'rg7',g:'RANGER',name:'Horizon',max:1,cost:1,lvl:()=>4,col:'#7dffa0',eff:'Ranged cards +3%'},
+  {id:'rg8',g:'RANGER',name:'Stillness',max:1,cost:1,lvl:()=>4,col:'#7dffa0',eff:'Shots and ranged cards +2%'},
+  {id:'rg9',g:'RANGER',name:'Deadeye',max:1,cost:2,lvl:()=>5,col:'#ffe14d',eff:'Capstone: shots and ranged cards +8%',cap:1},
+  {id:'wd1',g:'WARDEN',name:'Oath',max:1,cost:1,lvl:()=>1,col:'#e0b44a',eff:'Ward, heal, and shield +4%'},
+  {id:'wd2',g:'WARDEN',name:'Bulwark',max:1,cost:1,lvl:()=>1,col:'#e0b44a',eff:'+4 max HP'},
+  {id:'wd3',g:'WARDEN',name:'Mend',max:1,cost:1,lvl:()=>2,col:'#e0b44a',eff:'Heals +3%'},
+  {id:'wd4',g:'WARDEN',name:'Stand',max:1,cost:1,lvl:()=>2,col:'#e0b44a',eff:'Ward cards +3%'},
+  {id:'wd5',g:'WARDEN',name:'Aegis',max:1,cost:1,lvl:()=>3,col:'#e0b44a',eff:'+4 max HP'},
+  {id:'wd6',g:'WARDEN',name:'Rally',max:1,cost:1,lvl:()=>3,col:'#e0b44a',eff:'Heals +2%'},
+  {id:'wd7',g:'WARDEN',name:'Shelter',max:1,cost:1,lvl:()=>4,col:'#e0b44a',eff:'Ward cards +2%'},
+  {id:'wd8',g:'WARDEN',name:'Vow',max:1,cost:1,lvl:()=>4,col:'#e0b44a',eff:'Ward, heal, and shield +2%'},
+  {id:'wd9',g:'WARDEN',name:'Oakwall',max:1,cost:2,lvl:()=>5,col:'#ffe14d',eff:'Capstone: ward cards +8% and +8 HP',cap:1}
+];
+BUILD_NODES.forEach(n=>{SKILL_NODES.push(n);SKILL[n.id]=n;if(SK.r[n.id]==null)SK.r[n.id]=0;});
+const _reset78=resetSkills;
+resetSkills=function(){_reset78();BUILD_NODES.forEach(n=>{SK.r[n.id]=0;});};
+function buildOpen(){return !(typeof paceOn==='function'&&paceOn())||(typeof paceHas==='function'&&paceHas('shop'));}
+function buildRanks(g){return BUILD_NODES.filter(n=>n.g===g&&!n.cap).reduce((t,n)=>t+(SK.r[n.id]|0),0);}
+function buildTag(id){
+  if(!id)return 'shot';
+  if(id==='sword'||id==='lance')return 'melee';
+  if(id==='heal'||id==='ward'||id==='shield'||id==='reflect')return 'ward';
+  return 'ranged';
+}
+function buildFrac(tag){
+  let p=0;
+  const r=id=>SK.r[id]|0;
+  if(tag==='shot')p+=.03*r('sb1')+.03*r('sb3')+.02*r('sb5')+.02*r('sb7')+.02*r('sb8')+.03*r('rg1')+.03*r('rg4')+.02*r('rg6')+.02*r('rg8')+.08*r('sb9')+.08*r('rg9');
+  if(tag==='melee')p+=.04*r('sb2')+.03*r('sb4')+.03*r('sb6')+.02*r('sb7')+.08*r('sb9');
+  if(tag==='ranged')p+=.04*r('rg2')+.03*r('rg3')+.02*r('rg5')+.03*r('rg7')+.02*r('rg8')+.08*r('rg9');
+  if(tag==='ward')p+=.04*r('wd1')+.03*r('wd3')+.03*r('wd4')+.02*r('wd6')+.02*r('wd7')+.02*r('wd8')+.08*r('wd9');
+  return p;
+}
+const _can78=skillCan;
+skillCan=function(n){
+  if(n&&BUILD_TREES.some(t=>t.id===n.g)){
+    if(!buildOpen())return 'After the forge';
+    if(n.cap&&buildRanks(n.g)<4)return 'Learn 4 in this tree';
+  }
+  return _can78(n);
+};
+const _ss78=skillStats;
+skillStats=function(){const s=_ss78();s.hp+=(SK.r.wd2|0)*4+(SK.r.wd5|0)*4+((SK.r.wd9|0)?8:0);return s;};
+function buildRespec(){
+  if(!buildOpen())return false;
+  resetSkills();
+  try{P.hp=Math.min(P.hp,maxHp());toast('Your points are yours again.',2.2,'#ffe9a0');sfx('select');saveGame('respec');}catch(e){}
+  return true;
+}
+if(typeof UI_MODES!=='undefined'&&UI_MODES.skills){
+  const _rows78=UI_MODES.skills.rows;
+  UI_MODES.skills.rows=function(){
+    const r=_rows78.apply(this,arguments);
+    if(!buildOpen()){r.push({t:'head',s:'SPELLBLADE, RANGER, AND WARDEN OPEN AFTER THE FORGE'});return r;}
+    BUILD_TREES.forEach(t=>{
+      r.push({t:'head',s:t.n.toUpperCase()+'   ('+buildRanks(t.id)+' learned)'});
+      BUILD_NODES.filter(n=>n.g===t.id).forEach(n=>r.push(skillRow(n)));
+    });
+    r.push({sel:true,h:44,act(){if(buildRespec())uiMsg('Points returned',false);},tap(){this.act();},
+      draw(x0,y,W,h,isSel,si){ctx.fillStyle='#f6f0e2';ctx.fillRect(x0,y,W,h);uiButton(x0+8,y+6,160,32,'FREE RESPEC',true,()=>{UI.sel=si;buildRespec();},{tag:'buildrespec',clip:true,size:11,sel:si});
+        txt('At the house, or ask Elder Orin.',x0+180,y+26,{size:10,col:'#5a4638',lw:2});}});
+    return r;
+  };
+}
+if(typeof kindredReplies==='function'){
+  const _kr78=kindredReplies;
+  kindredReplies=function(npc){
+    const out=_kr78(npc)||[];
+    if(npc&&npc.name==='Elder Orin'&&buildOpen())out.push({id:'respec',t:'Teach me my points again',heart:0,go(){buildRespec();return 'Take them back, hero. The forge remembers.';}});
+    return out.slice(0,4);
+  };
+}
+function drawBuildRespec(){
+  if(!buildOpen()||typeof paceInHouse!=='function'||!paceInHouse()||state!=='play'||(typeof HOMEDECOR!=='undefined'&&HOMEDECOR.on))return;
+  const x=Math.round(VW/2-210),y=Math.round(VH-(typeof SB==='number'?SB:0)-58);
+  BUILD.btn={x,y,w:100,h:42};
+  ctx.fillStyle='#80563a';ctx.fillRect(x,y,100,42);ctx.fillStyle='#f6f0e2';ctx.fillRect(x+2,y+2,96,38);
+  txt('RESPEC',x+50,y+26,{size:12,align:'center',col:'#3a2210',lw:2,out:'#f6f0e2'});
+}
+const BUILD={btn:null};
+const _rn78=render;
+render=function(){const r=_rn78.apply(this,arguments);try{drawBuildRespec();}catch(e){}return r;};
+const _tap78=tapUI;
+tapUI=function(p){if(BUILD.btn&&inRect(p,BUILD.btn)){buildRespec();return true;}return _tap78.apply(this,arguments);};
 
 </script></body></html>
